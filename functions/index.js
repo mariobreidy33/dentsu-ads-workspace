@@ -1,5 +1,5 @@
 /* =====================================================================
-   OPTIONAL — Daily digest email (Blaze plan only).
+   OPTIONAL - Daily digest email (Blaze plan only).
    Every working morning at 08:00 Dubai time, each person gets ONE email that
    covers every client account they're on: overdue steps, steps due today,
    blocked steps and briefs they own that are at risk of missing go-live.
@@ -37,7 +37,7 @@ const fmt = k => parseKey(k).toLocaleDateString('en-GB', { weekday: 'short', day
 
 exports.dailyDigest = onSchedule({ schedule: '0 8 * * *', timeZone: TZ, region: process.env.FUNCTIONS_REGION || 'europe-west1', retryCount: 0 }, async () => {
   const today = todayKey();
-  if (!isWorkday(today)) return logger.info('Weekend — no digest');
+  if (!isWorkday(today)) return logger.info('Weekend - no digest');
   // don't send twice on the same day (e.g. a manual re-run)
   const marker = db.doc(`digests/${today}`);
   if ((await marker.get()).exists) return logger.info('Digest already sent today');
@@ -56,7 +56,7 @@ exports.dailyDigest = onSchedule({ schedule: '0 8 * * *', timeZone: TZ, region: 
     const byBrief = {}; (await base.collection('tasks').where('briefId', '!=', null).get()).forEach(d => { const t = d.data(); if (t.briefId && briefs[t.briefId] && !t.archived) (byBrief[t.briefId] = byBrief[t.briefId] || []).push({ ...t, id: d.id }); });
     Object.values(byBrief).forEach(list => list.sort((a, b) => (a.order || 0) - (b.order || 0)));
     const steps = Object.values(byBrief).flat().filter(t => t.status !== 'Done');
-    // a step is workable once the one before it is done (or it has started) — the same rule as the app
+    // a step is workable once the one before it is done (or it has started) - the same rule as the app
     const ready = t => { if (t.startedAt) return true; const list = byBrief[t.briefId] || []; const i = list.findIndex(x => x.id === t.id); return i <= 0 || list[i - 1].status === 'Done'; };
     // go-live risk: remaining SLA days up to the launch step, projected from today
     const risk = b => {
@@ -93,8 +93,8 @@ exports.dailyDigest = onSchedule({ schedule: '0 8 * * *', timeZone: TZ, region: 
         ${sec(`Blocked (${it.blocked.length})`, it.blocked.map(t => row(it, t, t.blockedReason || 'blocked')))}
         ${sec(`Your briefs at risk (${it.atRisk.length})`, it.atRisk.map(({ b, r }) => { const l = link(it.account, b.id); return `<tr><td style="${td}">${esc(b.ref)} · ${esc(b.title)}</td><td style="${td}">${esc(r)}</td><td style="${td}">${l ? `<a href="${esc(l)}" style="color:#4F59C4">Open</a>` : ''}</td></tr>`; }))}`).join('')}
       </div>`;
-    const text = [`${APP} — daily digest ${today}`, ...box.items.flatMap(it => [`\n${it.account.name}`, ...it.late.map(t => `OVERDUE: ${t.title} (${it.briefs[t.briefId].ref}) due ${t.due}`), ...it.dueToday.map(t => `TODAY: ${t.title} (${it.briefs[t.briefId].ref})`),
-      ...it.blocked.map(t => `BLOCKED: ${t.title} — ${t.blockedReason || ''}`), ...it.atRisk.map(({ b, r }) => `AT RISK: ${b.ref} ${b.title} — ${r}`)])].join('\n');
+    const text = [`${APP} - daily digest ${today}`, ...box.items.flatMap(it => [`\n${it.account.name}`, ...it.late.map(t => `OVERDUE: ${t.title} (${it.briefs[t.briefId].ref}) due ${t.due}`), ...it.dueToday.map(t => `TODAY: ${t.title} (${it.briefs[t.briefId].ref})`),
+      ...it.blocked.map(t => `BLOCKED: ${t.title} - ${t.blockedReason || ''}`), ...it.atRisk.map(({ b, r }) => `AT RISK: ${b.ref} ${b.title} - ${r}`)])].join('\n');
     const subject = `[${APP}] ${[late && `${late} overdue`, dueToday && `${dueToday} due today`, blocked && `${blocked} blocked`, atRisk && `${atRisk} brief${atRisk === 1 ? '' : 's'} at risk`].filter(Boolean).join(' · ')}${box.items.length > 1 ? ` · ${box.items.length} accounts` : ''}`;
     batch.set(db.collection('mail').doc(), { to: [email], message: { subject, html, text }, createdAt: FieldValue.serverTimestamp(), createdBy: 'daily-digest' });
     sent++;

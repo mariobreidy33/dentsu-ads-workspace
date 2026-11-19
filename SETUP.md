@@ -1,17 +1,17 @@
-# Setup — GitHub + Firebase (dentsu Ads Workspace)
+# Setup - GitHub + Firebase (dentsu Ads Workspace)
 
-About 45 minutes the first time. Steps 1–9 get you a working demo on the free plan; steps 10–11 (email) need the pay-as-you-go plan.
+About 45 minutes the first time. Steps 1-9 get you a working demo on the free plan; steps 10-11 (email) need the pay-as-you-go plan.
 
 **You need:** a Google account (for Firebase), a GitHub account, and [Node.js 20+](https://nodejs.org) on your computer for the command-line steps.
 
-> **Just want to look first?** Open `public/index.html` through any local web server (for example `npx serve public`) with `config.js` left empty. It runs in *local mode* — data stays in that browser, nothing is shared, emails go to an outbox you can view in Settings. A sample business with several client accounts loads by itself.
+> **Just want to look first?** Open `public/index.html` through any local web server (for example `npx serve public`) with `config.js` left empty. It runs in *local mode* - data stays in that browser, nothing is shared, emails go to an outbox you can view in Settings. A sample business with several client accounts loads by itself.
 
 ---
 
 ## 1. Create the Firebase project
 
 1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Create a project** → name it e.g. `dentsu-ads-workspace`. Google Analytics: off.
-2. Use a **new** project — don't reuse your personal Doable one (`todoist-64a22`). Client data stays separate.
+2. Use a **new** project - don't reuse your personal Doable one (`todoist-64a22`). Client data stays separate.
 
 ## 2. Turn on sign-in
 
@@ -38,7 +38,7 @@ firebase: {
   messagingSenderId: "…",
   appId: "1:…:web:…"
 },
-ownerEmail: "you@dentsu.com",   // lowercase — you'll be the business admin
+ownerEmail: "you@dentsu.com",   // lowercase - you'll be the business admin
 ```
 
 Also put the project ID in `.firebaserc` (replace `YOUR-FIREBASE-PROJECT-ID`).
@@ -98,16 +98,18 @@ git add .github && git commit -m "Deploy from GitHub" && git push
 
 From now on: edit → commit → push → live in about a minute. Pull requests get their own preview link.
 
-> **Option B — GitHub Pages (like the current Doable):** repo **Settings → Pages → Source: GitHub Actions**, then run *Deploy to GitHub Pages* from the **Actions** tab. Add `<your-user>.github.io` under **Authentication → Settings → Authorized domains**. Firebase Hosting is still recommended: it sends the security headers in `firebase.json`.
+> **Option B - GitHub Pages (like the current Doable):** repo **Settings → Pages → Source: GitHub Actions**, then run *Deploy to GitHub Pages* from the **Actions** tab. Add `<your-user>.github.io` under **Authentication → Settings → Authorized domains**. Firebase Hosting is still recommended: it sends the security headers in `firebase.json`.
 
 ## 9. First sign-in, people, teams and accounts
 
 1. Open the site → **Create an account** with the `ownerEmail` → click the verification link → sign in. You're the owner, so you're a business admin.
-2. **The sample business is already in.** Because `sampleData: true` in `config.js`, your first sign-in loads 4 example accounts — General Motors (Chevrolet, GMC, Cadillac), Siddiqi, Ferrero and Agency internal — with 3 teams and 10 sample people with different access. Each account has briefs with workflow history, tasks, campaigns and notes. You take the Account Lead seat on the GM team. To load it again later with your own teammates' names on the GM team, use **Business settings → Accounts → Load sample business**. Sample people use `@example.com` addresses and never get emails.
+2. **The sample business is already in.** Because `sampleData: true` in `config.js`, your first sign-in loads 4 example accounts - General Motors (Chevrolet, GMC, Cadillac), Siddiqi, Ferrero and Agency internal - with 3 teams and 10 sample people with different access. Each account has briefs with workflow history, tasks, campaigns and notes. You take the Account Lead seat on the GM team. To load it again later with your own teammates' names on the GM team, use **Business settings → Accounts → Load sample business**. Sample people use `@example.com` addresses and never get emails.
 3. **Business settings → People:** add each teammate with **name, work email, job role** (Account Lead, Media Planner, Paid Social, Paid Search, Creative, Analytics…) and **business role** (*Member*, or *Admin* for people who manage accounts and access). Only people on this list can sign in. They sign up on the site with that email, verify it, and they're in.
 4. **Business settings → Teams:** create teams (e.g. *GM team*, *Retail & FMCG team*, *Leadership*), add people, and give each team its accounts as Admin, Editor or Viewer.
 5. **Create the real client accounts:** top-left switcher → **Create account** (or All accounts → Create account). Give it a name, sector and logo, choose which teams get in, and pick the tools it needs. You can fine-tune later in the account's **Access** (teams and individual people) and **Account settings → Tools**.
 6. Inside an account, **Brands** holds the client's brands, markets or dealers. Paste them from Excel with the columns *Brand name, Group, Sector, Markets, Contact name, Contact email*. People with access join the account's team list the first time they open it, so workflow steps can be assigned to them.
+
+To share running the platform with upper management, add them under **Business settings → People** with the business role **Owner**. Only owners can add or remove other owners.
 
 Before real use: **Business settings → Accounts → Remove sample business**, and set `sampleData: false`.
 
@@ -117,7 +119,7 @@ That's a working demo. Everything below is optional.
 
 ## 10. Email notifications (needs the Blaze plan)
 
-In-app notifications (the bell) work on the free plan. Emails need the official **Trigger Email from Firestore** extension, which needs the pay-as-you-go **Blaze** plan. At this team's volume the cost is typically a few dollars a month — set a budget alert when upgrading.
+In-app notifications (the bell) work on the free plan. Emails need the official **Trigger Email from Firestore** extension, which needs the pay-as-you-go **Blaze** plan. At this team's volume the cost is typically a few dollars a month - set a budget alert when upgrading.
 
 1. **Upgrade** (bottom-left of the console) → Blaze → set a budget alert (e.g. USD 10).
 2. **Build → Extensions → Trigger Email from Firestore → Install**, then:
@@ -173,7 +175,7 @@ firebase deploy --only functions
 | "The database refused access" | Rules not published, or `OWNER_EMAIL` in the rules doesn't match `ownerEmail` in `config.js` |
 | A teammate sees "this email isn't on the platform yet" | Add their exact email under Business settings → People; they must verify their email |
 | A teammate signs in but sees no accounts | Add them to a team that has access, or give them access in the account's Access window |
-| "You have view-only access" | They're a Viewer on that account — change it in the account's Access window |
+| "You have view-only access" | They're a Viewer on that account - change it in the account's Access window |
 | "This needs the updated security rules" banner | Publish the latest `firestore.rules` |
-| Notifications appear in the bell but no email | Extension not installed, wrong SMTP URI, or the recipient isn't on the access list — check the `delivery` field in `mail` |
+| Notifications appear in the bell but no email | Extension not installed, wrong SMTP URI, or the recipient isn't on the access list - check the `delivery` field in `mail` |
 | Sign-in errors on GitHub Pages or a custom domain | Add the domain under Authentication → Settings → Authorized domains |

@@ -1,6 +1,6 @@
 rules_version = '2';
 // =====================================================================
-// Security rules for dentsu Ads Workspace — one platform, many client accounts.
+// Security rules for dentsu Ads Workspace - one platform, many client accounts.
 // Paste into Firebase console → Firestore Database → Rules → Publish,
 // or deploy with:  firebase deploy --only firestore:rules
 //
@@ -8,7 +8,9 @@ rules_version = '2';
 // (lowercase, the same value as ownerEmail in public/config.js).
 //
 // Who can do what
-//   members/{email}     people who can sign in. bizRole 'admin' = business admin.
+//   members/{email}     people who can sign in. bizRole 'owner' = owner, 'admin' = business admin.
+//                       The first owner is OWNER_EMAIL; owners can add more owners. Admins can't
+//                       create, change or remove owners.
 //   teams/{id}          groups of people, used to give access to accounts.
 //   workspaces/{id}     one document per client account: name, logo, tools,
 //                       access, and roles = { email: 'admin' | 'editor' | 'viewer' }.
@@ -24,10 +26,11 @@ service cloud.firestore {
 
     function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
     function me() { return request.auth.token.email.lower(); }
-    function isOwner() { return signedIn() && me() == ownerEmail(); }
     function memberDoc() { return /databases/$(database)/documents/members/$(me()); }
-    function isMember() { return signedIn() && (isOwner() || exists(memberDoc())); }
-    function isBizAdmin() { return signedIn() && (isOwner() || (exists(memberDoc()) && get(memberDoc()).data.get('bizRole', 'member') == 'admin')); }
+    function myBizRole() { return exists(memberDoc()) ? get(memberDoc()).data.get('bizRole', 'member') : ''; }
+    function isOwner() { return signedIn() && (me() == ownerEmail() || myBizRole() == 'owner'); }
+    function isMember() { return signedIn() && (me() == ownerEmail() || exists(memberDoc())); }
+    function isBizAdmin() { return signedIn() && (isOwner() || myBizRole() == 'admin'); }
     function isMemberEmail(e) { return e == ownerEmail() || exists(/databases/$(database)/documents/members/$(e)); }
 
     // the account document and the caller's role in it
@@ -41,9 +44,14 @@ service cloud.firestore {
     match /members/{em} {
       allow get: if isMember() || (signedIn() && em == me());
       allow list: if isMember();
-      allow create, update: if isBizAdmin() && em == em.lower() && em.matches('^[^@\\s]+@[^@\\s]+$')
-        && request.resource.data.get('bizRole', 'member') in ['admin', 'member'];
-      allow delete: if isBizAdmin() && em != me();
+      // only owners can make someone an owner, or touch an owner's entry
+      allow create: if isBizAdmin() && em == em.lower() && em.matches('^[^@\\s]+@[^@\\s]+$')
+        && request.resource.data.get('bizRole', 'member') in ['owner', 'admin', 'member']
+        && (isOwner() || request.resource.data.get('bizRole', 'member') != 'owner');
+      allow update: if isBizAdmin()
+        && request.resource.data.get('bizRole', 'member') in ['owner', 'admin', 'member']
+        && (isOwner() || (request.resource.data.get('bizRole', 'member') != 'owner' && resource.data.get('bizRole', 'member') != 'owner'));
+      allow delete: if isBizAdmin() && em != me() && (isOwner() || resource.data.get('bizRole', 'member') != 'owner');
     }
 
     // ---------- Teams ----------

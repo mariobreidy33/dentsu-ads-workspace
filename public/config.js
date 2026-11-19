@@ -1,6 +1,6 @@
 /* =====================================================================
-   CONFIG — settings for this deployment (see SETUP.md).
-   Leave firebase.apiKey empty to run in LOCAL MODE (data saved in this browser only) —
+   CONFIG - settings for this deployment (see SETUP.md).
+   Leave firebase.apiKey empty to run in LOCAL MODE (data saved in this browser only) -
    handy for a quick look, but nothing is shared and no emails are sent.
    These values are not secrets (the security rules protect the data), but restrict the
    API key to your site in Google Cloud console (SETUP.md, step 12).

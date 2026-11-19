@@ -17,14 +17,14 @@ const FB_VERSIONS = ['12.19.0', '10.12.2'];
 const FB_URL = `https://www.gstatic.com/firebasejs/${FB_VERSIONS[0]}/`;
 const COLS = ['projects', 'sections', 'tasks', 'events', 'meta', 'members', 'accounts', 'campaigns', 'trash', 'notes', 'briefs', 'activity', 'notifs'];
 // Collections added after the first release. If the security rules haven't been updated yet,
-// the app still runs — only the feature that needs them shows a notice.
+// the app still runs - only the feature that needs them shows a notice.
 const OPTIONAL_COLS = ['accounts', 'campaigns', 'trash', 'notes', 'briefs', 'activity', 'notifs'];
 const TRASH_DAYS = 30;   // Recently deleted empties itself after this many days
 const COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'grey'];
 const MARKETS = ['KSA', 'UAE', 'QAT', 'KWT', 'BAH', 'OMN', 'IRQ', 'EGY'];
 const PLATFORMS = ['Search', 'PMax', 'YouTube', 'Meta', 'Snap', 'TikTok', 'LinkedIn', 'X'];
 const C_STATUS = ['Live', 'Pending', 'Ended'];
-/* Objective library — what each platform can actually be bought on. Canonical names only;
+/* Objective library - what each platform can actually be bought on. Canonical names only;
    the campaign card abbreviates for space but never changes what's stored. */
 const OBJECTIVES = {
   Meta: ['Awareness', 'Reach', 'Impressions', 'Video Views', 'Engagement', 'Profile Visits', 'Followers / Page Growth',
@@ -123,7 +123,7 @@ function deadlineInfo(k) {
   return { label: fmtDay(k), cls: '' };
 }
 function longDay(k) { const d = parseKey(k); return `${WDS[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; }
-// "17 Sep 2026, 3:24 PM" — used for the created date inside task details.
+// "17 Sep 2026, 3:24 PM" - used for the created date inside task details.
 function fmtDateTime(ts) {
   if (!ts) return '';
   const d = new Date(ts);
@@ -310,15 +310,15 @@ const needsAttention = c => attentionReasons(c).length > 0;
 /* ---------- platform objectives ---------- */
 // Objectives are stored per platform: { Meta: ['Lead Generation', 'Reach'], Search: ['Conversion'] }.
 // Objectives of a platform that's been deselected stay in the record, but are never shown or
-// filtered on — so turning a platform back on brings its objectives back with it.
+// filtered on - so turning a platform back on brings its objectives back with it.
 const objOf = (c, p) => ((c.objectives || {})[p] || []);
 const liveObjectives = c => (c.platforms || []).flatMap(p => objOf(c, p));
 const hasObjective = (c, obj, platform) => (platform && platform !== 'All' ? [platform] : (c.platforms || []))
   .some(p => objOf(c, p).some(o => o === obj || (obj === 'Other' && o.startsWith(CUSTOM_PREFIX))));
 const attentionCount = () => Object.values(S.data.campaigns).filter(c => !c.archived && needsAttention(c)).length;
 /* ---------- pauses ---------- */
-// c.pauses: what is paused right now — [{ platform, objective|null, since:'YYYY-MM-DD', by }]
-// c.pauseLog: the history — [{ platform, objective|null, action:'paused'|'resumed', date, at, by }]
+// c.pauses: what is paused right now - [{ platform, objective|null, since:'YYYY-MM-DD', by }]
+// c.pauseLog: the history - [{ platform, objective|null, action:'paused'|'resumed', date, at, by }]
 // Stored as arrays (not maps) because objective names contain characters like "/" and ".".
 const pauseOf = (c, p, o = null) => (c.pauses || []).find(x => x.platform === p && (x.objective || null) === (o || null));
 const platformPaused = (c, p) => !!pauseOf(c, p);
@@ -445,7 +445,7 @@ function scheduleRender() {
 }
 
 class LocalStore {
-  // ns: the account id — each account keeps its own copy in this browser
+  // ns: the account id - each account keeps its own copy in this browser
   constructor(ns) {
     this.key = ns ? 'tb:data:v1:' + ns : 'tb:data:v1';
     const raw = lsGet(this.key);
@@ -543,8 +543,8 @@ function audit(action, detail = '') { try { if (auditFn) auditFn(String(action).
 function writeErr(e) {
   console.error(e);
   if (e && e.code === 'permission-denied') audit('write_denied', (e.message || '').slice(0, 300));
-  if (e && e.code === 'permission-denied' && S.rulesMissing) { toast('This needs the updated security rules — publish firestore.rules (SETUP step 5).'); return; }
-  toast(e && e.code === 'permission-denied' ? "You don't have permission to change this." : 'Could not save — check your connection.');
+  if (e && e.code === 'permission-denied' && S.rulesMissing) { toast('This needs the updated security rules - publish firestore.rules (SETUP step 5).'); return; }
+  toast(e && e.code === 'permission-denied' ? "You don't have permission to change this." : 'Could not save - check your connection.');
 }
 
 /* ===================== UI primitives ===================== */
@@ -697,7 +697,7 @@ function render(opts = {}) {
   // Anything that arrives mid-drag is painted the moment the drag finishes.
   if (S.drag) {
     if (Date.now() - (S.dragAt || 0) < 4000) { S.renderPending = true; return; }
-    resetDrag();   // stale drag state (a dragend we never heard about) — clean up and carry on
+    resetDrag();   // stale drag state (a dragend we never heard about) - clean up and carry on
   }
   // don't blow away a half-typed inline form: capture & restore
   const keep = {}; let focusId = null, selStart = null;
@@ -718,7 +718,7 @@ function render(opts = {}) {
   nbBeforeRender(r.view === 'notes' ? r.id : null);
   const routeChanged = S.lastRouteKey !== (r.view + (r.id || ''));
   S.lastRouteKey = r.view + (r.id || '');
-  // View-only changes (filters, search, sort, account tabs) repaint the main pane only —
+  // View-only changes (filters, search, sort, account tabs) repaint the main pane only -
   // the sidebar and its counts don't change, so there's no reason to rebuild them.
   const main = $('.main');
   document.body.classList.toggle('view-only', !!S.acc && S.accRole === 'viewer');
@@ -748,8 +748,8 @@ function render(opts = {}) {
   document.body.classList.remove('on-home');
   guideFab();
 
-  document.title = (['project', 'client'].includes(r.view) ? S.data.projects[r.id]?.name + ' – ' : r.view === 'brief' ? `${S.data.briefs[r.id]?.ref || ''} ${S.data.briefs[r.id]?.title || 'Brief'} – ` : { today: 'Today – ', upcoming: 'Upcoming – ', campaigns: 'Campaign Tracker – ', archive: 'Archive – ', dashboard: 'Dashboard – ', notes: (r.id && S.data.notes[r.id] ? (S.data.notes[r.id].title || 'Untitled') + ' – ' : 'Notebook – '), trash: 'Recently deleted – ',
-    clients: 'Brands – ', briefs: 'Briefs – ', mywork: 'My work – ', tasks: 'All tasks – ', alerts: 'Alerts – ', activity: 'Activity log – ', accounts: 'All accounts – ', business: 'Business settings – ', guide: 'Guide – ' }[r.view] || '') + (S.acc && !['accounts', 'business', 'guide'].includes(r.view) ? S.acc.name + ' – ' : '') + 'dentsu ' + (CFG.appName || 'Ads Workspace');
+  document.title = (['project', 'client'].includes(r.view) ? S.data.projects[r.id]?.name + ' - ' : r.view === 'brief' ? `${S.data.briefs[r.id]?.ref || ''} ${S.data.briefs[r.id]?.title || 'Brief'} - ` : { today: 'Today - ', upcoming: 'Upcoming - ', campaigns: 'Campaign Tracker - ', archive: 'Archive - ', dashboard: 'Dashboard - ', notes: (r.id && S.data.notes[r.id] ? (S.data.notes[r.id].title || 'Untitled') + ' - ' : 'Notebook - '), trash: 'Recently deleted - ',
+    clients: 'Brands - ', briefs: 'Briefs - ', mywork: 'My work - ', tasks: 'All tasks - ', alerts: 'Alerts - ', activity: 'Activity log - ', accounts: 'All accounts - ', business: 'Business settings - ', guide: 'Guide - ' }[r.view] || '') + (S.acc && !['accounts', 'business', 'guide'].includes(r.view) ? S.acc.name + ' - ' : '') + 'dentsu ' + (CFG.appName || 'Ads Workspace');
 }
 
 
@@ -773,7 +773,7 @@ function renderSidebar(r) {
   const nav = (view, hash, icon, label, cnt = '', extra = '') => `<button class="nav-item ${r.view === view ? 'active' : ''}" data-go="${hash}">${ico(icon)}<span class="lbl">${label}</span>${cnt}${extra}</button>`;
   const cnt = n => `<span class="cnt">${n || ''}</span>`;
   const top = `<div class="side-top">
-      <button class="side-logo" data-go="#/accounts" title="All accounts">${logoMark()}</button>
+      <button class="side-logo" data-go="#/home" title="Home">${logoMark()}</button>
       <span class="spacer"></span>
       ${S.acc ? `<button class="icon-btn bell-btn" data-action="notif-open" title="Notifications">${ico('bell')}${(() => { const n = unreadNotifs().length; return n ? `<span class="bell-n">${n > 99 ? '99+' : n}</span>` : ''; })()}</button>` : ''}
       ${S.acc ? `<button class="icon-btn" data-action="open-settings" title="Account settings">${ico('gear')}</button>` : ''}
@@ -786,7 +786,7 @@ function renderSidebar(r) {
       ${isBizAdmin() ? nav('business', '#/business', 'people', 'Business settings') : ''}
     </div>`;
   const foot = `<div class="side-foot">${S.mode === 'local'
-      ? `<div class="mode-note"><b>Local mode</b> — saved in this browser only${userEmail() !== S.biz.owner ? ` · viewing as <b>${esc(u.name)}</b>` : ''}. Add your Firebase config (see SETUP) to share it with your team.</div>`
+      ? `<div class="mode-note"><b>Local mode</b> - saved in this browser only${userEmail() !== S.biz.owner ? ` · viewing as <b>${esc(u.name)}</b>` : ''}. Add your Firebase config (see SETUP) to share it with your team.</div>`
       : `<div class="mode-note">Synced · ${esc(S.user?.email || '')}</div>`}</div>`;
   if (!S.acc) return `<aside class="sidebar">${top}${business}<div class="side-group side-help">${nav('guide', '#/guide', 'help', 'Guide &amp; help')}</div>${foot}</aside>`;
   const today = todayKey();
@@ -861,7 +861,7 @@ function renderMain(r) {
 
 
 /* =====================================================================
-   DASHBOARD — to-do lists, campaigns and team, for a chosen period.
+   DASHBOARD - to-do lists, campaigns and team, for a chosen period.
    Everything is computed from the data already in the app; nothing extra is stored.
    ===================================================================== */
 const DB_PERIODS = [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['month', 'This month'],
@@ -908,7 +908,7 @@ function dbBuckets(r) {
 function taskMetrics(r, pid) {
   const today = todayKey();
   const all = Object.values(S.data.tasks).filter(t => pid === 'all' || t.projectId === pid);
-  const completions = [];   // { t, at } — recurring tasks count every time they're ticked off
+  const completions = [];   // { t, at } - recurring tasks count every time they're ticked off
   all.forEach(t => {
     if (t.recur) (t.doneLog && t.doneLog.length ? t.doneLog : t.lastDoneAt ? [t.lastDoneAt] : []).forEach(at => completions.push({ t, at, k: tsKey(at) }));
     if (t.done && t.completedAt) completions.push({ t, at: t.completedAt, k: tsKey(t.completedAt) });
@@ -917,7 +917,7 @@ function taskMetrics(r, pid) {
   const createdIn = rr => all.filter(t => t.createdAt && inRange(tsKey(t.createdAt), rr));
   const prev = dbPrev(r);
   const done = doneIn(r), created = createdIn(r);
-  // completion rate: one-off tasks that fell due in the period (up to today) — how many got done
+  // completion rate: one-off tasks that fell due in the period (up to today) - how many got done
   const dueEnd = r.to < today ? r.to : today;
   const due = all.filter(t => !t.recur && t.due && t.due >= r.from && t.due <= dueEnd);
   const dueDone = due.filter(t => t.done);
@@ -1030,7 +1030,7 @@ function teamMetrics(r) {
 // A stat tile: label, value, optional context line and a delta vs the previous period.
 function dbTile(label, value, sub = '', delta = null, tip = '') {
   let d = '';
-  if (delta && delta.prev != null && value !== '—') {
+  if (delta && delta.prev != null && value !== '-') {
     const diff = delta.cur - delta.prev;
     const good = delta.upGood === false ? diff < 0 : diff > 0;
     d = diff === 0 ? `<span class="db-delta flat">no change</span>`
@@ -1040,7 +1040,7 @@ function dbTile(label, value, sub = '', delta = null, tip = '') {
   return `<div class="db-tile" ${tip ? `data-tip="${esc(tip)}" tabindex="0"` : ''}><div class="db-l">${esc(label)}</div><div class="db-v">${value}</div>
     ${sub ? `<div class="db-s">${sub}</div>` : ''}${d ? `<div class="db-d">${d}</div>` : ''}</div>`;
 }
-const rateVal = (r) => (r == null ? '—' : `${r}<small>%</small>`);
+const rateVal = (r) => (r == null ? '-' : `${r}<small>%</small>`);
 function niceMax(v) {
   if (v <= 4) return 4;
   const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
@@ -1103,13 +1103,13 @@ function renderDashboard() {
         ${dbTile('Completion rate', rateVal(T.rate), T.due ? `${T.dueDone} of ${T.due} due tasks done` : 'no one-off tasks fell due', null, 'Of the one-off tasks that were due in this period (up to today), how many are done.')}
         ${dbTile('On time', rateVal(T.onTimeRate), T.timed ? `${T.onTime} of ${T.timed} finished by their date` : 'no dated tasks finished', null, 'Of the dated tasks finished in this period, how many were finished on or before their due date.')}
         ${dbTile('Open now', fmtN(T.open), `<span class="${T.overdue ? 'warn' : ''}">${T.overdue} overdue</span> · ${T.next7} due in 7 days`)}
-        ${dbTile('Typical time to finish', T.median == null ? '—' : T.median < 1 ? '<1<small> day</small>' : `${Math.round(T.median)}<small> day${Math.round(T.median) === 1 ? '' : 's'}</small>`, 'median, added → done', null, 'Median time between a task being added and being ticked off, for one-off tasks finished in this period.')}
+        ${dbTile('Typical time to finish', T.median == null ? '-' : T.median < 1 ? '<1<small> day</small>' : `${Math.round(T.median)}<small> day${Math.round(T.median) === 1 ? '' : 's'}</small>`, 'median, added → done', null, 'Median time between a task being added and being ticked off, for one-off tasks finished in this period.')}
       </div>
       <div class="db-card"><div class="db-ch"><h3>Added vs completed</h3><span>${esc(pLabel)}</span></div>
         ${dbColumns(T.buckets, [{ key: 'created', label: 'Added', slot: 1 }, { key: 'done', label: 'Completed', slot: 2 }], n <= 14 ? 'Day' : n <= 126 ? 'Week' : 'Month')}</div>
       <div class="db-grid2">
         <div class="db-card"><div class="db-ch"><h3>Open tasks by list</h3><span>completion rate in period</span></div>
-          ${dbBarList(T.projs.map(p => ({ ...p, n: p.open, dot: p.color })), { empty: 'No projects yet.', note: p => (p.rate == null ? '<span class="mut">—</span>' : `${p.rate}%`),
+          ${dbBarList(T.projs.map(p => ({ ...p, n: p.open, dot: p.color })), { empty: 'No projects yet.', note: p => (p.rate == null ? '<span class="mut">-</span>' : `${p.rate}%`),
             tip: p => `${p.open} open · ${p.overdue} overdue\n${p.done} completed · ${p.created} added in period\n${p.rate == null ? 'No due tasks in period' : p.rate + '% of due tasks done'}` })}</div>
         <div class="db-card"><div class="db-ch"><h3>Open tasks by priority</h3><span>${T.open} open</span></div>
           ${dbStack(T.prio.map(x => ({ name: `P${x.p}`, n: x.n })), T.open, v => v.toLowerCase())}
@@ -1121,7 +1121,7 @@ function renderDashboard() {
 
   const camps = !showCT ? '' : `
     <section class="db-sec"><div class="db-h"><h2>${ico('campaign')} Campaigns</h2><span class="db-hs">${f.account === 'all' ? 'All accounts' : esc(S.data.accounts[f.account].name)}</span></div>
-      ${!C.total ? `<div class="db-card db-empty">No campaigns yet — add some in the Campaign Tracker.</div>` : `
+      ${!C.total ? `<div class="db-card db-empty">No campaigns yet - add some in the Campaign Tracker.</div>` : `
       <div class="db-tiles c4">
         ${dbTile('Running', fmtN(C.running), `${C.liveNow} live now · ${C.pendingNow} pending`, null, 'Campaigns that had launched and whose flight overlapped this period.')}
         ${dbTile('Went live', fmtN(C.live), `${C.ended} ended in period`, delta(C.live, C.livePrev), 'Campaigns whose start date falls in this period (and have launched).')}
@@ -1151,7 +1151,7 @@ function renderDashboard() {
       ${C.accs.length ? `<div class="db-card"><div class="db-ch"><h3>By account</h3><span>${esc(pLabel)}</span></div>
         <div class="db-tw"><table class="db-acc"><thead><tr><th>Account</th><th>Running</th><th>Went live</th><th>Platforms</th><th>Success</th><th>Pacing on track</th><th>Need attention</th></tr></thead>
         <tbody>${C.accs.map(a => `<tr><td><button class="link" data-action="db-acc" data-id="${a.id}">${esc(a.name)}</button></td><td>${a.running}</td><td>${a.live}</td><td>${a.platforms}</td>
-          <td>${a.results == null ? '<span class="mut">—</span>' : a.results + '%'}</td><td>${a.pacing == null ? '<span class="mut">—</span>' : a.pacing + '%'}</td>
+          <td>${a.results == null ? '<span class="mut">-</span>' : a.results + '%'}</td><td>${a.pacing == null ? '<span class="mut">-</span>' : a.pacing + '%'}</td>
           <td>${a.attention ? `<span class="warn">${ico('alert', 'i-xs')} ${a.attention}</span>` : '<span class="mut">0</span>'}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`}
     </section>`;
 
@@ -1162,7 +1162,7 @@ function renderDashboard() {
     </section>`;
 
   return topbar('') + `<div class="content"><div class="db">
-    <div class="page-head" style="padding-bottom:10px"><h1>Dashboard</h1><div class="page-desc empty" style="cursor:default">${esc(pLabel)} · ${esc(fmtDay(r.from))} – ${esc(fmtDay(r.to))}</div></div>
+    <div class="page-head" style="padding-bottom:10px"><h1>Dashboard</h1><div class="page-desc empty" style="cursor:default">${esc(pLabel)} · ${esc(fmtDay(r.from))} - ${esc(fmtDay(r.to))}</div></div>
     <div class="db-filters">
       <div class="seg">${DBV.map(([v, l]) => `<button class="${f.view === v ? 'on' : ''}" data-action="db-view" data-v="${v}">${l}</button>`).join('')}</div>
       <label class="filt on">${ico('cal', 'i-sm')}${sel('period', DB_PERIODS)}</label>
@@ -1200,7 +1200,7 @@ document.addEventListener('change', e => {
 
 
 /* =====================================================================
-   NOTEBOOK — rich-text notes for meetings and everything else.
+   NOTEBOOK - rich-text notes for meetings and everything else.
    Sectioned by the same accounts as the Campaign Tracker (plus "General"),
    with a note list on the left and the editor on the right.
    ===================================================================== */
@@ -1244,9 +1244,9 @@ function nbWhen(ts) {
 
 /* ---------- templates ---------- */
 const NB_TEMPLATES = {
-  meeting: { label: 'Meeting notes', icon: 'people', title: () => `Meeting — ${fmtDay(todayKey())}`,
+  meeting: { label: 'Meeting notes', icon: 'people', title: () => `Meeting - ${fmtDay(todayKey())}`,
     html: () => `<p><b>Date:</b> ${esc(longDay(todayKey()))}</p><p><b>Attendees:</b> </p><h2>Agenda</h2><ul><li><br></li></ul><h2>Notes</h2><p><br></p><h2>Action items</h2><ul class="nb-check"><li><br></li></ul><h2>Next steps</h2><p><br></p>` },
-  call: { label: 'Client call recap', icon: 'comment', title: () => `Client call — ${fmtDay(todayKey())}`,
+  call: { label: 'Client call recap', icon: 'comment', title: () => `Client call - ${fmtDay(todayKey())}`,
     html: () => `<p><b>Client:</b> </p><p><b>On the call:</b> </p><h2>What they asked for</h2><ul><li><br></li></ul><h2>Performance discussed</h2><p><br></p><h2>Decisions</h2><ul><li><br></li></ul><h2>Follow-ups</h2><ul class="nb-check"><li><br></li></ul>` },
   brief: { label: 'Campaign brief', icon: 'campaign', title: () => 'Campaign brief',
     html: () => `<h2>Objective</h2><p><br></p><h2>Markets</h2><p><br></p><h2>Platforms &amp; objectives</h2><ul><li><br></li></ul><h2>Budget &amp; flight</h2><p><b>Budget:</b> </p><p><b>Flight:</b> </p><h2>KPIs</h2><ul><li><br></li></ul><h2>Creatives</h2><p><br></p><h2>Open questions</h2><ul class="nb-check"><li><br></li></ul>` },
@@ -1366,7 +1366,7 @@ function nbFlush() {
   const title = ti ? ti.value.trim() : n.title || '';
   const text = htmlText(html).slice(0, 20000);
   if (html === (n.html || '') && title === (n.title || '')) { nbStatus('Saved'); return; }
-  if (html.length > 300000) { nbStatus('Too long to save'); toast('This note is too long to save — split it into two notes'); NB.dirty = true; return; }
+  if (html.length > 300000) { nbStatus('Too long to save'); toast('This note is too long to save - split it into two notes'); NB.dirty = true; return; }
   if (S.missing.has('notes')) { nbStatus('Not saved'); return; }
   return store.update('notes', id, { title, html, text, updatedAt: Date.now(), updatedBy: me() }).then(() => nbStatus('Saved'));
 }
@@ -1435,7 +1435,7 @@ async function nbPin(id) {
 const curNoteId = () => (S.route && S.route.view === 'notes' ? S.route.id : null);
 async function nbSetTags(id, tags) { nbFlush(); await store.update('notes', id, { tags, updatedAt: Date.now(), updatedBy: me() }); }
 async function nbAddAccount() {
-  const r = await promptBox({ title: 'Add ad account', label: 'Ad account name', placeholder: 'e.g. Meta — UAE', ok: 'Add' });
+  const r = await promptBox({ title: 'Add ad account', label: 'Ad account name', placeholder: 'e.g. Meta - UAE', ok: 'Add' });
   if (!r) return;
   const a = { id: uid(), name: r.value, order: nextOrder(accounts(true)), archived: false, createdAt: Date.now(), createdBy: me() };
   await store.put('accounts', a);
@@ -1446,7 +1446,7 @@ function nbSendTasks(anchor) {
   const ed = $('#nb-editor'), note = ed && S.data.notes[ed.dataset.note]; if (!note) return;
   const firstLine = li => { const c = li.cloneNode(true); c.querySelectorAll('ul,ol').forEach(x => x.remove()); return c.textContent.trim(); };
   const items = [...ed.querySelectorAll('ul.nb-check > li')].filter(li => !li.hasAttribute('data-done') && !li.dataset.task && firstLine(li));
-  if (!items.length) return toast('No open checklist items to send — add some with the checklist button (or type “[] ”)');
+  if (!items.length) return toast('No open checklist items to send - add some with the checklist button (or type “[] ”)');
   const acc = nbAccOf(note);
   openMenu(anchor, [{ title: `Send ${items.length} open item${items.length === 1 ? '' : 's'} to…` }, ...projects().map(p => {
     const sec = acc ? sectionsOf(p.id).find(s => s.name.trim().toLowerCase() === acc.name.trim().toLowerCase()) : null;
@@ -1500,7 +1500,7 @@ function nbBlockToggle(tag) {
   const cur = String(document.queryCommandValue('formatBlock') || '').toUpperCase();
   document.execCommand('formatBlock', false, cur === tag ? 'P' : tag);
 }
-// Turn the paragraph at the caret into a list item ourselves — browsers' own list command nests
+// Turn the paragraph at the caret into a list item ourselves - browsers' own list command nests
 // lists inside paragraphs in some cases. Joins a list of the same kind right above it.
 function nbWrapList(tag, check) {
   const s = getSelection(), blk = nbClosest('p,div,h1,h2,h3,blockquote');
@@ -1623,7 +1623,7 @@ function renderArchive() {
   const total = ps.length + secs.length + tks.length + accs.length + camps.length;
   const pName = id => (S.data.projects[id] || {}).name || 'Deleted project';
   return topbar('') + `<div class="content"><div class="list">
-    <div class="page-head"><h1>Archive</h1><div class="page-desc empty" style="cursor:default">Projects, sections, tasks, accounts and campaigns you've put away. Nothing here is deleted — restore any of it in one click.</div></div>
+    <div class="page-head"><h1>Archive</h1><div class="page-desc empty" style="cursor:default">Projects, sections, tasks, accounts and campaigns you've put away. Nothing here is deleted - restore any of it in one click.</div></div>
     ${!total ? `<div class="empty-state">${ico('archive')}<br>Nothing archived.<br><span style="font-size:12px">Archive a project or section from its ••• menu, a task by right-clicking it (or from inside it), or a campaign or account from its menu.</span></div>` : ''}
     ${ps.length ? `<div class="group-head">Projects <span class="cnt">${ps.length}</span></div>${ps.map(p => {
       const n = Object.values(S.data.tasks).filter(t => t.projectId === p.id && !t.done).length;
@@ -1693,7 +1693,7 @@ function taskMeta(t, opts = {}) {
   return bits.length ? `<div class="meta">${bits.join('')}</div>` : '';
 }
 const checkBtn = t => `<button class="check p${t.priority || 4} ${t.done ? 'checked' : ''}" data-action="toggle-task" data-id="${t.id}" title="${t.done ? 'Mark as not done' : 'Complete'}">${ico('check')}</button>`;
-// Progress of a task's sub-tasks — a thin bar on cards and rows, a fuller one inside the task.
+// Progress of a task's sub-tasks - a thin bar on cards and rows, a fuller one inside the task.
 function subProgress(t) { const s = t.subtasks || []; const n = s.filter(x => x.done).length; return { n, total: s.length, pct: s.length ? Math.round((n / s.length) * 100) : 0 }; }
 function subBar(t) {
   const p = subProgress(t); if (!p.total) return '';
@@ -1866,7 +1866,7 @@ function calItemHTML(it) {
   }
   const ev = it.ev, ty = typeById(ev.type), rep = ev.repeat && ev.repeat.type && ev.repeat.type !== 'none';
   const time = ev.time ? `${ev.time}${ev.timeEnd ? '-' + ev.timeEnd : ''}` : '';
-  return `<button class="cal-item ev-${esc(ty.color)}" ${rep ? 'data-nodrag="1"' : ''} data-drag="ev:${ev.id}:${it.d}" data-action="open-event" data-id="${ev.id}" data-day="${it.d}" title="${esc(evTitle(ev))}${ev.note ? ' — ' + esc(ev.note) : ''}"><span class="ring"></span><span class="txt">${esc(evTitle(ev))}</span>${time ? `<span class="tm">${esc(time)}</span>` : ''}</button>`;
+  return `<button class="cal-item ev-${esc(ty.color)}" ${rep ? 'data-nodrag="1"' : ''} data-drag="ev:${ev.id}:${it.d}" data-action="open-event" data-id="${ev.id}" data-day="${it.d}" title="${esc(evTitle(ev))}${ev.note ? ' - ' + esc(ev.note) : ''}"><span class="ring"></span><span class="txt">${esc(evTitle(ev))}</span>${time ? `<span class="tm">${esc(time)}</span>` : ''}</button>`;
 }
 
 /* ===================== data actions ===================== */
@@ -1904,7 +1904,7 @@ async function undoLast() {
 // groupId), so a whole project with its sections and tasks comes back in one go.
 const trashOn = () => !S.missing.has('trash');
 async function trashItems(kind, label, items, context = '') {
-  if (items.length >= 5 || ['project', 'account'].includes(kind)) audit('bulk_delete', `${kind} “${label}” — ${items.length} item(s)`);
+  if (items.length >= 5 || ['project', 'account'].includes(kind)) audit('bulk_delete', `${kind} “${label}” - ${items.length} item(s)`);
   const groupId = uid(), at = Date.now(), ops = [], entries = [];
   items.forEach((it, i) => {
     const entry = { id: `${groupId}_${i}`, groupId, head: i === 0, kind, col: it.col, docId: it.data.id, data: clone(it.data),
@@ -1997,8 +1997,8 @@ async function toggleTask(id, btn) {
       doneLog: [...(t.doneLog || []), Date.now()].slice(-200) };   // kept so the dashboard can count every completion
     if (t.deadline && t.due) upd.deadline = addDays(t.deadline, dayDiff(t.due, next));
     await store.update('tasks', id, upd);
-    logAct('task_done', { kind: 'task', taskId: id, clientIds: hs, title: t.title, detail: `repeats — next ${fmtDay(next)}` });
-    undoable(`Done — next one is ${longDay(next)}`, `complete “${t.title}”`, () => store.update('tasks', id, prev));
+    logAct('task_done', { kind: 'task', taskId: id, clientIds: hs, title: t.title, detail: `repeats - next ${fmtDay(next)}` });
+    undoable(`Done - next one is ${longDay(next)}`, `complete “${t.title}”`, () => store.update('tasks', id, prev));
   } else {
     await store.update('tasks', id, { done: true, completedAt: Date.now(), completedBy: me() });
     logAct('task_done', { kind: 'task', taskId: id, clientIds: hs, title: t.title, detail: t.due ? `due ${fmtDay(t.due)}` : '' });
@@ -2299,7 +2299,7 @@ document.addEventListener('contextmenu', e => {
 });
 
 /* =====================================================================
-   DRAG & DROP — pointer based.
+   DRAG & DROP - pointer based.
    The browser's native drag-and-drop can be left hanging (its element gets
    replaced, it's dropped outside the window, a pointer event is swallowed) and
    the page then feels frozen. This uses plain mouse/touch events instead: a
@@ -2493,7 +2493,7 @@ function resetDrag() {
 document.addEventListener('pointermove', e => {
   if (!pd) return;
   // The button is no longer held: a release we never saw. End it on the very next movement,
-  // whatever device the event came from — this check runs before any pointer-id filtering.
+  // whatever device the event came from - this check runs before any pointer-id filtering.
   if (e.buttons === 0) { if (pd.started) finishPointerDrag(); else pd = null; return; }
   if (e.pointerId != null && pd.pointerId != null && e.pointerId !== pd.pointerId) return;
   if (!pd.started) {
@@ -2573,11 +2573,11 @@ function openTask(id, def = {}) {
         ${taskExtrasHTML(d)}
         <div class="prop"><span class="lbl-sm">Date</span><div class="inline"><input type="date" class="inp" data-f="due" value="${d.due || ''}"><input type="time" class="inp" data-f="time" value="${d.time || ''}" style="width:92px" title="Time (optional)"><button class="clear-x" data-m="clear-due" title="Remove date">${ico('x', 'i-sm')}</button></div></div>
         <div class="prop"><span class="lbl-sm">Repeat</span><div class="inline">
-          <select class="sel" data-f="recurType">${[['', 'Does not repeat'], ['daily', 'Daily'], ['weekdays', 'Every weekday (Mon–Fri)'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['yearly', 'Yearly']].map(([v, l]) => `<option value="${v}" ${(d.recur?.type || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <select class="sel" data-f="recurType">${[['', 'Does not repeat'], ['daily', 'Daily'], ['weekdays', 'Every weekday (Mon-Fri)'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['yearly', 'Yearly']].map(([v, l]) => `<option value="${v}" ${(d.recur?.type || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <span data-every-wrap class="inline" style="gap:4px;color:var(--muted);font-size:12px;white-space:nowrap">every<input type="number" min="1" max="99" class="inp" data-f="every" value="${d.recur?.every || 1}" style="width:50px"></span></div>
           <div class="hint" data-recur-hint></div></div>
         <div class="prop"><span class="lbl-sm">Deadline</span><div class="inline"><input type="date" class="inp" data-f="deadline" value="${d.deadline || ''}"><button class="clear-x" data-m="clear-deadline" title="Remove deadline">${ico('x', 'i-sm')}</button></div></div>
-        <div class="prop"><span class="lbl-sm">Priority</span><select class="sel" data-f="priority">${[[1, 'Priority 1 — urgent'], [2, 'Priority 2 — high'], [3, 'Priority 3 — medium'], [4, 'Priority 4 — none']].map(([v, l]) => `<option value="${v}" ${+d.priority === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="prop"><span class="lbl-sm">Priority</span><select class="sel" data-f="priority">${[[1, 'Priority 1 - urgent'], [2, 'Priority 2 - high'], [3, 'Priority 3 - medium'], [4, 'Priority 4 - none']].map(([v, l]) => `<option value="${v}" ${+d.priority === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <div class="prop"><span class="lbl-sm">Assignee</span><select class="sel" data-f="assignee"><option value="">Unassigned</option>${ppl.map(p => `<option value="${p.id}" ${d.assignee === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           ${ppl.length ? '' : '<div class="hint">Add teammates in Settings to assign tasks.</div>'}</div>
         ${ex ? `<div class="prop tm-foot-info">${ex.createdAt ? `Added ${ex.createdApprox ? 'around ' : ''}${esc(fmtDateTime(ex.createdAt))}` : 'Added date not recorded'}${ex.createdBy ? ' by ' + esc(ex.createdBy) : ''}${ex.lastDoneAt ? `<br>Last done ${timeAgo(ex.lastDoneAt)}${ex.lastDoneBy ? ' by ' + esc(ex.lastDoneBy) : ''}` : ''}${ex.done && ex.completedAt ? `<br>Completed ${timeAgo(ex.completedAt)}${ex.completedBy ? ' by ' + esc(ex.completedBy) : ''}` : ''}</div>` : ''}
@@ -2619,7 +2619,7 @@ function openTask(id, def = {}) {
     const cs = (S.data.tasks[d.id]?.comments) || [];
     box.innerHTML = cs.map(c => `<div class="comment"><span class="avatar">${esc(initials(c.by))}</span><div class="c-body">
       <div class="c-meta"><b>${esc(c.by)}</b>${timeAgo(c.at)}${c.byEmail === (S.user?.email || '') ? ` · <button data-cdel="${c.id}" style="color:var(--faint);font-size:11px">delete</button>` : ''}</div>
-      <div class="c-text">${esc(c.text)}</div></div></div>`).join('') || '<div class="hint" style="color:var(--faint);font-size:12px">No comments yet — handy for handover notes.</div>';
+      <div class="c-text">${esc(c.text)}</div></div></div>`).join('') || '<div class="hint" style="color:var(--faint);font-size:12px">No comments yet - handy for handover notes.</div>';
   };
   crumb(); recurUI(); renderSubs(); renderComments(); taskExtrasWire(w, d);
   setTimeout(() => { grow(title); grow(desc); }, 0);
@@ -2772,7 +2772,7 @@ function openEvent(id, { day } = {}) {
     <div class="modal-head"><h2>${ex ? 'Edit calendar entry' : 'Add leave / event'}</h2><button class="icon-btn" data-m="x">${ico('x')}</button></div>
     <form class="modal-body">
       <div class="row2">
-        <div class="field"><label>Who</label><select class="sel" data-f="person"><option value="">— Whole team / nobody —</option>
+        <div class="field"><label>Who</label><select class="sel" data-f="person"><option value="">- Whole team / nobody -</option>
           ${people().map(p => `<option value="${p.id}" ${d.person === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}<option value="__new">＋ Add a person…</option></select></div>
         <div class="field"><label>Type</label><select class="sel" data-f="type">${types().map(t => `<option value="${t.id}" ${d.type === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>
       </div>
@@ -2834,7 +2834,7 @@ function openEvent(id, { day } = {}) {
     if (m === 'unskip') { await store.update('events', d.id, { skip: [] }); w.close(); }
     if (m === 'delete') {
       if (!await confirmBox(`Delete <b>${esc(evTitle(d))}</b>${isRep ? ' and all its repeats' : ''}?`)) return;
-      w.close(); await trashItems('event', evTitle(ex), [{ col: 'events', data: ex }], `Calendar · ${fmtDay(ex.start)}${ex.end && ex.end !== ex.start ? ' – ' + fmtDay(ex.end) : ''}`);
+      w.close(); await trashItems('event', evTitle(ex), [{ col: 'events', data: ex }], `Calendar · ${fmtDay(ex.start)}${ex.end && ex.end !== ex.start ? ' - ' + fmtDay(ex.end) : ''}`);
     }
   });
 }
@@ -2888,10 +2888,11 @@ function accountSettingsHTML() {
   const a = S.acc; if (!a) return '';
   const admin = canAdminAcc();
   return `<div class="set-h" data-sec="account">${ico('client')} Account</div>
-    <div class="acc-set">${accLogo(a, 'xl')}<div style="flex:1;min-width:0"><b class="acc-set-name">${esc(a.name)}</b><div class="mut" style="margin-top:2px">${esc(a.sector || 'No sector')} · your access ${roleTag(S.accRole)}</div>
+    <div class="acc-set">${accLogo(a, 'xl')}<div style="flex:1;min-width:0"><b class="acc-set-name">${esc(a.name)}</b><div class="mut" style="margin-top:2px">${esc(a.parentId && accAncestors(a).length ? `${kindLabel(a.kind) || 'Sub-account'} in ${accAncestors(a).map(p => p.name).reverse().join(' › ')}` : a.sector || 'No sector')} · your access ${roleTag(S.accRole)}</div>
+      ${accChildren(a.id, false).length ? `<div class="mut" style="margin-top:2px">Sub-accounts: ${esc(accChildren(a.id, false).map(accLabel).join(', '))}</div>` : ''}
       ${admin ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn sm" data-accedit>${ico('pencil', 'i-sm')} Name, logo &amp; colour</button><button class="btn sm" data-accaccess>${ico('people', 'i-sm')} Access · ${plural((a.memberEmails || []).length, 'person', 'people')}</button></div>` : ''}</div></div>
     <div class="set-h" data-sec="tools">${ico('grid')} Tools</div>
-    <p class="set-p">${admin ? 'Switch tools on or off for everyone in this account. Nothing is deleted when a tool is off — switch it back on and everything is still there.' : 'The tools an account admin has switched on here.'}</p>
+    <p class="set-p">${admin ? 'Switch tools on or off for everyone in this account. Nothing is deleted when a tool is off - switch it back on and everything is still there.' : 'The tools an account admin has switched on here.'}</p>
     ${admin ? toolPresets() + toolsGrid(a.modules || {}) : `<div class="chips">${TOOLS.filter(t => toolOn(t[0])).map(t => `<span class="tag">${esc(t[1])}</span>`).join('')}</div>`}`;
 }
 function openSettings(focus) {
@@ -3013,7 +3014,7 @@ function openSettings(focus) {
         const next = [...(S.ws.memberEmails || []), em];
         await S.wsApi.setMembers(next); S.ws.memberEmails = next;
       }
-      toast(`${em} can open ${S.ws ? S.ws.name : 'this workspace'} now — send them the link`);
+      toast(`${em} can open ${S.ws ? S.ws.name : 'this workspace'} now - send them the link`);
     }
     setTimeout(() => { draw(); const again = body.querySelector(`[data-${f.dataset.addPerson !== undefined ? 'add-person' : f.dataset.addType !== undefined ? 'add-type' : 'add-member'}] input`); again && again.focus(); }, 60);
   });
@@ -3165,7 +3166,7 @@ const ctFiltersOn = () => Object.values(S.ct.f).some(v => v !== 'All') || !!S.ct
 
 /* ---------- small pieces ---------- */
 function flightLabel(c) {
-  const s = c.startDate ? fmtDay(c.startDate) : '—', e = c.endDate ? fmtDay(c.endDate) : '—';
+  const s = c.startDate ? fmtDay(c.startDate) : '-', e = c.endDate ? fmtDay(c.endDate) : '-';
   let note = '';
   if (c.endDate && c.status !== 'Ended') {
     const d = dayDiff(todayKey(), c.endDate);
@@ -3187,7 +3188,7 @@ function metricBtn(c, key) {
     const done = weeklyDone(c), due = weeklyDue(c);
     const tone = done ? 'good' : due ? 'warn' : '';
     return `<button class="ct-m ${tone}" data-action="ct-weekly" data-id="${c.id}" title="Weekly optimisation check">
-      ${ico(done ? 'okcircle' : due ? 'alert' : 'clock', 'i-sm')}<span style="color:var(--faint)">Weekly</span><span class="v">${done ? 'Done' : due ? 'Due' : '—'}</span></button>`;
+      ${ico(done ? 'okcircle' : due ? 'alert' : 'clock', 'i-sm')}<span style="color:var(--faint)">Weekly</span><span class="v">${done ? 'Done' : due ? 'Due' : '-'}</span></button>`;
   }
   const f = CT_FIELDS[key], v = c[key] || f.options[0];
   const tone = toneOf(key, v);
@@ -3195,7 +3196,7 @@ function metricBtn(c, key) {
   return `<button class="ct-m ${tone || ''}" data-action="ct-set" data-f="${key}" data-id="${c.id}" title="${f.label}: ${esc(v)}">
     ${ico(icon || f.icon, 'i-sm')}<span style="color:var(--faint)">${f.label}</span><span class="v">${esc(v)}</span></button>`;
 }
-// Platform chips on the card: "Meta · Lead Gen +1" — full list on hover and in the drawer.
+// Platform chips on the card: "Meta · Lead Gen +1" - full list on hover and in the drawer.
 function platformChips(c, max = 4) {
   const list = c.platforms || [];
   const shown = list.length > max + 1 ? list.slice(0, max) : list;
@@ -3203,7 +3204,7 @@ function platformChips(c, max = 4) {
     const objs = objOf(c, p), pp = pauseOf(c, p);
     const nPaused = pp ? 0 : objs.filter(o => pauseOf(c, p, o)).length;
     const tail = objs.length ? ` <span class="oo">· ${esc(objLabel(objs[0]))}${objs.length > 1 ? ` +${objs.length - 1}` : ''}</span>` : '';
-    const tip = `${p}${pp ? ` — paused since ${fmtDay(pp.since)}` : ''}${objs.length ? ' — ' + objs.map(o => objFull(o) + (!pp && pauseOf(c, p, o) ? ' (paused)' : '')).join(', ') : ''}`;
+    const tip = `${p}${pp ? ` - paused since ${fmtDay(pp.since)}` : ''}${objs.length ? ' - ' + objs.map(o => objFull(o) + (!pp && pauseOf(c, p, o) ? ' (paused)' : '')).join(', ') : ''}`;
     return `<span class="tag plat ${pp ? 'paused' : ''}" title="${esc(tip)}">${pp ? ico('bars', 'i-xs') : ''}${esc(p)}${tail}${nPaused ? `<span class="pz-dot" title="${nPaused} objective${nPaused === 1 ? '' : 's'} paused">${ico('bars', 'i-xs')}${nPaused}</span>` : ''}</span>`;
   }).join('') + (list.length > shown.length ? `<span class="tag more">+${list.length - shown.length}</span>` : '');
 }
@@ -3300,7 +3301,7 @@ function renderCampaigns() {
 
 /* ---------- account actions ---------- */
 async function ctAddAccount() {
-  const r = await promptBox({ title: 'Add ad account', label: 'Ad account name', placeholder: 'e.g. Meta — UAE', ok: 'Add' });
+  const r = await promptBox({ title: 'Add ad account', label: 'Ad account name', placeholder: 'e.g. Meta - UAE', ok: 'Add' });
   if (!r) return;
   const a = { id: uid(), name: r.value, order: nextOrder(accounts(true)), archived: false, createdAt: Date.now(), createdBy: me() };
   await store.put('accounts', a);
@@ -3329,7 +3330,7 @@ async function askLink(title, value, hint) {
     if (!r) return null;
     const u = cleanUrl(r.value);
     if (u !== null) return u;
-    toast('That doesn’t look like a web link — paste the full sheet URL'); value = r.value;
+    toast('That doesn’t look like a web link - paste the full sheet URL'); value = r.value;
   }
 }
 async function ctEditAccountLink(a) {
@@ -3433,7 +3434,7 @@ async function ctMaintenance() {
   Object.values(S.data.trash).forEach(t => { if ((t.deletedAt || 0) < cutoff) ops.push({ type: 'del', col: 'trash', id: t.id }); });
   Object.values(S.data.campaigns).forEach(c => {
     const fix = {};
-    // 1. a campaign whose end date has passed is Ended — everything else is kept as it was
+    // 1. a campaign whose end date has passed is Ended - everything else is kept as it was
     if (c.status !== 'Ended' && c.endDate && c.endDate < today) fix.status = 'Ended';
     // 2. a campaign still waiting to launch can't be pacing or performing
     const st = fix.status || c.status;
@@ -3566,7 +3567,7 @@ function drawerHTML(c) {
             </span>
             <button class="pz-btn ${pp ? 'on' : ''}" data-pause="${esc(p)}" data-oi="-1" title="${pp ? 'Resume' : 'Pause'} ${esc(p)}">${ico(pp ? 'play' : 'bars', 'i-xs')}${pp ? 'Resume' : 'Pause'}</button>
           </div>`;
-        }).join('') : '<span style="color:var(--faint);font-size:12.5px">No platforms selected yet — add them with Edit.</span>'}
+        }).join('') : '<span style="color:var(--faint);font-size:12.5px">No platforms selected yet - add them with Edit.</span>'}
         ${(c.pauseLog || []).length ? `<details class="pz-log" ${(c.pauses || []).length ? 'open' : ''}><summary>Pause history <span class="cnt">${c.pauseLog.length}</span></summary>
           ${[...c.pauseLog].sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0)).map(l => `<div class="wk">${ico(l.action === 'paused' ? 'bars' : 'play', 'i-sm ' + (l.action === 'paused' ? 'pz-ic' : 'tick'))}
             <span class="when">${l.action === 'paused' ? 'Paused' : 'Resumed'} <b>${esc(l.platform)}${l.objective ? ' · ' + esc(objFull(l.objective)) : ''}</b> · ${esc(fmtDay(l.date))}</span><span class="who">${esc(l.by || '')}</span></div>`).join('')}
@@ -3605,7 +3606,7 @@ function drawerHTML(c) {
         <div class="d-text">${(c.description || '').trim() ? esc(c.description) : '<span style="color:var(--faint)">No description</span>'}</div>
       </div>
       <div class="d-sec"><h4>Notes / things to check</h4>
-        <textarea class="ta" data-notes rows="4" maxlength="5000" placeholder="e.g. Snap CPL up this week — check pixel discrepancy">${esc(c.notes || '')}</textarea>
+        <textarea class="ta" data-notes rows="4" maxlength="5000" placeholder="e.g. Snap CPL up this week - check pixel discrepancy">${esc(c.notes || '')}</textarea>
         <div style="font-size:11px;color:var(--faint);margin-top:4px">Saves when you click outside the box.</div>
       </div>
     </div>
@@ -3632,7 +3633,7 @@ function openCampaignDrawer(id) {
     const c = S.data.campaigns[id]; if (!c) return;
     const set = e.target.closest('[data-set]');
     if (set) {
-      if (set.dataset.locked) return toast('Set the campaign to Live first — pacing and results stay Pending until then');
+      if (set.dataset.locked) return toast('Set the campaign to Live first - pacing and results stay Pending until then');
       return ctUpdate(id, { [set.dataset.set]: set.dataset.v });
     }
     const pz = e.target.closest('[data-pause]');
@@ -3663,7 +3664,7 @@ function openCampaignDrawer(id) {
     if (act === 'new-note') {
       w.close();
       const html = NB_TEMPLATES.meeting.html();
-      nbCreate({ id: uid(), accountId: c.accountId, campaignId: c.id, title: `${c.name} — ${fmtDay(todayKey())}`, html, text: htmlText(html), tags: [], pinned: false,
+      nbCreate({ id: uid(), accountId: c.accountId, campaignId: c.id, title: `${c.name} - ${fmtDay(todayKey())}`, html, text: htmlText(html), tags: [], pinned: false,
         createdAt: Date.now(), createdBy: me(), updatedAt: Date.now(), updatedBy: me() }, false);
     }
     if (act === 'archive') await ctArchive(id, !c.archived);
@@ -3720,7 +3721,7 @@ function openCampaignForm(id, accountId, def = {}) {
   const w = openModal(`
     <div class="modal-head"><h2>${ex ? 'Edit campaign' : 'New campaign'}</h2><button class="icon-btn" data-m="x">${ico('x')}</button></div>
     <form class="modal-body" style="max-height:70vh;overflow:auto">
-      <div class="field"><label>Campaign name *</label><input class="inp" data-f="name" value="${esc(d.name)}" placeholder="e.g. Cadillac Escalade Collection – September" autofocus maxlength="140"></div>
+      <div class="field"><label>Campaign name *</label><input class="inp" data-f="name" value="${esc(d.name)}" placeholder="e.g. Cadillac Escalade Collection - September" autofocus maxlength="140"></div>
       <div class="field"><label>Description</label><textarea class="ta" data-f="description" rows="2" style="min-height:52px" maxlength="5000" placeholder="Objective, offer, audience, deployment notes">${esc(d.description)}</textarea></div>
       <div class="row2">
         <div class="field"><label>Account</label><select class="sel" data-f="accountId">${accs.map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
@@ -3743,7 +3744,7 @@ function openCampaignForm(id, accountId, def = {}) {
       </div>
       <div class="row2">
         <div class="field"><label>Brands</label><div class="tm-chips" data-cclients></div></div>
-        <div class="field"><label>From brief</label><select class="sel" data-f="briefId"><option value="">—</option>${Object.values(S.data.briefs).filter(b => !b.archived || b.id === d.briefId).sort((a, b) => (b.seq || 0) - (a.seq || 0)).map(b => `<option value="${b.id}" ${d.briefId === b.id ? 'selected' : ''}>${esc(briefLabel(b))}</option>`).join('')}</select></div>
+        <div class="field"><label>From brief</label><select class="sel" data-f="briefId"><option value="">-</option>${Object.values(S.data.briefs).filter(b => !b.archived || b.id === d.briefId).sort((a, b) => (b.seq || 0) - (a.seq || 0)).map(b => `<option value="${b.id}" ${d.briefId === b.id ? 'selected' : ''}>${esc(briefLabel(b))}</option>`).join('')}</select></div>
       </div>
       <div class="field" style="margin-bottom:0"><label>Notes / things to check</label><textarea class="ta" data-f="notes" rows="3" maxlength="5000">${esc(d.notes || '')}</textarea></div>
       <button type="submit" hidden></button>
@@ -3813,7 +3814,7 @@ function openCampaignForm(id, accountId, def = {}) {
     d.briefId = d.briefId || null;
     d.name = d.name.trim();
     d.pacingUrl = cleanUrl(d.pacingUrl);
-    if (d.pacingUrl === null) { q('[data-f="pacingUrl"]').focus(); return toast('The pacing sheet link isn’t a web link — paste the full URL'); }
+    if (d.pacingUrl === null) { q('[data-f="pacingUrl"]').focus(); return toast('The pacing sheet link isn’t a web link - paste the full URL'); }
     if (!d.name) { q('[data-f="name"]').focus(); return toast('Give the campaign a name'); }
     if (!d.startDate || !d.endDate) { return toast('Start and end dates are required'); }
     if (d.endDate < d.startDate) { return toast('The end date is before the start date'); }
@@ -3831,7 +3832,7 @@ function openCampaignForm(id, accountId, def = {}) {
 }
 
 /* ---------- reordering helpers ---------- */
-// Dragging implies "my own order" — switch the sort silently so the new order is what you see.
+// Dragging implies "my own order" - switch the sort silently so the new order is what you see.
 function ctEnsureManualSort() {
   if (S.ct.sort === 'manual') return;
   S.ct.sort = 'manual'; lsSet('tb:ctSort', 'manual');
@@ -3946,7 +3947,7 @@ document.addEventListener('paste', e => {
   else if (text) document.execCommand('insertText', false, text);
   nbSchedule(ed.dataset.note);
 });
-document.addEventListener('drop', e => { if (e.target.closest && e.target.closest('#nb-editor') && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); toast('Attachments aren’t supported yet — paste a link instead'); } });
+document.addEventListener('drop', e => { if (e.target.closest && e.target.closest('#nb-editor') && e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) { e.preventDefault(); toast('Attachments aren’t supported yet - paste a link instead'); } });
 document.addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('[data-nbcmd]')) e.preventDefault(); });   // keep the selection in the editor
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-nbcmd]'); if (b) { nbCmd(b.dataset.nbcmd); return; }
@@ -3967,7 +3968,7 @@ document.addEventListener('selectionchange', () => { if (S.route && S.route.view
 document.addEventListener('focusin', e => { if (e.target.id === 'nb-editor') document.execCommand('defaultParagraphSeparator', false, 'p'); });
 
 /* =====================================================================
-   CLIENT WORK — clients & labels, briefs & workflow,
+   CLIENT WORK - clients & labels, briefs & workflow,
    activity log, alerts, notifications, My work and process dashboards.
    Everything reuses the same store, modals, menus, toasts and styling as
    the rest of the app. Data model (all in the same Firestore project):
@@ -4087,13 +4088,13 @@ function workdaysMs(t0, t1) {
   return ms / 864e5;
 }
 function fmtDur(days) {
-  if (days == null || isNaN(days)) return '—';
+  if (days == null || isNaN(days)) return '-';
   if (days < 1 / 24) return '<1h';
   if (days < 1) return `${Math.round(days * 24)}h`;
   return `${days < 10 ? (Math.round(days * 10) / 10).toString().replace(/\.0$/, '') : Math.round(days)}d`;
 }
 function subWorkdays(k, n) { let d = k, left = Math.max(0, Math.round(+n || 0)); while (left > 0) { d = addDays(d, -1); if (isWorkday(d)) left--; } return d; }
-// "26 Oct, 9:40 AM" (year only when it isn't this year) — for tight table cells.
+// "26 Oct, 9:40 AM" (year only when it isn't this year) - for tight table cells.
 function fmtStamp(ts) {
   if (!ts) return '';
   const d = new Date(ts); let h = d.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
@@ -4176,7 +4177,7 @@ const briefPill = (b, action) => action ? `<button class="pill tone-${BRIEF_TONE
 const stepPill = (t, action = true) => `<button class="pill tone-${STEP_TONE[t.status] || 'mute'}" ${action && canEditAcc() ? `data-action="st-status" data-id="${t.id}"` : 'disabled'} title="Step status">${ico(STEP_ICON[t.status] || 'clock', 'i-xs')}${esc(t.status || 'To do')}</button>`;
 
 /* =====================================================================
-   CLIENTS — every client is a task list (kind 'client') with its own board.
+   CLIENTS - every client is a task list (kind 'client') with its own board.
    Tasks anywhere can also be labelled with one or more clients.
    ===================================================================== */
 const clients = withArchived => Object.values(S.data.projects).filter(p => p.kind === 'client' && (withArchived || !p.archived)).sort((a, b) => a.name.localeCompare(b.name));
@@ -4224,12 +4225,12 @@ function renderClients() {
   const row = h => { const s = st[h.id]; return `<tr data-go="#/client/${h.id}" class="${s.overdue ? 'has-over' : ''}">
       <td class="pin-c"><button class="icon-btn pin-btn ${h.pinned ? 'on' : ''}" data-action="cl-pin" data-id="${h.id}" title="${h.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}">${ico('star', 'i-sm')}</button></td>
       <td><div class="cl-name"><span class="cl-ava sw-${esc(h.color || 'teal')}">${esc(initials(h.name))}</span><span><b>${esc(h.name)}</b><small>${esc(h.group || '')}</small></span></div></td>
-      <td>${esc(h.sector || '—')}${h.market ? `<small>${esc(h.market)}</small>` : ''}</td>
+      <td>${esc(h.sector || '-')}${h.market ? `<small>${esc(h.market)}</small>` : ''}</td>
       <td class="num">${s.open || '<span class="mut">0</span>'}</td>
       <td class="num">${s.overdue ? `<span class="warn">${s.overdue}</span>` : '<span class="mut">0</span>'}</td>
       <td class="num">${s.briefs || '<span class="mut">0</span>'}</td>
       <td class="num">${s.live || '<span class="mut">0</span>'}</td>
-      <td class="mut">${s.lastAt ? timeAgo(s.lastAt) : '—'}</td>
+      <td class="mut">${s.lastAt ? timeAgo(s.lastAt) : '-'}</td>
       <td><button class="icon-btn" data-action="cl-menu" data-id="${h.id}" title="More">${ico('dots')}</button></td></tr>`; };
   let body;
   if (f.group === 'none') body = list.map(row).join('');
@@ -4251,7 +4252,7 @@ function renderClients() {
       <span style="flex:1"></span>
       <button class="btn btn-primary" data-action="cl-add">${ico('plus', 'i-sm')} Add brand</button>
     </div>
-    ${!all.length ? `<div class="ct-empty">${ico('client')}<br>No brands yet.<br><span style="font-size:12px">Add the brands, markets or dealers you work on for this client — paste a list from Excel, or add them one by one.</span><br><br>
+    ${!all.length ? `<div class="ct-empty">${ico('client')}<br>No brands yet.<br><span style="font-size:12px">Add the brands, markets or dealers you work on for this client - paste a list from Excel, or add them one by one.</span><br><br>
         <button class="btn btn-primary" data-action="cl-import">${ico('upload', 'i-sm')} Import from Excel</button> <button class="btn" data-action="cl-add">${ico('plus', 'i-sm')} Add a brand</button></div>`
       : !list.length ? `<div class="ct-empty">No brands match.<br><br><button class="btn" data-action="cl-clear">Clear filters</button></div>`
       : `<div class="tbl-wrap"><table class="tbl cl-table"><thead><tr><th></th><th>Brand</th><th>Sector &amp; market</th><th class="num">Open tasks</th><th class="num" title="Overdue brand tasks plus late workflow steps">Overdue</th><th class="num">Active briefs</th><th class="num">Live campaigns</th><th>Last activity</th><th></th></tr></thead>
@@ -4364,7 +4365,7 @@ const CL_HEAD = { name: /^(client|account|name|client name|brand)$/i, group: /^(
 function openClientImport() {
   const w = openModal(`<div class="modal-head"><h2>Import brands</h2><button class="icon-btn" data-x>${ico('x')}</button></div>
     <div class="modal-body">
-      <p class="set-p">Copy the rows from Excel or Google Sheets and paste them below (or choose a CSV file). Columns, in this order: <b>Brand name</b>, Group, Sector, Markets, Contact name, Contact email. A header row is fine — it's detected. Brands already in the list are skipped.</p>
+      <p class="set-p">Copy the rows from Excel or Google Sheets and paste them below (or choose a CSV file). Columns, in this order: <b>Brand name</b>, Group, Sector, Markets, Contact name, Contact email. A header row is fine - it's detected. Brands already in the list are skipped.</p>
       <textarea class="ta" data-paste rows="9" placeholder="Brand name&#9;Group&#9;Sector&#9;Markets&#9;Contact name&#9;Contact email"></textarea>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><label class="btn" style="cursor:pointer">${ico('upload', 'i-sm')} Choose CSV file<input type="file" accept=".csv,.txt,text/csv" data-file hidden></label>
         <button class="btn" data-tpl>${ico('download', 'i-sm')} Download template</button><span class="mut" data-sum style="font-size:12px"></span></div>
@@ -4409,7 +4410,7 @@ function exportClients() {
 }
 
 /* =====================================================================
-   BRIEFS — template → submit → assign team (notified by email) → kick off
+   BRIEFS - template → submit → assign team (notified by email) → kick off
    the workflow (steps per member, due dates from SLAs) → track to go-live.
    ===================================================================== */
 const activeBriefs = () => Object.values(S.data.briefs).filter(b => !b.archived && BRIEF_ACTIVE.includes(b.status));
@@ -4506,14 +4507,14 @@ function renderBriefs() {
     .filter(s => !['In review', 'On hold', 'Cancelled'].includes(s) || f.status === s || list.some(b => b.status === s));
   const board = f.status === 'Archived' || !cols.length ? '' : `<div class="board br-board">${cols.map(s => { const items = list.filter(b => b.status === s); return `<section class="col br-col">
       <header class="col-head"><span class="pill tone-${BRIEF_TONE[s]}"><span class="dot"></span>${esc(s)}</span><span class="col-count">${items.length}</span></header>
-      <div class="cards">${items.map(b => briefCard(b)).join('') || '<div class="col-empty">—</div>'}</div></section>`; }).join('')}</div>`;
+      <div class="cards">${items.map(b => briefCard(b)).join('') || '<div class="col-empty">-</div>'}</div></section>`; }).join('')}</div>`;
   const table = `<div class="tbl-wrap"><table class="tbl br-table"><thead><tr><th>Brief</th><th>Brands</th><th>Type</th><th>Status</th><th>Owner</th><th>Go-live</th><th>Progress</th><th>Next step</th><th></th></tr></thead><tbody>
     ${list.map(b => { const pr = stepProgress(b.id), risk = briefRisk(b), next = briefSteps(b.id).find(t => t.status !== 'Done'), al = alertsFor({ briefId: b.id });
       return `<tr data-go="#/brief/${b.id}"><td><span class="br-ref">${esc(briefRef(b))}</span> <b>${esc(b.title || 'Untitled')}</b></td><td>${clientChips(b.clientIds, 1)}</td><td>${esc(b.type || '')}</td>
-        <td>${briefPill(b, true)}</td><td>${b.ownerId ? `${avatarHTML(b.ownerId)} ${esc(personName(b.ownerId))}` : '<span class="mut">—</span>'}</td>
-        <td class="${risk.level === 'late' ? 'bad' : risk.level === 'risk' ? 'warn' : ''}">${b.goLive ? esc(fmtDay(b.goLive)) : '<span class="mut">—</span>'}</td>
+        <td>${briefPill(b, true)}</td><td>${b.ownerId ? `${avatarHTML(b.ownerId)} ${esc(personName(b.ownerId))}` : '<span class="mut">-</span>'}</td>
+        <td class="${risk.level === 'late' ? 'bad' : risk.level === 'risk' ? 'warn' : ''}">${b.goLive ? esc(fmtDay(b.goLive)) : '<span class="mut">-</span>'}</td>
         <td>${pr.total ? `${pr.n}/${pr.total}` : '<span class="mut">not started</span>'}</td>
-        <td>${next ? `${avatarHTML(next.assignee)} ${esc(next.title)}` : '<span class="mut">—</span>'}</td>
+        <td>${next ? `${avatarHTML(next.assignee)} ${esc(next.title)}` : '<span class="mut">-</span>'}</td>
         <td>${al.length ? `<span class="br-al ${al.some(a => a.sev === 'crit') ? 'crit' : ''}">${ico('alert', 'i-xs')}${al.length}</span>` : ''}</td></tr>`; }).join('')}
     </tbody></table></div>`;
   return topbar('Client work /', `<button class="top-btn" data-action="br-export">${ico('download', 'i-sm')}Export</button>`) + `<div class="content"><div class="wide-page">
@@ -4549,14 +4550,14 @@ function newBrief(def = {}) {
 // A filled-in example so people can see what goes in each section of the template.
 function exampleBrief() {
   const hs = clients(), gl = addWorkdays(todayKey(), 15);
-  return { title: 'Year-End Sales Event — 0% finance', type: 'Tactical / promotion', priority: 'Normal', clientIds: hs.slice(0, 2).map(h => h.id),
+  return { title: 'Year-End Sales Event - 0% finance', type: 'Tactical / promotion', priority: 'Normal', clientIds: hs.slice(0, 2).map(h => h.id),
     objective: 'Leads', kpis: '900 test-drive leads · CPL ≤ AED 250 · 3% lead-to-sale', budget: 60000, currency: CFG.currency || 'AED',
     goLive: gl, flightStart: gl, flightEnd: addDays(gl, 30), markets: ['UAE', 'KSA'], platforms: ['Search', 'Meta', 'TikTok'], languages: ['English', 'Arabic'],
     audience: 'In-market buyers researching SUVs and pickups, plus people who enquired in the last 90 days.',
     offer: '0% finance for 36 months and 3 years free service on selected models. Valid until 31 December; subject to bank approval.',
     promo: '', cta: 'Book a test drive', message: 'The best deal of the year ends 31 December.', landingUrl: 'https://www.example.com/year-end-offer', assetsUrl: '',
     creative: 'Search RSAs in English and Arabic with model sitelinks; Meta 1:1 and 9:16 lead-form ads; TikTok 9:16 15s video.',
-    notes: 'Campaign names follow the client naming convention. Lead forms post to the client CRM — QA the hand-off before launch.',
+    notes: 'Campaign names follow the client naming convention. Lead forms post to the client CRM - QA the hand-off before launch.',
     requestedBy: 'Client marketing team', requestedByEmail: '' };
 }
 const BRIEF_FIELDS = ['title', 'type', 'priority', 'clientIds', 'objective', 'kpis', 'budget', 'currency', 'flightStart', 'flightEnd', 'goLive', 'requestDate', 'markets', 'platforms', 'languages',
@@ -4571,14 +4572,14 @@ function openBriefForm(id, def = {}) {
   const opt = (list, v) => list.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('');
   const w = openModal(`<div class="modal-head"><h2>${ex ? `Edit ${esc(briefRef(ex))}` : 'New brief'}</h2><span class="mut" style="font-size:12px">${ex ? '' : 'Fields marked * are needed to submit'}</span><button class="icon-btn" data-m="x">${ico('x')}</button></div>
     <form class="modal-body bf" style="max-height:72vh;overflow:auto">
-      ${ex ? '' : useEx ? `<div class="bf-example">${ico('sparkle', 'i-sm')}<span>Example values are filled in so you can see what goes in each section — edit anything, or start from scratch.</span><button type="button" class="btn sm" data-m="blank">Start blank</button></div>`
+      ${ex ? '' : useEx ? `<div class="bf-example">${ico('sparkle', 'i-sm')}<span>Example values are filled in so you can see what goes in each section - edit anything, or start from scratch.</span><button type="button" class="btn sm" data-m="blank">Start blank</button></div>`
         : `<div class="bf-example quiet"><span>Not sure what to write?</span><button type="button" class="btn sm" data-m="example">${ico('sparkle', 'i-sm')} Fill with an example</button></div>`}
       <div class="bf-sec"><h4>1 · Overview</h4>
         <div class="field"><label>Brief title *</label><input class="inp" data-f="title" value="${esc(d.title)}" maxlength="160" autofocus placeholder="e.g. Year-End Sales Event"></div>
         <div class="field" ${toolOn('brands') ? '' : 'hidden'}><label>Brands</label><div class="bf-clients" data-clients></div></div>
         <div class="row3"><div class="field"><label>Brief type</label><select class="sel" data-f="type">${opt(BRIEF_TYPES, d.type)}</select></div>
           <div class="field"><label>Priority</label><select class="sel" data-f="priority">${opt(BRIEF_PRIORITY, d.priority)}</select></div>
-          <div class="field"><label>Brief owner (account lead)</label><select class="sel" data-f="ownerId"><option value="">—</option>${people().map(p => `<option value="${p.id}" ${d.ownerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div></div>
+          <div class="field"><label>Brief owner (account lead)</label><select class="sel" data-f="ownerId"><option value="">-</option>${people().map(p => `<option value="${p.id}" ${d.ownerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div></div>
         <div class="row3"><div class="field"><label>Requested by</label><input class="inp" data-f="requestedBy" value="${esc(d.requestedBy)}" maxlength="80" placeholder="Client marketing team"></div>
           <div class="field"><label>Requester email</label><input class="inp" type="email" data-f="requestedByEmail" value="${esc(d.requestedByEmail)}" maxlength="254"></div>
           <div class="field"><label>Request date</label><input class="inp" type="date" data-f="requestDate" value="${d.requestDate || ''}"></div></div></div>
@@ -4614,13 +4615,13 @@ function openBriefForm(id, def = {}) {
   const paintClients = () => {
     q('[data-clients]').innerHTML = `${d.clientIds.map(id => `<span class="tag clt">${ico('client', 'i-xs')}${esc(clientName(id))}<button type="button" data-unclient="${id}" title="Remove">${ico('x', 'i-xs')}</button></span>`).join('')}
       <button type="button" class="btn sm" data-addclient>${ico('plus', 'i-sm')} ${d.clientIds.length ? 'Add' : 'Choose brands'}</button>
-      ${!clients().length ? '<span class="hint">Optional — add the account’s brands under Brands</span>' : ''}`;
+      ${!clients().length ? '<span class="hint">Optional - add the account’s brands under Brands</span>' : ''}`;
   };
   const slaHint = () => {
     const wf = workflowById(q('[data-f=workflowId]').value), gl = q('[data-f=goLive]').value;
     const li = wf.steps.findIndex(x => x.launch); const need = (li >= 0 ? wf.steps.slice(0, li + 1) : wf.steps).filter(x => x.anchor !== 'flightEnd').reduce((s, x) => s + (+x.days || 0), 0);
     const earliest = addWorkdays(todayKey(), need);
-    q('[data-sla-hint]').innerHTML = `${esc(wf.name)} needs about <b>${need} working days</b> to go live — earliest if kicked off today: <b>${esc(longDay(earliest))}</b>.${gl && gl < earliest ? ` <span class="warn">${ico('alert', 'i-xs')} The go-live date is ${workdaysBetween(gl, earliest)} working day(s) tighter than the workflow's SLAs.</span>` : ''}`;
+    q('[data-sla-hint]').innerHTML = `${esc(wf.name)} needs about <b>${need} working days</b> to go live - earliest if kicked off today: <b>${esc(longDay(earliest))}</b>.${gl && gl < earliest ? ` <span class="warn">${ico('alert', 'i-xs')} The go-live date is ${workdaysBetween(gl, earliest)} working day(s) tighter than the workflow's SLAs.</span>` : ''}`;
   };
   paintClients(); slaHint();
   q('[data-f=workflowId]').addEventListener('change', slaHint); q('[data-f=goLive]').addEventListener('change', slaHint);
@@ -4659,7 +4660,7 @@ function openBriefForm(id, def = {}) {
       // keep the steps' client labels in line with the brief
       if (changed.includes('clientIds')) await store.batch(briefSteps(d.id).map(t => ({ type: 'update', col: 'tasks', id: t.id, data: { clientIds: d.clientIds } })));
       if (changed.length) logAct('brief_edited', { kind: 'brief', briefId: d.id, clientIds: d.clientIds, title: briefLabel(d), detail: changed.map(k => BRIEF_FIELD_LABEL[k] || k).join(', ') });
-      if (changed.includes('goLive')) logAct('golive_changed', { kind: 'brief', briefId: d.id, clientIds: d.clientIds, title: briefLabel(d), from: old.goLive ? fmtDay(old.goLive) : '—', to: d.goLive ? fmtDay(d.goLive) : '—' });
+      if (changed.includes('goLive')) logAct('golive_changed', { kind: 'brief', briefId: d.id, clientIds: d.clientIds, title: briefLabel(d), from: old.goLive ? fmtDay(old.goLive) : '-', to: d.goLive ? fmtDay(d.goLive) : '-' });
       w.close(); return;
     }
     d.seq = nextBriefSeq(); d.ref = 'RB-' + String(d.seq).padStart(4, '0');
@@ -4715,8 +4716,8 @@ function openTeamModal(id) {
   const paint = () => {
     w.querySelector('[data-rows]').innerHTML = `<table class="tbl team-tbl"><thead><tr><th></th><th>Person</th><th>Role on this brief</th><th>Owner</th><th>Status</th></tr></thead><tbody>${people().map(p => { const on = pick.has(p.id), m = cur.get(p.id);
       return `<tr class="${on ? '' : 'off'}"><td><button class="check ${on ? 'checked' : ''}" data-tog="${p.id}">${ico('check')}</button></td>
-        <td>${avatarHTML(p.id)} <b>${esc(p.name)}</b>${p.email ? `<small>${esc(p.email)}</small>` : '<small class="warn">no email — in-app only</small>'}</td>
-        <td><select class="sel" data-role="${p.id}" ${on ? '' : 'disabled'}><option value="">—</option>${rolesList().map(r => `<option ${(pick.get(p.id) || p.role) === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></td>
+        <td>${avatarHTML(p.id)} <b>${esc(p.name)}</b>${p.email ? `<small>${esc(p.email)}</small>` : '<small class="warn">no email - in-app only</small>'}</td>
+        <td><select class="sel" data-role="${p.id}" ${on ? '' : 'disabled'}><option value="">-</option>${rolesList().map(r => `<option ${(pick.get(p.id) || p.role) === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></td>
         <td><input type="radio" name="owner" data-owner="${p.id}" ${owner === p.id ? 'checked' : ''} title="Brief owner (account lead)"></td>
         <td class="mut">${m ? (m.openedAt ? `Opened ${timeAgo(m.openedAt)}` : `Assigned ${timeAgo(m.addedAt)} · not opened`) : ''}</td></tr>`; }).join('')}</tbody></table>`;
     w.querySelector('[data-cnt]').textContent = `${pick.size} selected`;
@@ -4732,7 +4733,7 @@ function openTeamModal(id) {
     await store.update('briefs', b.id, { team, ownerId: owner, updatedAt: now, updatedBy: me() });
     added.forEach(m => { logAct('team_added', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), to: personName(m.personId), detail: m.role }); });
     removed.forEach(pid => logAct('team_removed', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), to: personName(pid) }));
-    if (owner !== oldOwner) logAct('owner_changed', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), from: oldOwner ? personName(oldOwner) : '—', to: owner ? personName(owner) : '—' });
+    if (owner !== oldOwner) logAct('owner_changed', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), from: oldOwner ? personName(oldOwner) : '-', to: owner ? personName(owner) : '-' });
     // steps already running: give unassigned ones to whoever now holds that role
     const nb = { ...b, team, ownerId: owner };
     const fill = briefSteps(b.id).filter(t => !t.assignee && t.status !== 'Done').map(t => ({ t, pid: personForRole(nb, t.role) })).filter(x => x.pid);
@@ -4803,7 +4804,7 @@ async function kickoffBrief(id, wfId, pending = []) {
   const nb = S.data.briefs[b.id] || b, fresh = new Map(pending.map(m => [m.personId, m.role]));
   Object.entries(byPerson).forEach(([pid, list]) => (fresh.has(pid) ? notifyAssigned(nb, pid, fresh.get(pid), list) : notifySteps(nb, pid, list)));
   fresh.forEach((role, pid) => { if (!byPerson[pid]) notifyAssigned(nb, pid, role, []); });
-  toast(`Workflow started — ${plural(steps.length, 'step')}${Object.keys(byPerson).length ? `, ${plural(Object.keys(byPerson).length, 'person', 'people')} notified` : ''}`);
+  toast(`Workflow started - ${plural(steps.length, 'step')}${Object.keys(byPerson).length ? `, ${plural(Object.keys(byPerson).length, 'person', 'people')} notified` : ''}`);
 }
 
 /* ---------- steps: status, assignee, dates ---------- */
@@ -4836,7 +4837,7 @@ async function setStepStatus(t, status, opts = {}) {
     const next = briefSteps(b.id).find(x => x.id !== t.id && x.status !== 'Done' && (x.order || 0) > (t.order || 0));
     if (next && next.assignee) notifyNext(b, next);
   }
-  if (status === 'Blocked' && b.ownerId && b.ownerId !== t.assignee) notify(b.ownerId, { kind: 'alert', title: `Blocked: ${t.title}`, body: `${briefLabel(b)} — ${upd.blockedReason}`, link: `#/brief/${b.id}`, briefId: b.id, taskId: t.id });
+  if (status === 'Blocked' && b.ownerId && b.ownerId !== t.assignee) notify(b.ownerId, { kind: 'alert', title: `Blocked: ${t.title}`, body: `${briefLabel(b)} - ${upd.blockedReason}`, link: `#/brief/${b.id}`, briefId: b.id, taskId: t.id });
 }
 // Later steps that haven't started keep their full SLA: if this step finished after its due date,
 // their due dates move out by the same amount (never earlier). The go-live risk still shows the slip.
@@ -4865,7 +4866,7 @@ async function assignStep(t, pid) {
   t = clone(t);
   const b = S.data.briefs[t.briefId] || {};
   await store.update('tasks', t.id, { assignee: pid || null, assignedAt: pid ? Date.now() : null, updatedAt: Date.now(), updatedBy: me() });
-  logAct('step_assigned', { kind: 'step', briefId: t.briefId, taskId: t.id, clientIds: b.clientIds || [], title: t.title, from: t.assignee ? personName(t.assignee) : '—', to: pid ? personName(pid) : '—' });
+  logAct('step_assigned', { kind: 'step', briefId: t.briefId, taskId: t.id, clientIds: b.clientIds || [], title: t.title, from: t.assignee ? personName(t.assignee) : '-', to: pid ? personName(pid) : '-' });
   if (pid && b.id) notifySteps(b, pid, [{ ...t, assignee: pid }]);
 }
 function stepAssignMenu(anchor, id) {
@@ -4892,7 +4893,7 @@ async function stepDue(t) {
   t = clone(t);
   const b = S.data.briefs[t.briefId] || {};
   await store.update('tasks', t.id, { due: v || null, updatedAt: Date.now(), updatedBy: me() });
-  logAct('step_due', { kind: 'step', briefId: t.briefId, taskId: t.id, clientIds: b.clientIds || [], title: t.title, from: t.due ? fmtDay(t.due) : '—', to: v ? fmtDay(v) : '—' });
+  logAct('step_due', { kind: 'step', briefId: t.briefId, taskId: t.id, clientIds: b.clientIds || [], title: t.title, from: t.due ? fmtDay(t.due) : '-', to: v ? fmtDay(v) : '-' });
 }
 async function addStep(bid) {
   const b = S.data.briefs[bid]; if (!b) return;
@@ -4945,10 +4946,10 @@ function renderBrief(b) {
       <td class="st-cell"><button class="link-btn st-name" data-action="open-task" data-id="${t.id}">${esc(t.title)}</button>${t.launch ? ' <span class="tag">go-live</span>' : ''}${t.status === 'Blocked' && t.blockedReason ? `<div class="bad sm-note">${ico('block', 'i-xs')} ${esc(t.blockedReason)}</div>` : ''}${(t.comments || []).length ? ` <span class="mut sm-note">${ico('comment', 'i-xs')}${t.comments.length}</span>` : ''}</td>
       <td><button class="who-btn" data-action="st-assign" data-id="${t.id}">${avatarHTML(t.assignee)}<span>${t.assignee ? esc(personName(t.assignee)) : '<span class="warn">Assign</span>'}</span></button>${t.role ? `<small class="mut">${esc(t.role)}</small>` : ''}</td>
       <td class="nw"><button class="link-btn ${late ? 'bad' : t.status === 'Done' ? (t.due && tsKey(t.doneAt || 0) > t.due ? 'warn' : '') : t.due ? dueInfo(t.due).cls : ''}" data-action="st-due" data-id="${t.id}" title="${t.status === 'Done' && t.due ? (tsKey(t.doneAt || 0) > t.due ? 'Finished after its due date' : 'Finished on time') : 'Change the due date'}">${t.due ? esc(fmtDay(t.due)) : 'Set date'}</button></td>
-      <td class="num mut">${t.slaDays != null ? t.slaDays + 'd' : '—'}</td>
-      <td class="mut nw">${t.startedAt ? esc(fmtStamp(t.startedAt)) : '—'}</td>
-      <td class="mut nw">${t.doneAt ? esc(fmtStamp(t.doneAt)) : '—'}</td>
-      <td class="num ${over ? 'warn' : ''}" title="${t.status === 'Done' ? 'Ready (previous step done) → done, in working days' : 'In progress so far, working days'}">${took != null ? fmtDur(took) : '—'}</td></tr>`;
+      <td class="num mut">${t.slaDays != null ? t.slaDays + 'd' : '-'}</td>
+      <td class="mut nw">${t.startedAt ? esc(fmtStamp(t.startedAt)) : '-'}</td>
+      <td class="mut nw">${t.doneAt ? esc(fmtStamp(t.doneAt)) : '-'}</td>
+      <td class="num ${over ? 'warn' : ''}" title="${t.status === 'Done' ? 'Ready (previous step done) → done, in working days' : 'In progress so far, working days'}">${took != null ? fmtDur(took) : '-'}</td></tr>`;
   }).join('');
   return topbar(`<a data-go="#/briefs" class="crumb-link">Briefs</a> /`, `
       <button class="top-btn" data-action="br-edit" data-id="${b.id}">${ico('pencil', 'i-sm')}Edit brief</button>
@@ -4959,13 +4960,13 @@ function renderBrief(b) {
     <div class="bp-head"><div class="bp-ref">${esc(briefRef(b))}${b.type ? ` · ${esc(b.type)}` : ''}${b.priority === 'High' ? ' · <span class="bad">High priority</span>' : ''}</div>
       <h1>${esc(b.title || 'Untitled brief')}</h1>
       <div class="bp-chips">${briefPill(b, true)}${clientChips(b.clientIds, 6)}</div></div>
-    ${al.length ? `<div class="bp-alerts">${al.map(a => `<div class="al-row sev-${a.sev}">${ico(a.sev === 'crit' ? 'alert' : 'clock', 'i-sm')}<b>${esc(ALERT_LABEL[a.kind] || a.kind)}</b><span>${esc(a.title && a.kind !== 'golive_risk' && a.kind !== 'golive_missed' && a.kind !== 'kickoff' ? a.title + ' — ' : '')}${esc(a.detail)}</span></div>`).join('')}</div>` : ''}
+    ${al.length ? `<div class="bp-alerts">${al.map(a => `<div class="al-row sev-${a.sev}">${ico(a.sev === 'crit' ? 'alert' : 'clock', 'i-sm')}<b>${esc(ALERT_LABEL[a.kind] || a.kind)}</b><span>${esc(a.title && a.kind !== 'golive_risk' && a.kind !== 'golive_missed' && a.kind !== 'kickoff' ? a.title + ' - ' : '')}${esc(a.detail)}</span></div>`).join('')}</div>` : ''}
     ${cta ? `<div class="bp-cta">${cta}</div>` : ''}
     <div class="bp-grid"><div class="bp-main">
       <div class="bp-sec"><div class="bp-sec-h"><h3>${ico('flow', 'i-sm')} Workflow</h3>${steps.length ? `<span class="mut">${pr.n} of ${pr.total} done</span><div class="sp ${pr.n === pr.total ? 'full' : ''}" style="flex:1;max-width:220px"><div class="sp-track"><i style="width:${pr.pct}%"></i></div></div>` : ''}<span style="flex:1"></span>${steps.length ? `<button class="btn sm" data-action="st-add" data-id="${b.id}">${ico('plus', 'i-sm')} Step</button>` : ''}</div>
         ${steps.length ? `<div class="tbl-wrap"><table class="tbl steps"><thead><tr><th>#</th><th>Status</th><th>Step</th><th>Assignee</th><th>Due</th><th class="num">SLA</th><th>Started</th><th>Finished</th><th class="num">Took</th></tr></thead><tbody>${stepRows}</tbody></table></div>
           ${ganttHTML(b, steps)}`
-        : `<div class="db-empty">Not started yet. ${b.status === 'Draft' ? 'Submit the brief, then' : ''} assign the team and kick off the workflow — each step gets an owner and a due date from its SLA.</div>`}</div>
+        : `<div class="db-empty">Not started yet. ${b.status === 'Draft' ? 'Submit the brief, then' : ''} assign the team and kick off the workflow - each step gets an owner and a due date from its SLA.</div>`}</div>
       ${section('Objective &amp; KPIs', `${b.objective ? `<p class="bp-p"><b>${esc(b.objective)}</b></p>` : ''}${para(b.kpis)}`)}
       ${section('Audience', para(b.audience))}
       ${section('Offer &amp; messaging', `${para(b.offer)}${b.promo ? `<p class="bp-p mut">Promo code: <b>${esc(b.promo)}</b></p>` : ''}${b.message ? `<p class="bp-p"><i>“${esc(b.message)}”</i></p>` : ''}${b.cta ? `<p class="bp-p mut">CTA: <b>${esc(b.cta)}</b></p>` : ''}`)}
@@ -4975,8 +4976,8 @@ function renderBrief(b) {
     </div>
     <aside class="bp-side">
       <div class="bp-card"><h4>Key dates</h4>
-        ${row('Go-live deadline', b.goLive ? `<span class="${risk.level === 'late' ? 'bad' : risk.level === 'risk' ? 'warn' : ''}">${esc(longDay(b.goLive))}</span>${risk.level === 'ok' && risk.projected ? `<small>on track — projected ${esc(fmtDay(risk.projected))}</small>` : risk.level === 'risk' ? `<small class="warn">projected ${esc(fmtDay(risk.projected))} (+${risk.slip}d)</small>` : risk.level === 'late' ? '<small class="bad">passed — not live</small>' : ''}` : '<span class="mut">not set</span>')}
-        ${row('Flight', b.flightStart || b.flightEnd ? `${b.flightStart ? esc(fmtDay(b.flightStart)) : '—'} → ${b.flightEnd ? esc(fmtDay(b.flightEnd)) : '—'}` : '')}
+        ${row('Go-live deadline', b.goLive ? `<span class="${risk.level === 'late' ? 'bad' : risk.level === 'risk' ? 'warn' : ''}">${esc(longDay(b.goLive))}</span>${risk.level === 'ok' && risk.projected ? `<small>on track - projected ${esc(fmtDay(risk.projected))}</small>` : risk.level === 'risk' ? `<small class="warn">projected ${esc(fmtDay(risk.projected))} (+${risk.slip}d)</small>` : risk.level === 'late' ? '<small class="bad">passed - not live</small>' : ''}` : '<span class="mut">not set</span>')}
+        ${row('Flight', b.flightStart || b.flightEnd ? `${b.flightStart ? esc(fmtDay(b.flightStart)) : '-'} → ${b.flightEnd ? esc(fmtDay(b.flightEnd)) : '-'}` : '')}
         ${row('Requested', b.requestDate ? esc(fmtDay(b.requestDate)) + (b.requestedBy ? `<small>by ${esc(b.requestedBy)}</small>` : '') : '')}
         ${row('Submitted', b.submittedAt ? esc(fmtDateTime(b.submittedAt)) : '')}
         ${row('Kicked off', b.kickoffAt ? esc(fmtDateTime(b.kickoffAt)) + (b.submittedAt ? `<small>${fmtDur(workdaysMs(b.submittedAt, b.kickoffAt))} after submission</small>` : '') : '')}
@@ -4986,7 +4987,7 @@ function renderBrief(b) {
         ${b.ownerId ? `<div class="tm-row">${avatarHTML(b.ownerId)}<span><b>${esc(personName(b.ownerId))}</b><small>Owner</small></span></div>` : ''}
         ${(b.team || []).filter(m => m.personId !== b.ownerId).map(m => `<div class="tm-row">${avatarHTML(m.personId)}<span><b>${esc(personName(m.personId))}</b><small>${esc(m.role || '')}</small></span><span class="tm-open ${m.openedAt ? 'ok' : hoursSince(m.addedAt) > alertCfg().unopenedHours ? 'bad' : 'warn'}" title="${m.openedAt ? 'Opened ' + esc(fmtDateTime(m.openedAt)) : 'Assigned ' + esc(fmtDateTime(m.addedAt))}">${m.openedAt ? `${ico('eye', 'i-xs')}opened` : 'not opened'}</span></div>`).join('') || '<div class="mut" style="font-size:12px">No one assigned yet.</div>'}</div>
       <div class="bp-card"><h4>Budget &amp; channels</h4>
-        ${row('Budget', b.budget != null ? `${esc(b.currency || CFG.currency || '')} ${Number(b.budget).toLocaleString()}` : '<span class="mut">—</span>')}
+        ${row('Budget', b.budget != null ? `${esc(b.currency || CFG.currency || '')} ${Number(b.budget).toLocaleString()}` : '<span class="mut">-</span>')}
         ${(b.markets || []).length ? `<div class="kv-tags"><span>Markets</span><div>${tagList(b.markets, 'mkt', 12)}</div></div>` : ''}
         ${(b.platforms || []).length ? `<div class="kv-tags"><span>Platforms</span><div>${tagList(b.platforms, 'plat', 12)}</div></div>` : ''}
         ${(b.languages || []).length ? `<div class="kv-tags"><span>Languages</span><div>${tagList(b.languages, '', 12)}</div></div>` : ''}</div>
@@ -5035,7 +5036,7 @@ function briefMenu(anchor, id) {
 }
 function briefText(b) {
   const L = (k, v) => (v ? `${k}: ${v}\n` : '');
-  return `${briefRef(b)} — ${b.title}\n${L('Brands', (b.clientIds || []).map(clientName).join(', '))}${L('Type', b.type)}${L('Objective', b.objective)}${L('KPIs', b.kpis)}${L('Budget', b.budget != null ? `${b.currency || ''} ${b.budget}` : '')}${L('Go-live', b.goLive)}${L('Flight', b.flightStart || b.flightEnd ? `${b.flightStart || ''} → ${b.flightEnd || ''}` : '')}${L('Markets', (b.markets || []).join(', '))}${L('Platforms', (b.platforms || []).join(', '))}${L('Languages', (b.languages || []).join(', '))}${L('Audience', b.audience)}${L('Offer', b.offer)}${L('Promo code', b.promo)}${L('Key message', b.message)}${L('CTA', b.cta)}${L('Landing page', b.landingUrl)}${L('Creative', b.creative)}${L('Assets', b.assetsUrl)}${L('Notes', b.notes)}`;
+  return `${briefRef(b)} - ${b.title}\n${L('Brands', (b.clientIds || []).map(clientName).join(', '))}${L('Type', b.type)}${L('Objective', b.objective)}${L('KPIs', b.kpis)}${L('Budget', b.budget != null ? `${b.currency || ''} ${b.budget}` : '')}${L('Go-live', b.goLive)}${L('Flight', b.flightStart || b.flightEnd ? `${b.flightStart || ''} → ${b.flightEnd || ''}` : '')}${L('Markets', (b.markets || []).join(', '))}${L('Platforms', (b.platforms || []).join(', '))}${L('Languages', (b.languages || []).join(', '))}${L('Audience', b.audience)}${L('Offer', b.offer)}${L('Promo code', b.promo)}${L('Key message', b.message)}${L('CTA', b.cta)}${L('Landing page', b.landingUrl)}${L('Creative', b.creative)}${L('Assets', b.assetsUrl)}${L('Notes', b.notes)}`;
 }
 async function duplicateBrief(id) {
   const b = S.data.briefs[id]; if (!b) return;
@@ -5061,7 +5062,7 @@ async function deleteBrief(id) {
 }
 
 /* =====================================================================
-   ACTIVITY LOG — one write-once entry per thing that happens.
+   ACTIVITY LOG - one write-once entry per thing that happens.
    The security rules stamp each entry with the server's clock and refuse
    edits and deletes, so the log can be trusted for SLA and bottleneck work.
    ===================================================================== */
@@ -5124,13 +5125,13 @@ function renderActivity() {
   const sel = (key, opts, label) => `<label class="filt ${f[key] !== 'All' && key !== 'period' ? 'on' : key === 'period' ? 'on' : ''}">${label}<select data-avf="${key}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${f[key] === v ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select></label>`;
   const by = {}; list.forEach(a => by[a.by] = (by[a.by] || 0) + 1);
   return topbar('Client work /', `<button class="top-btn" data-action="av-export">${ico('download', 'i-sm')}Export CSV</button>`) + `<div class="content"><div class="list" style="max-width:900px">
-    <div class="page-head"><h1>Activity log</h1><div class="page-desc empty" style="cursor:default">Every brief, step, task and brand change — who did it and when. Entries can't be edited or deleted. ${plural(list.length, 'entry', 'entries')} shown.</div></div>
+    <div class="page-head"><h1>Activity log</h1><div class="page-desc empty" style="cursor:default">Every brief, step, task and brand change - who did it and when. Entries can't be edited or deleted. ${plural(list.length, 'entry', 'entries')} shown.</div></div>
     <div class="ct-toolbar">
       <div class="ct-search">${ico('search', 'i-sm')}<input id="av-q" data-keep value="${esc(f.q)}" placeholder="Search the log" autocomplete="off"></div>
       ${sel('period', DB_PERIODS, ico('cal', 'i-sm'))}${sel('action', ['All', ...Object.keys(ACT_GROUPS)], 'Type')}
       ${sel('who', [['All', 'All'], ...whos], 'Person')}${sel('client', [['All', 'All'], ...clients().map(h => [h.id, h.name])], 'Brand')}
     </div>
-    ${list.length ? activityList(list.slice(0, 600)) + (list.length > 600 ? `<div class="mut" style="padding:12px 0">Showing the latest 600 — narrow the filters or export to see everything.</div>` : '') : '<div class="ct-empty">Nothing logged for these filters.</div>'}
+    ${list.length ? activityList(list.slice(0, 600)) + (list.length > 600 ? `<div class="mut" style="padding:12px 0">Showing the latest 600 - narrow the filters or export to see everything.</div>` : '') : '<div class="ct-empty">Nothing logged for these filters.</div>'}
   </div></div>`;
 }
 function exportActivity() {
@@ -5140,7 +5141,7 @@ function exportActivity() {
 }
 
 /* =====================================================================
-   NOTIFICATIONS — in-app (bell) for everyone, email via the mail collection.
+   NOTIFICATIONS - in-app (bell) for everyone, email via the mail collection.
    ===================================================================== */
 const myNotifs = () => Object.values(S.data.notifs).filter(n => n.to && n.to === myEmail()).sort((a, b) => b.at - a.at);
 const unreadNotifs = () => myNotifs().filter(n => !n.read);
@@ -5161,7 +5162,7 @@ function emailHTML({ heading, intro, rows = [], items = [], cta, link }) {
   <h2 style="font-size:18px;margin:0 0 10px">${e(heading)}</h2>${intro ? `<p style="font-size:14px;line-height:1.5;margin:0 0 14px">${e(intro)}</p>` : ''}
   ${rows.length ? `<table style="border-collapse:collapse;font-size:13px;margin:0 0 14px">${rows.filter(r => r[1]).map(([k, v]) => `<tr><td style="color:#787774;padding:3px 14px 3px 0;vertical-align:top">${e(k)}</td><td style="padding:3px 0"><b>${e(v)}</b></td></tr>`).join('')}</table>` : ''}
   ${items.length ? `<table style="border-collapse:collapse;font-size:13px;width:100%;margin:0 0 16px"><tr><th align="left" style="border-bottom:1px solid #e1e0dd;padding:6px 4px;color:#787774;font-weight:600">Step</th><th align="left" style="border-bottom:1px solid #e1e0dd;padding:6px 4px;color:#787774;font-weight:600">Due</th><th align="left" style="border-bottom:1px solid #e1e0dd;padding:6px 4px;color:#787774;font-weight:600">SLA</th></tr>
-    ${items.map(t => `<tr><td style="border-bottom:1px solid #f1f1ef;padding:6px 4px">${e(t.title)}</td><td style="border-bottom:1px solid #f1f1ef;padding:6px 4px">${e(t.due ? longDay(t.due) : '—')}</td><td style="border-bottom:1px solid #f1f1ef;padding:6px 4px">${e(t.slaDays != null ? t.slaDays + ' working day(s)' : '')}</td></tr>`).join('')}</table>` : ''}
+    ${items.map(t => `<tr><td style="border-bottom:1px solid #f1f1ef;padding:6px 4px">${e(t.title)}</td><td style="border-bottom:1px solid #f1f1ef;padding:6px 4px">${e(t.due ? longDay(t.due) : '-')}</td><td style="border-bottom:1px solid #f1f1ef;padding:6px 4px">${e(t.slaDays != null ? t.slaDays + ' working day(s)' : '')}</td></tr>`).join('')}</table>` : ''}
   ${link ? `<a href="${e(appLink(link))}" style="display:inline-block;background:#323232;color:#fff;text-decoration:none;padding:10px 18px;border-radius:2px;font-weight:600;font-size:14px">${e(cta || 'Open')}</a>` : ''}
   <p style="font-size:11.5px;color:#a3a19c;margin-top:22px">Opening the brief marks it as seen, so the team knows it reached you.</p></div>`;
 }
@@ -5179,7 +5180,7 @@ function notifySteps(b, pid, steps) {
 }
 function notifyNext(b, t) {
   const heading = `You're up: ${t.title}`;
-  return notify(t.assignee, { kind: 'step', title: heading, body: `${briefLabel(b)} — the previous step is done`, link: `#/brief/${b.id}`, briefId: b.id, taskId: t.id,
+  return notify(t.assignee, { kind: 'step', title: heading, body: `${briefLabel(b)} - the previous step is done`, link: `#/brief/${b.id}`, briefId: b.id, taskId: t.id,
     email: { subject: `[${briefRef(b)}] ${heading}`, html: emailHTML({ heading, intro: 'The step before yours has just been completed.', rows: briefRows(b), items: [t], cta: 'Open the brief', link: `#/brief/${b.id}` }), text: textOf(heading, b, [t]) } });
 }
 function notifyBriefSubmitted(b) {
@@ -5210,7 +5211,7 @@ function openNotifPanel(anchor) {
 }
 
 /* =====================================================================
-   ALERTS — overdue, due soon and not started, stalled, blocked, unassigned,
+   ALERTS - overdue, due soon and not started, stalled, blocked, unassigned,
    unopened briefs, briefs waiting for kick-off and go-live at risk.
    ===================================================================== */
 const ALERT_LABEL = { overdue: 'Overdue', due_soon: 'Due soon, not started', stalled: 'Taking too long', blocked: 'Blocked', unassigned: 'No assignee', golive_missed: 'Go-live missed',
@@ -5225,14 +5226,14 @@ function computeAlerts() {
     if (!t.briefId || t.archived || t.status === 'Done') return;
     const b = live(t.briefId); if (!b) return;
     const base = { taskId: t.id, briefId: b.id, personId: t.assignee || null, clientIds: b.clientIds || [], link: `#/brief/${b.id}`, title: t.title, ctx: briefRef(b) };
-    const ready = stepIsReady(t);   // a step still waiting on the one before it isn't "late" on its own — the go-live risk covers it
+    const ready = stepIsReady(t);   // a step still waiting on the one before it isn't "late" on its own - the go-live risk covers it
     if (!ready) { if (!t.assignee) out.push({ ...base, sev: 'warn', kind: 'unassigned', detail: 'No one is assigned to this step' }); return; }
-    if (t.due && t.due < today) out.push({ ...base, sev: 'crit', kind: 'overdue', rank: workdaysBetween(t.due, today), detail: `${plural(Math.max(1, workdaysBetween(t.due, today)), 'working day')} late — was due ${fmtDay(t.due)}` });
+    if (t.due && t.due < today) out.push({ ...base, sev: 'crit', kind: 'overdue', rank: workdaysBetween(t.due, today), detail: `${plural(Math.max(1, workdaysBetween(t.due, today)), 'working day')} late - was due ${fmtDay(t.due)}` });
     else if (t.due && (t.status || 'To do') === 'To do' && workdaysBetween(today, t.due) <= cfg.dueSoonDays) out.push({ ...base, sev: 'warn', kind: 'due_soon', detail: `Due ${dueInfo(t.due).label.toLowerCase()} and not started` });
-    if (t.status === 'Blocked') out.push({ ...base, sev: 'warn', kind: 'blocked', detail: `${t.blockedAt ? 'Blocked for ' + fmtDur(workdaysMs(t.blockedAt, now)) : 'Blocked'}${t.blockedReason ? ' — ' + t.blockedReason : ''}` });
+    if (t.status === 'Blocked') out.push({ ...base, sev: 'warn', kind: 'blocked', detail: `${t.blockedAt ? 'Blocked for ' + fmtDur(workdaysMs(t.blockedAt, now)) : 'Blocked'}${t.blockedReason ? ' - ' + t.blockedReason : ''}` });
     if (['In progress', 'In review'].includes(t.status) && t.startedAt && t.slaDays != null) {
       const used = workdaysMs(t.startedAt, now);
-      if (used > Math.max(0.5, t.slaDays) * cfg.stallFactor) out.push({ ...base, sev: 'warn', kind: t.status === 'In review' ? 'review_wait' : 'stalled', detail: `${t.status} for ${fmtDur(used)} — SLA is ${t.slaDays}d` });
+      if (used > Math.max(0.5, t.slaDays) * cfg.stallFactor) out.push({ ...base, sev: 'warn', kind: t.status === 'In review' ? 'review_wait' : 'stalled', detail: `${t.status} for ${fmtDur(used)} - SLA is ${t.slaDays}d` });
     }
     if (!t.assignee) out.push({ ...base, sev: 'warn', kind: 'unassigned', detail: 'No one is assigned to this step' });
   });
@@ -5242,8 +5243,8 @@ function computeAlerts() {
     const risk = briefRisk(b);
     if (risk.level === 'late') out.push({ ...base, sev: 'crit', kind: 'golive_missed', rank: 99, detail: `Go-live was ${fmtDay(b.goLive)} and it isn't live yet` });
     else if (risk.level === 'risk') out.push({ ...base, sev: risk.slip > 2 ? 'crit' : 'warn', kind: 'golive_risk', rank: risk.slip, detail: `Projected to go live ${fmtDay(risk.projected)}, ${plural(risk.slip, 'working day')} after the ${fmtDay(b.goLive)} deadline` });
-    if (b.status === 'Submitted' && !briefSteps(b.id).length && b.submittedAt && hoursSince(b.submittedAt) > cfg.kickoffHours) out.push({ ...base, sev: 'warn', kind: 'kickoff', detail: `Submitted ${timeAgo(b.submittedAt)} — the workflow hasn't started` });
-    (b.team || []).forEach(m => { if (!m.openedAt && m.addedAt && hoursSince(m.addedAt) > cfg.unopenedHours) out.push({ ...base, personId: m.personId, sev: 'warn', kind: 'unopened', detail: `${personName(m.personId)} hasn't opened it — assigned ${timeAgo(m.addedAt)}` }); });
+    if (b.status === 'Submitted' && !briefSteps(b.id).length && b.submittedAt && hoursSince(b.submittedAt) > cfg.kickoffHours) out.push({ ...base, sev: 'warn', kind: 'kickoff', detail: `Submitted ${timeAgo(b.submittedAt)} - the workflow hasn't started` });
+    (b.team || []).forEach(m => { if (!m.openedAt && m.addedAt && hoursSince(m.addedAt) > cfg.unopenedHours) out.push({ ...base, personId: m.personId, sev: 'warn', kind: 'unopened', detail: `${personName(m.personId)} hasn't opened it - assigned ${timeAgo(m.addedAt)}` }); });
   });
   Object.values(S.data.tasks).forEach(t => {
     if (t.briefId || t.done || inArchivedProject(t)) return;
@@ -5268,7 +5269,7 @@ function renderAlerts() {
       <div class="al-body"><div class="al-t"><span class="al-k">${esc(ALERT_LABEL[a.kind] || a.kind)}</span><b>${esc(a.title || '')}</b>${a.ctx ? `<span class="mut"> · ${esc(a.ctx)}</span>` : ''}</div><div class="al-d">${esc(a.detail)}</div></div>
       <div class="al-side">${clientChips(a.clientIds, 1)}${a.personId !== undefined ? avatarHTML(a.personId) : ''}</div></div>`;
   return topbar('') + `<div class="content"><div class="list" style="max-width:980px">
-    <div class="page-head"><h1>Alerts</h1><div class="page-desc empty" style="cursor:default">Work that is late, stuck or at risk — worked out live from due dates, SLAs and the activity log. Thresholds are in Settings → Alerts &amp; SLAs.</div></div>
+    <div class="page-head"><h1>Alerts</h1><div class="page-desc empty" style="cursor:default">Work that is late, stuck or at risk - worked out live from due dates, SLAs and the activity log. Thresholds are in Settings → Alerts &amp; SLAs.</div></div>
     <div class="ct-toolbar"><div class="seg">${[['all', 'Everyone'], ['mine', 'Assigned to me']].map(([v, l]) => `<button class="${f.scope === v ? 'on' : ''}" data-action="al-scope" data-v="${v}" ${v === 'mine' && !mine ? 'disabled title="Add your email to the team list first"' : ''}>${l}</button>`).join('')}</div>
       <label class="filt ${f.sev !== 'All' ? 'on' : ''}">Type<select data-alf="sev"><option value="All">All (${computeAlerts().length})</option>${Object.keys(ALERT_LABEL).filter(k => kinds[k]).map(k => `<option value="${k}" ${f.sev === k ? 'selected' : ''}>${esc(ALERT_LABEL[k])} (${kinds[k]})</option>`).join('')}</select></label></div>
     <div class="db-tiles c4" style="margin-bottom:14px">
@@ -5295,7 +5296,7 @@ async function alertSweep() {
 }
 
 /* =====================================================================
-   MY WORK — everything assigned to you, and briefs you haven't opened.
+   MY WORK - everything assigned to you, and briefs you haven't opened.
    ===================================================================== */
 function myWorkCount() { const p = myPerson(); if (!p) return 0; const t = todayKey(); return Object.values(S.data.tasks).filter(x => x.assignee === p.id && !x.done && !inArchivedProject(x) && x.due && x.due <= t && (!x.briefId || S.data.briefs[x.briefId])).length; }
 function stepRowHTML(t) {
@@ -5309,7 +5310,7 @@ const anyRow = t => (t.briefId ? stepRowHTML(t) : rowHTML(t));
 function renderMyWork() {
   const p = myPerson(), today = todayKey();
   if (!p) return topbar('') + `<div class="content"><div class="list"><div class="page-head"><h1>My work</h1></div>
-    <div class="ct-banner">${ico('user')}<div><b>You're not on ${esc(S.acc ? S.acc.name : 'this account')}'s team list.</b><br>${canEditAcc() ? 'Join it to get briefs, steps and tasks assigned to you here — they show up on this page.' : 'You have view-only access, so nothing is assigned to you in this account.'}<br><br>${canEditAcc() ? `<button class="btn btn-primary" data-action="join-team">Add me to the team` : `<button class="btn" data-go="#/dashboard">Open the dashboard`}</button></div></div></div></div>`;
+    <div class="ct-banner">${ico('user')}<div><b>You're not on ${esc(S.acc ? S.acc.name : 'this account')}'s team list.</b><br>${canEditAcc() ? 'Join it to get briefs, steps and tasks assigned to you here - they show up on this page.' : 'You have view-only access, so nothing is assigned to you in this account.'}<br><br>${canEditAcc() ? `<button class="btn btn-primary" data-action="join-team">Add me to the team` : `<button class="btn" data-go="#/dashboard">Open the dashboard`}</button></div></div></div></div>`;
   const mine = Object.values(S.data.tasks).filter(t => t.assignee === p.id && !t.done && !inArchivedProject(t) && (!t.briefId || (S.data.briefs[t.briefId] && !S.data.briefs[t.briefId].archived)));
   const unopened = Object.values(S.data.briefs).filter(b => !b.archived && BRIEF_ACTIVE.includes(b.status) && (b.team || []).some(m => m.personId === p.id && !m.openedAt));
   const lead = activeBriefs().filter(b => b.ownerId === p.id);
@@ -5329,7 +5330,7 @@ function renderMyWork() {
 }
 
 /* =====================================================================
-   ALL TASKS — one list across team lists, client lists and brief steps,
+   ALL TASKS - one list across team lists, client lists and brief steps,
    filtered by client, label, person or date and grouped any way.
    ===================================================================== */
 function txFiltered() {
@@ -5384,7 +5385,7 @@ function exportTasks() {
 }
 
 /* =====================================================================
-   PROCESS DASHBOARD — throughput, on-time delivery and where the time goes.
+   PROCESS DASHBOARD - throughput, on-time delivery and where the time goes.
    Step times are measured in working days: assigned → started is waiting,
    started → done is work, assigned → done is the step's cycle time.
    ===================================================================== */
@@ -5440,8 +5441,8 @@ function processMetrics(r) {
 }
 function processSection(r, n, pLabel, delta) {
   const M = processMetrics(r);
-  if (!M.total) return `<section class="db-sec"><div class="db-h"><h2>${ico('brief')} Briefs &amp; workflow</h2></div><div class="db-card db-empty">No briefs yet — they appear here as soon as the first one is submitted. (Settings → Sample data loads a realistic demo set.)</div></section>`;
-  const d = v => (v == null ? '—' : `${fmtDur(v)}`);
+  if (!M.total) return `<section class="db-sec"><div class="db-h"><h2>${ico('brief')} Briefs &amp; workflow</h2></div><div class="db-card db-empty">No briefs yet - they appear here as soon as the first one is submitted. (Settings → Sample data loads a realistic demo set.)</div></section>`;
+  const d = v => (v == null ? '-' : `${fmtDur(v)}`);
   const bars = M.stepRows.slice(0, 10);
   const maxC = Math.max(1, ...bars.map(x => Math.max(x.cycle || 0, x.sla || 0)));
   return `<section class="db-sec"><div class="db-h"><h2>${ico('brief')} Briefs &amp; workflow</h2><span class="db-hs">${M.atRisk ? `<span class="warn">${M.atRisk} brief${M.atRisk === 1 ? '' : 's'} at risk now</span>` : 'nothing at risk right now'}</span></div>
@@ -5449,17 +5450,17 @@ function processSection(r, n, pLabel, delta) {
       ${dbTile('Briefs received', fmtN(M.received), `${M.completed} completed in period`, delta(M.received, M.receivedPrev, null), 'Briefs submitted in this period.')}
       ${dbTile('Went live', fmtN(M.live), M.timedLive ? `${M.onTimeLiveN} of ${M.timedLive} by their go-live date` : 'no go-live dates to compare', delta(M.live, M.livePrev), 'Briefs whose go-live step was completed (or set Live) in this period.')}
       ${dbTile('Live on time', rateVal(M.onTimeLive), 'went live on or before the deadline', null, 'Of the briefs that went live in this period with a go-live deadline, how many made it.')}
-      ${dbTile('Brief to live', M.cycle == null ? '—' : `${fmtDur(M.cycle)}`, 'median, submitted → live (working days)', null, 'Median working days from a brief being submitted to it going live.')}
-      ${dbTile('Time to kick off', M.response == null ? '—' : fmtDur(M.response), 'median, submitted → workflow started', null, 'How long briefs wait after submission before the workflow is started.')}
-      ${dbTile('Time to open', M.openTime == null ? '—' : fmtDur(M.openTime), M.unopenedNow ? `<span class="warn">${M.unopenedNow} assignment${M.unopenedNow === 1 ? '' : 's'} not opened yet</span>` : 'everyone has opened their briefs', null, 'Median time between someone being added to a brief and them opening it.')}
+      ${dbTile('Brief to live', M.cycle == null ? '-' : `${fmtDur(M.cycle)}`, 'median, submitted → live (working days)', null, 'Median working days from a brief being submitted to it going live.')}
+      ${dbTile('Time to kick off', M.response == null ? '-' : fmtDur(M.response), 'median, submitted → workflow started', null, 'How long briefs wait after submission before the workflow is started.')}
+      ${dbTile('Time to open', M.openTime == null ? '-' : fmtDur(M.openTime), M.unopenedNow ? `<span class="warn">${M.unopenedNow} assignment${M.unopenedNow === 1 ? '' : 's'} not opened yet</span>` : 'everyone has opened their briefs', null, 'Median time between someone being added to a brief and them opening it.')}
       ${dbTile('Steps on time', rateVal(M.stepsOnTime), M.stepsTimed ? `${M.stepsOnTimeN} of ${M.stepsTimed} steps by their due date` : 'no steps finished yet', null, 'Workflow steps completed in this period on or before their due date.')}
       ${dbTile('Open steps', fmtN(M.open), `<span class="${M.overdue ? 'warn' : ''}">${M.overdue} overdue</span> · ${M.blocked} blocked`)}
     </div>
     <div class="db-card"><div class="db-ch"><h3>Briefs received vs went live</h3><span>${esc(pLabel)}</span></div>
       ${dbColumns(M.buckets, [{ key: 'received', label: 'Received', slot: 1 }, { key: 'live', label: 'Went live', slot: 2 }], n <= 14 ? 'Day' : n <= 126 ? 'Week' : 'Month')}</div>
-    <div class="db-card"><div class="db-ch"><h3>Where the time goes — bottlenecks by step</h3><span>steps finished in period · working days</span></div>
-      ${bars.length ? `<div class="bn-list">${bars.map(x => `<div class="bn-row" tabindex="0" data-tip="${esc(`${x.name}\n${x.n} finished · ${x.onTime == null ? '—' : x.onTime + '% on time'}\nAvg ${fmtDur(x.cycle)} vs ${x.sla == null ? '—' : x.sla + 'd'} SLA\nWaiting to start ${d(x.wait)} · working ${d(x.work)}${x.blocked ? `\nBlocked on average ${fmtDur(x.blocked)}` : ''}`)}">
-          <span class="nm">${esc(x.name)}<small>${x.n} done · ${x.onTime == null ? '—' : x.onTime + '% on time'}</small></span>
+    <div class="db-card"><div class="db-ch"><h3>Where the time goes - bottlenecks by step</h3><span>steps finished in period · working days</span></div>
+      ${bars.length ? `<div class="bn-list">${bars.map(x => `<div class="bn-row" tabindex="0" data-tip="${esc(`${x.name}\n${x.n} finished · ${x.onTime == null ? '-' : x.onTime + '% on time'}\nAvg ${fmtDur(x.cycle)} vs ${x.sla == null ? '-' : x.sla + 'd'} SLA\nWaiting to start ${d(x.wait)} · working ${d(x.work)}${x.blocked ? `\nBlocked on average ${fmtDur(x.blocked)}` : ''}`)}">
+          <span class="nm">${esc(x.name)}<small>${x.n} done · ${x.onTime == null ? '-' : x.onTime + '% on time'}</small></span>
           <span class="bn-track"><span class="bn-wait" style="width:${((x.wait || 0) / maxC) * 100}%"></span><span class="bn-work" style="width:${((x.work != null ? x.work : x.cycle || 0) / maxC) * 100}%"></span>${x.sla != null ? `<i class="bn-sla" style="left:${(x.sla / maxC) * 100}%"></i>` : ''}</span>
           <span class="val ${x.over > 1.2 ? 'bad' : x.over > 1 ? 'warn' : ''}">${fmtDur(x.cycle)}${x.over != null ? `<small>${x.over >= 1 ? (Math.round(x.over * 10) / 10) + '× SLA' : 'within SLA'}</small>` : ''}</span></div>`).join('')}</div>
         <div class="db-legend"><span><i class="sw bn-wait"></i>Waiting to start</span><span><i class="sw bn-work"></i>Working</span><span><i class="sw bn-sla-k"></i>SLA</span></div>`
@@ -5468,7 +5469,7 @@ function processSection(r, n, pLabel, delta) {
       <div class="db-card"><div class="db-ch"><h3>By teammate</h3><span>open steps · finished in period</span></div>
         ${M.ppl.length ? `<div class="db-tw"><table class="db-acc"><thead><tr><th>Person</th><th>Open</th><th>Overdue</th><th>Blocked</th><th>Done</th><th>On time</th><th>vs SLA</th></tr></thead><tbody>
           ${M.ppl.sort((a, b) => b.overdue - a.overdue || b.open - a.open).map(p => `<tr><td>${avatarHTML(p.id)} ${esc(p.name)}<small class="mut"> ${esc(p.role || '')}</small></td><td>${p.open}</td><td>${p.overdue ? `<span class="warn">${p.overdue}</span>` : '<span class="mut">0</span>'}</td><td>${p.blocked || '<span class="mut">0</span>'}</td>
-            <td>${p.done}</td><td>${p.onTime == null ? '<span class="mut">—</span>' : p.onTime + '%'}</td><td class="${p.ratio > 1.2 ? 'bad' : p.ratio > 1 ? 'warn' : ''}">${p.ratio == null ? '<span class="mut">—</span>' : (Math.round(p.ratio * 10) / 10) + '×'}</td></tr>`).join('')}</tbody></table></div>`
+            <td>${p.done}</td><td>${p.onTime == null ? '<span class="mut">-</span>' : p.onTime + '%'}</td><td class="${p.ratio > 1.2 ? 'bad' : p.ratio > 1 ? 'warn' : ''}">${p.ratio == null ? '<span class="mut">-</span>' : (Math.round(p.ratio * 10) / 10) + '×'}</td></tr>`).join('')}</tbody></table></div>`
           : '<div class="db-empty">Assign workflow steps to see the split.</div>'}</div>
       <div class="db-card"><div class="db-ch"><h3>Longest-running steps now</h3><span>in progress, in review or blocked</span></div>
         ${M.stuck.length ? `<div class="db-list">${M.stuck.map(({ t, used }) => { const b = S.data.briefs[t.briefId]; const over = t.slaDays != null && used > t.slaDays; return `<div class="db-row stuck-row" data-go="#/brief/${b.id}" tabindex="0">
@@ -5510,7 +5511,7 @@ function clientsSection(r) {
 }
 
 /* =====================================================================
-   SETTINGS — team emails & roles, labels, roles, sectors, workflows, alerts,
+   SETTINGS - team emails & roles, labels, roles, sectors, workflows, alerts,
    email status and sample data. Drawn inside the existing Settings dialog.
    ===================================================================== */
 function clientSettingsHTML() {
@@ -5519,7 +5520,7 @@ function clientSettingsHTML() {
     <form data-chipadd="${key}" class="inline"><input class="inp" placeholder="${esc(ph)}" maxlength="60" style="width:180px"><button class="btn sm">Add</button></form></div>`;
   return `
     <div class="set-h">${ico('tag')} Labels</div>
-    <p class="set-p">Labels go on any task or step (Creative, Reporting, Urgent…). Brands are labels too — pick them in a task's Brands field.</p>
+    <p class="set-p">Labels go on any task or step (Creative, Reporting, Urgent…). Brands are labels too - pick them in a task's Brands field.</p>
     ${labelsList().map(l => `<div class="set-row"><button class="dot sw-${esc(l.color)}" data-lcolor="${l.id}" title="Change color"></button><input class="inp" data-lname="${l.id}" value="${esc(l.name)}" maxlength="40"><button class="icon-btn" data-ldel="${l.id}" title="Remove">${ico('trash', 'i-sm')}</button></div>`).join('')}
     <form class="set-row" data-add-label><input class="inp" placeholder="Add a label, e.g. Arabic copy" maxlength="40"><button class="btn">Add</button></form>
 
@@ -5535,7 +5536,7 @@ function clientSettingsHTML() {
       <div class="set-row" style="border:0"><input class="inp" data-wfname="${w.id}" value="${esc(w.name)}" maxlength="60"><button class="btn sm btn-danger" data-wfdel="${w.id}">Delete workflow</button></div>
       <table class="tbl wf-tbl"><thead><tr><th>Step</th><th>Role</th><th>Days</th><th>Timing</th><th>Go-live</th><th></th></tr></thead><tbody>
       ${w.steps.map((s, i) => `<tr><td><input class="inp" data-wfs="${w.id}" data-i="${i}" data-k="name" value="${esc(s.name)}" maxlength="120"></td>
-        <td><select class="sel" data-wfs="${w.id}" data-i="${i}" data-k="role"><option value="">—</option>${rolesList().map(r => `<option ${r === s.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></td>
+        <td><select class="sel" data-wfs="${w.id}" data-i="${i}" data-k="role"><option value="">-</option>${rolesList().map(r => `<option ${r === s.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></td>
         <td><input class="inp" type="number" min="0" max="60" data-wfs="${w.id}" data-i="${i}" data-k="days" value="${+s.days || 0}" style="width:62px"></td>
         <td><select class="sel" data-wfs="${w.id}" data-i="${i}" data-k="anchor"><option value="prev" ${s.anchor !== 'flightEnd' ? 'selected' : ''}>After previous</option><option value="flightEnd" ${s.anchor === 'flightEnd' ? 'selected' : ''}>After flight</option></select></td>
         <td><input type="radio" name="launch-${w.id}" data-wflaunch="${w.id}" data-i="${i}" ${s.launch ? 'checked' : ''}></td>
@@ -5553,9 +5554,9 @@ function clientSettingsHTML() {
 
     <div class="set-h">${ico('mail')} Email notifications</div>
     <p class="set-p">${CFG.email && CFG.email.enabled === false ? 'Emails are switched off in config.js (email.enabled).' : S.mode === 'local'
-      ? 'Local mode can’t send email — emails that would go out are kept in this browser’s outbox.'
+      ? 'Local mode can’t send email - emails that would go out are kept in this browser’s outbox.'
       : `Emails are queued in the <code>${esc((CFG.email && CFG.email.collection) || 'mail')}</code> collection and sent by the Firebase “Trigger Email” extension (SETUP step 7). People get emails at the address on the team list.`}
-      ${S.mailBlocked ? '<br><span class="warn">The last email couldn’t be queued — check that the latest firestore.rules are published and the recipient has access.</span>' : ''}</p>
+      ${S.mailBlocked ? '<br><span class="warn">The last email couldn’t be queued - check that the latest firestore.rules are published and the recipient has access.</span>' : ''}</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${S.mode === 'cloud' ? `<button class="btn" data-testmail>${ico('mail', 'i-sm')} Send me a test email</button>` : `<button class="btn" data-outbox>${ico('mail', 'i-sm')} View outbox</button>`}</div>`;
 }
 function clientSettingsWire(body, draw) {
@@ -5575,7 +5576,7 @@ function clientSettingsWire(body, draw) {
     if ('testmail' in ds) {
       if (!myEmail()) return toast('Sign in first');
       await store.mail({ to: [myEmail()], message: { subject: `Test email from dentsu ${CFG.appName || 'Ads Workspace'}`, html: emailHTML({ heading: 'Email notifications are working', intro: 'This is how brief and step notifications will arrive.', link: '#/mywork', cta: 'Open My work' }), text: 'Email notifications are working.' } });
-      toast(S.mailBlocked ? 'Couldn’t queue the email — see the note above' : 'Test email queued — it arrives within a minute if the extension is installed');
+      toast(S.mailBlocked ? 'Couldn’t queue the email - see the note above' : 'Test email queued - it arrives within a minute if the extension is installed');
       draw();
     }
     if ('outbox' in ds) { let box = []; try { box = JSON.parse(lsGet('tb:outbox') || '[]'); } catch { }
@@ -5606,7 +5607,7 @@ function clientSettingsWire(body, draw) {
 }
 
 /* =====================================================================
-   SAMPLE BUSINESS — fictional client accounts, teams and people for demos,
+   SAMPLE BUSINESS - fictional client accounts, teams and people for demos,
    with briefs, workflow history, tasks, campaigns, calendar and notes inside
    each account. Everything is tagged demo:true and comes out with one click
    (Business settings → Sample data).
@@ -5634,7 +5635,8 @@ function demoLogo(kind, bg, fg) {
 const DEMO_ACCOUNTS = [
   { key: 'gm', name: 'General Motors', sector: 'Automotive', color: 'blue', logo: ['', '', ''],
     teams: { 'demo-tm-gm': 'editor', 'demo-tm-lead': 'viewer' }, people: { lead: 'admin' },
-    brands: [['Chevrolet', 'General Motors', 'Automotive', 'UAE, KSA, Kuwait', 'Brand manager'], ['GMC', 'General Motors', 'Automotive', 'UAE, KSA, Kuwait, Qatar', 'Brand manager'], ['Cadillac', 'General Motors', 'Automotive', 'GCC', 'Brand manager']],
+    brands: [['Chevrolet', 'General Motors', 'Automotive', 'UAE, KSA, Kuwait', 'Brand manager'], ['GMC', 'General Motors', 'Automotive', 'UAE, KSA, Kuwait, Qatar', 'Brand manager'], ['Cadillac', 'General Motors', 'Automotive', 'GCC', 'Brand manager'],
+      ['OnStar', 'General Motors', 'Automotive', 'UAE, KSA', ''], ['ACDelco', 'General Motors', 'Automotive', 'GCC', '']],
     briefs: [
       ['Chevrolet Summer Service Campaign', 'Tactical / promotion', [0], 62, 10, [0.8, 0.9, 2.4, 0.7, 1.3, 0.8, 0.9, 0.8, 0.9, 1], 'Completed', 21],
       ['Cadillac Escalade IQ launch', 'Launch', [2], 47, 9, [0.7, 1, 2.2, 0.8, 1.2, 0.7, 1, 0.8, 0.9], 'Live', 20],
@@ -5644,24 +5646,44 @@ const DEMO_ACCOUNTS = [
         offer: 'Year-end finance offer and free service package on selected models. Terms from the client brief.',
         promo: '', cta: 'Book a test drive', message: 'The best deal of the year ends 31 December.', landingUrl: 'https://www.example.com/year-end-offer',
         creative: 'Search RSAs in English and Arabic; Meta and Snap lead-form ads 1:1 and 9:16; TikTok 9:16 15s.',
-        notes: 'Leads are counted in the client CRM — platform numbers are indicative. Frequency cap 3 above 3.5 on social.', campaignName: 'CHEV_YearEnd_Leads',
+        notes: 'Leads are counted in the client CRM - platform numbers are indicative. Frequency cap 3 above 3.5 on social.', campaignName: 'CHEV_YearEnd_Leads',
         objectives: { Search: ['Lead Generation'], Meta: ['Lead Generation'], Snap: ['Lead Generation'], TikTok: ['Traffic'] } }],
-      ['GMC Yukon — Search conquest', 'Always-on', [1], 24, 6, [0.8, 0.9, 2.6, 0.8, 1.5, 0.9], 'In progress', 21],
-      ['Ramadan 2027 offers — all brands', 'Seasonal', [0, 1, 2], 1, 0, [], 'Submitted', 20],
+      ['GMC Yukon - Search conquest', 'Always-on', [1], 24, 6, [0.8, 0.9, 2.6, 0.8, 1.5, 0.9], 'In progress', 21],
+      ['Ramadan 2027 offers - all brands', 'Seasonal', [0, 1, 2], 1, 0, [], 'Submitted', 20],
       ['2027 platform recommendations', 'Reporting / analysis', [0, 1], 0, 0, [], 'Draft', 22],
     ],
     tasks: [[0, 'Refresh Chevrolet RSAs (EN/AR)', 'lb-creative', 2, 'Paid Search'], [0, 'Weekly dealer search report', 'lb-report', 0, 'Paid Search'],
       [1, 'Pixel QA on the brand landing pages', 'lb-tracking', -1, 'Analytics'], [2, 'Monthly Cadillac brand & retail report', 'lb-report', 4, 'Analytics'], [1, 'Frequency check on paid social', 'lb-setup', 1, 'Paid Social']],
-    todos: [['Monthly performance deck for the client', 'lb-report', 3, 'Account Lead'], ['Weekly pacing check — all live campaigns', 'lb-setup', 0, 'Media Planner', { type: 'weekly', every: 1 }],
-      ['Search pacing sheet update', 'lb-tracking', 1, 'Paid Search'], ['Draft the Q1 2027 media plans', 'lb-plan', 12, 'Media Planner']],
-    notes: [['Year-End Sales Event — channel plan', true, `<h2>Objective</h2><p>Drive test-drive leads and high-value behaviours for the year-end offer.</p>
+    // the To-Do board has one section per brand: [title, label, days to due, role, repeat, section]
+    sections: ['Chevrolet', 'GMC', 'Cadillac', 'OnStar', 'ACDelco'],
+    todos: [['Weekly pacing check - Chevrolet search', 'lb-setup', 0, 'Paid Search', { type: 'weekly', every: 1 }, 0], ['Refresh the Year-End lead-form creatives', 'lb-creative', 2, 'Paid Social', null, 0],
+      ['Yukon conquest - search terms and negatives', 'lb-setup', 1, 'Paid Search', null, 1], ['GMC monthly performance deck', 'lb-report', 4, 'Account Lead', null, 1],
+      ['Escalade IQ launch recap for the client', 'lb-report', 3, 'Account Lead', null, 2], ['Pixel QA on the Cadillac landing pages', 'lb-tracking', -1, 'Analytics', null, 2],
+      ['OnStar search - monthly budget and keyword review', 'lb-plan', 5, 'Paid Search', null, 3], ['Draft the OnStar Q1 2027 media plan', 'lb-plan', 12, 'Media Planner', null, 3],
+      ['ACDelco parts search - monthly report', 'lb-report', 6, 'Analytics', null, 4], ['Apply the monthly brand-safety exclusion list', 'lb-setup', 2, 'Paid Search', { type: 'monthly', every: 1 }, 4]],
+    notes: [['Year-End Sales Event - channel plan', true, `<h2>Objective</h2><p>Drive test-drive leads and high-value behaviours for the year-end offer.</p>
       <h2>Channels</h2><ul><li><b>Search:</b> model and offer terms per market; conquest kept separate per brand</li><li><b>Meta & Snap:</b> lead-form ads to in-market audiences</li><li><b>TikTok:</b> 15s 9:16 to drive site visits</li></ul>
       <h2>Reporting</h2><ul class="nb-check"><li data-done="1">Leads from the client CRM, not platform counts</li><li>HVBs and cost per HVB next to leads and CPL</li></ul>`]] },
+  // sub-accounts: everyone with access to General Motors can open these too
+  { key: 'gm-chev', parent: 'gm', kind: 'brand', name: 'GM Chevrolet', sector: 'Automotive', color: 'yellow', logo: ['', '', ''], teams: {}, modules: { calendar: false, brands: false, notes: false },
+    brands: [], briefs: [['Silverado always-on search', 'Always-on', [], 18, 6, [0.8, 0.9, 1.4, 0.8, 1.2, 0.9], 'In progress', 14], ['Tahoe test-drive leads', 'Lead generation', [], 3, 1, [0.9], 'In progress', 12]],
+    tasks: [], todos: [['Chevrolet search pacing - mid-month check', 'lb-tracking', 1, 'Paid Search'], ['New RSA headlines for the Tahoe offer', 'lb-creative', 3, 'Paid Search']], notes: [] },
+  { key: 'gm-gmc', parent: 'gm', kind: 'brand', name: 'GM GMC', sector: 'Automotive', color: 'red', logo: ['', '', ''], teams: {}, modules: { calendar: false, brands: false, notes: false },
+    brands: [], briefs: [['GMC Sierra launch teaser', 'Launch', [], 5, 2, [0.8, 1.1], 'In progress', 15]], tasks: [], todos: [['Sierra teaser - audience lists for Meta and Snap', 'lb-setup', 2, 'Paid Social']], notes: [] },
+  { key: 'gm-cad', parent: 'gm', kind: 'brand', name: 'GM Cadillac', sector: 'Automotive', color: 'grey', logo: ['', '', ''], teams: {}, people: { Dana: 'editor' }, modules: { calendar: false, brands: false, notes: false },
+    brands: [], briefs: [['Cadillac LYRIQ awareness - GCC', 'Brand awareness', [], 9, 3, [0.9, 1, 1.6], 'In progress', 10]], tasks: [],
+    todos: [['Monthly Cadillac brand and retail report', 'lb-report', 4, 'Analytics'], ['Collect dealer lead numbers for the Cadillac report', 'lb-client', 2, 'Account Lead']], notes: [] },
+  { key: 'aga-chev', parent: 'gm-chev', kind: 'dealer', name: 'AGA Chevrolet', sector: 'Automotive', color: 'blue', logo: ['', '', ''], teams: {}, modules: { calendar: false, brands: false, notes: false, campaigns: false },
+    brands: [], briefs: [['AGA Chevrolet dealer search - December', 'Always-on', [], 12, 7, [0.8, 0.9, 1.1, 0.9, 1, 0.8, 0.9], 'Live', 8]], tasks: [], todos: [['Check AGA location extensions', 'lb-setup', 1, 'Paid Search']], notes: [] },
+  { key: 'alghanim-cad', parent: 'gm-cad', kind: 'dealer', name: 'Al Ghanim Cadillac', sector: 'Automotive', color: 'teal', logo: ['', '', ''], teams: {}, modules: { calendar: false, brands: false, notes: false, campaigns: false },
+    brands: [], briefs: [['Al Ghanim Cadillac - Q1 2027 media plan', 'Tactical / promotion', [], 2, 0, [], 'Submitted', 18]], tasks: [], todos: [['Send the Q1 plan for dealer approval', 'lb-client', 5, 'Media Planner']], notes: [] },
+  { key: 'aljomaih-cad', parent: 'gm-cad', kind: 'dealer', name: 'Al Jomaih Cadillac', sector: 'Automotive', color: 'purple', logo: ['', '', ''], teams: {}, modules: { calendar: false, brands: false, notes: false, campaigns: false },
+    brands: [], briefs: [['Al Jomaih Escalade IQ dealer leads', 'Lead generation', [], 16, 5, [0.7, 0.9, 1.2, 0.8, 1.4], 'In progress', 6]], tasks: [], todos: [['Weekly dealer leads export', 'lb-report', 0, 'Analytics', { type: 'weekly', every: 1 }]], notes: [] },
   { key: 'sid', name: 'Siddiqi', sector: 'Luxury retail', color: 'grey', logo: ['', '', ''],
     teams: { 'demo-tm-retail': 'editor', 'demo-tm-lead': 'viewer' }, modules: { calendar: false, tasks: false },
     brands: [['Boutiques', 'Siddiqi', 'Luxury retail', 'UAE', 'Marketing manager'], ['Online store', 'Siddiqi', 'Luxury retail', 'UAE, GCC', 'E-commerce manager']],
     briefs: [
-      ['Watch week — boutique events', 'Event', [0], 36, 9, [0.9, 0.9, 2.8, 0.9, 1.7, 0.8, 1, 0.9, 1], 'Live', 17],
+      ['Watch week - boutique events', 'Event', [0], 36, 9, [0.9, 0.9, 2.8, 0.9, 1.7, 0.8, 1, 0.9, 1], 'Live', 17],
       ['Ramadan gifting', 'Seasonal', [0, 1], 11, 2, [0.7, 1.2], 'In progress', 12],
       ['New boutique opening', 'Launch', [0], 1, 0, [], 'Submitted', 18],
     ],
@@ -5671,18 +5693,18 @@ const DEMO_ACCOUNTS = [
     teams: { 'demo-tm-retail': 'editor', 'demo-tm-lead': 'viewer' }, modules: { calendar: false },
     brands: [['Nutella', 'Ferrero', 'FMCG', 'GCC', 'Brand manager'], ['Kinder', 'Ferrero', 'FMCG', 'GCC', ''], ['Ferrero Rocher', 'Ferrero', 'FMCG', 'GCC', '']],
     briefs: [
-      ['Ferrero Rocher — Ramadan gifting', 'Seasonal', [2], 55, 10, [0.6, 0.8, 1.9, 0.8, 1.5, 0.6, 0.8, 0.7, 1, 0.9], 'Completed', 20],
-      ['Kinder — back to school', 'Tactical / promotion', [1], 7, 1, [0.9], 'In progress', 9],
-      ['Nutella — always-on reach', 'Always-on', [0], 3, 0, [], 'In progress', 9, { kickLate: true }],
+      ['Ferrero Rocher - Ramadan gifting', 'Seasonal', [2], 55, 10, [0.6, 0.8, 1.9, 0.8, 1.5, 0.6, 0.8, 0.7, 1, 0.9], 'Completed', 20],
+      ['Kinder - back to school', 'Tactical / promotion', [1], 7, 1, [0.9], 'In progress', 9],
+      ['Nutella - always-on reach', 'Always-on', [0], 3, 0, [], 'In progress', 9, { kickLate: true }],
     ],
     tasks: [[0, 'Retailer listing links for Nutella ads', 'lb-client', 2, 'Media Planner'], [1, 'Pause sold-out pack sizes on Meta', 'lb-urgent', 0, 'Paid Social']],
     todos: [['Collect Arabic copy approvals', 'lb-creative', -1, 'Account Lead']], notes: [] },
   { key: 'int', name: 'Agency internal', sector: 'Internal', color: 'grey', logo: ['dentsu', '#FFFFFF', '#323232'],
     teams: { '*': 'editor' }, modules: { briefs: false, brands: false, campaigns: false, alerts: false, tasks: false },
     brands: [], briefs: [], tasks: [],
-    todos: [['Q4 performance reviews — book the slots', 'lb-plan', 5, 'Account Lead'], ['Update the platform rate cards', 'lb-report', 9, 'Media Planner'],
+    todos: [['Q4 performance reviews - book the slots', 'lb-plan', 5, 'Account Lead'], ['Update the platform rate cards', 'lb-report', 9, 'Media Planner'],
       ['Renew Meta Business verification', 'lb-setup', 3, 'Paid Social'], ['Plan the team offsite', 'lb-plan', 20, 'Account Lead']],
-    notes: [['Ways of working', true, `<h2>Briefs</h2><ul><li>Every request comes in as a brief in its client account — no email-only requests</li><li>We kick off within 1 working day of a complete brief</li><li>Client approval of media plans within 2 working days</li></ul>
+    notes: [['Ways of working', true, `<h2>Briefs</h2><ul><li>Every request comes in as a brief in its client account - no email-only requests</li><li>We kick off within 1 working day of a complete brief</li><li>Client approval of media plans within 2 working days</li></ul>
       <h2>Reporting</h2><ul><li>Weekly pacing check every Monday</li><li>First optimisation check 72 hours after launch</li><li>Post-campaign report within 5 working days of the flight ending</li></ul>
       <h2>Access</h2><ul class="nb-check"><li data-done="1">Each client team has its own account</li><li>Leadership has view-only access to every client account</li></ul>`]] },
 ];
@@ -5690,13 +5712,13 @@ const DEMO_ACCOUNTS = [
 const DEMO_EVENTS = [[1, 'ooo', 'Annual leave', 3, 7], [2, 'remote', '', 1, 1], [4, 'other', 'Google Ads certification day', 9, 9], [5, 'ooo', 'Sick leave', -2, -1],
   [3, 'office', 'Client office visit', 6, 6], [0, 'remote', '', 8, 8]];
 const DEMO_COPY = {
-  'Tactical / promotion': ['In-market shoppers in the markets below, plus people who engaged with the brand in the last 90 days.', 'Limited-time offer running for the flight; terms and conditions apply.', 'The offer of the season — for a limited time.', 'Static 1:1 and 9:16, 15s video cut-down, offer badge; English and Arabic copy.'],
+  'Tactical / promotion': ['In-market shoppers in the markets below, plus people who engaged with the brand in the last 90 days.', 'Limited-time offer running for the flight; terms and conditions apply.', 'The offer of the season - for a limited time.', 'Static 1:1 and 9:16, 15s video cut-down, offer badge; English and Arabic copy.'],
   'Seasonal': ['Residents in the markets below planning purchases around the season.', 'Seasonal offer and content across the flight.', 'Made for the season.', 'Hero video 15s/6s, stills and carousel; English and Arabic copy.'],
   'Launch': ['Category intenders and existing customers; lookalikes of past leads.', 'Launch pricing and early registration for the first buyers.', 'Meet the new range.', 'Launch film 30s/15s/6s, product stills, carousel per feature; EN/AR.'],
-  'Event': ['Residents within 30 minutes of the venue — families and young professionals.', 'Free entry; activities and offers across the weekend.', 'Join us this weekend.', '9:16 reels, venue carousel, countdown stories; EN/AR.'],
+  'Event': ['Residents within 30 minutes of the venue - families and young professionals.', 'Free entry; activities and offers across the weekend.', 'Join us this weekend.', '9:16 reels, venue carousel, countdown stories; EN/AR.'],
   'Lead generation': ['People actively researching in the category; retargeting of site visitors.', 'Register interest to get the brochure, prices and a call back.', 'Register your interest today.', 'Lead-form ads, carousel, Search RSAs; EN/AR.'],
   'Always-on': ['Customers researching through the year.', 'Standard offer with no blackout dates.', 'Here when you need us.', 'Search RSAs, LinkedIn single image, retargeting statics.'],
-  'Brand awareness': ['Broad adult audience in the markets below.', 'No offer — brand story only.', 'A brand you can count on.', 'Brand film 30s/15s, YouTube bumpers, Meta reach.'],
+  'Brand awareness': ['Broad adult audience in the markets below.', 'No offer - brand story only.', 'A brand you can count on.', 'Brand film 30s/15s, YouTube bumpers, Meta reach.'],
 };
 
 // Builds one account's data against an empty data set, so the normal helpers see a brand-new account.
@@ -5793,7 +5815,7 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
       put('briefs', b);
       if (['Live', 'Completed'].includes(status)) put('campaigns', { ...newCampaign(ctId), id: `${id}-c`, name: extra.campaignName || title, briefId: id, clientIds: hIds, status: status === 'Live' ? 'Live' : 'Ended',
         startDate: flightStart, endDate: status === 'Live' ? addDays(today, 10 + bi) : addDays(today, -3 - bi), markets: b.markets, platforms: b.platforms, objectives: extra.objectives || { Meta: ['Conversion'], Search: ['Lead Generation'] },
-        description: `From brief ${ref} — ${title}`, pacing: bi % 2 ? 'Healthy' : 'Under-pacing', results: status === 'Live' ? (bi % 3 ? 'Healthy' : 'Needs Attention') : 'Healthy', creative: 'All Live',
+        description: `From brief ${ref} - ${title}`, pacing: bi % 2 ? 'Healthy' : 'Under-pacing', results: status === 'Live' ? (bi % 3 ? 'Healthy' : 'Needs Attention') : 'Healthy', creative: 'All Live',
         weeklyChecks: status === 'Live' ? [3, 2, 1].map(w => ({ id: uid(), date: addDays(today, -7 * w), at: wh(now - 7 * w * D), by: pname(byRole('Media Planner')) })) : [], createdBy: lead.name, demo: true });
     });
     // brand tasks with labels; a few late
@@ -5801,7 +5823,8 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
     // the account's own to-do list
     const listId = `demo-${P.key}-list`;
     put('projects', { id: listId, name: P.key === 'int' ? 'Agency to-dos' : 'To-Do', color: 'red', description: '', order: 1000, createdAt: now, demo: true });
-    (P.todos || []).forEach(([title, lb, dd, role, recur], i) => put('tasks', newTask({ id: `demo-${P.key}-tl${i}`, projectId: listId, sectionId: null, title, labels: [lb], due: addDays(today, dd), recur: recur || null, assignee: byRole(role), priority: dd < 0 ? 2 : 4, order: (i + 1) * 1000, createdAt: now - (3 + i) * D, createdBy: lead.name, demo: true })));
+    (P.sections || []).forEach((name, i) => put('sections', { id: `demo-${P.key}-ls${i}`, projectId: listId, name, order: (i + 1) * 1000, createdAt: now, demo: true }));
+    (P.todos || []).forEach(([title, lb, dd, role, recur, sec], i) => put('tasks', newTask({ id: `demo-${P.key}-tl${i}`, projectId: listId, sectionId: P.sections && sec != null ? `demo-${P.key}-ls${sec}` : null, title, labels: [lb], due: addDays(today, dd), recur: recur || null, assignee: byRole(role), priority: dd < 0 ? 2 : 4, order: (i + 1) * 1000, createdAt: now - (3 + i) * D, createdBy: lead.name, demo: true })));
     // team calendar
     if ((P.modules || {}).calendar !== false) DEMO_EVENTS.forEach(([at, type, title, a, b2], i) => { const p = roster[at % Math.max(1, roster.length)]; if (!p) return;
       put('events', { id: `demo-${P.key}-ev${i}`, person: p.id, type, title, start: addDays(today, a), end: addDays(today, b2), time: '', timeEnd: '', note: '', repeat: { type: 'none', every: 1, until: '' }, skip: [], createdAt: now, createdBy: lead.name, demo: true }); });
@@ -5814,7 +5837,7 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
       const pick = st => brs.find(b => b.status === st);
       const nb = [];
       const subm = pick('Submitted'); if (subm) nb.push(['brief', `You're on ${subm.ref} as ${seat.role}`, subm.title, '#/brief/' + subm.id, 2 * H]);
-      const blk = Object.values(S.data.tasks).find(t => t.status === 'Blocked'); if (blk) nb.push(['alert', `Blocked: ${blk.title}`, `${S.data.briefs[blk.briefId].ref} — ${blk.blockedReason}`, '#/brief/' + blk.briefId, 20 * H]);
+      const blk = Object.values(S.data.tasks).find(t => t.status === 'Blocked'); if (blk) nb.push(['alert', `Blocked: ${blk.title}`, `${S.data.briefs[blk.briefId].ref} - ${blk.blockedReason}`, '#/brief/' + blk.briefId, 20 * H]);
       const prog = pick('In progress'); if (prog) nb.push(['step', 'Step done: Media plan & budget split', `${prog.ref} · ${prog.title}`, '#/brief/' + prog.id, 5 * H]);
       nb.forEach(([kind, title, body, link, ago], i) => put('notifs', { id: `demo-${P.key}-nt${i}`, to: seatEmail, at: now - ago, title, body, link, briefId: link.split('/').pop(), taskId: null, kind, read: false, from: pname(byRole('Media Planner')), fromEmail: userEmail(), demo: true }));
     }
@@ -5824,7 +5847,7 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
   } finally { S.data = saved; S.acc = savedAcc; S.dataVer = (S.dataVer || 0) + 1; }
 }
 
-// Loads the sample. `team` (optional, from the dialog below) puts real names into the GM team's seats — they're stored
+// Loads the sample. `team` (optional, from the dialog below) puts real names into the GM team's seats - they're stored
 // in this platform's database like any other people, never in the code.
 async function loadSampleBusiness({ silent = false, team = null } = {}) {
   if (!isBizAdmin()) return toast('Only business admins can load the sample business');
@@ -5849,11 +5872,12 @@ async function loadSampleBusiness({ silent = false, team = null } = {}) {
   DEMO_TEAMS.forEach(([id, nm, color, keys]) => { const name = nameFree(bizTeams(), nm); teams[id] = { id, name, color, memberEmails: keys.map(k => who(k)).filter(Boolean).map(p => p.email), createdAt: now, demo: true }; });
   const allMembers = { ...S.biz.members, ...members };
   // build every account first (pure), then write
+  const accMap = { ...S.biz.accounts };   // parents are built before their sub-accounts, so access can be inherited
   const built = DEMO_ACCOUNTS.map(P => {
-    const a = { id: 'demo-acc-' + P.key, name: nameFree(allAccounts(true), P.name), sector: P.sector, color: P.color, logo: demoLogo(...P.logo), modules: P.modules || {},
+    const a = { id: 'demo-acc-' + P.key, name: nameFree(allAccounts(true), P.name), parentId: P.parent ? 'demo-acc-' + P.parent : '', kind: P.kind || '', sector: P.sector, color: P.color, logo: demoLogo(...P.logo), modules: P.modules || {},
       access: { teams: { ...P.teams }, people: Object.fromEntries(Object.entries(P.people || {}).map(([k, r]) => [who(k).email, r])) },
       archived: false, createdAt: now, createdBy: userEmail(), demo: true };
-    Object.assign(a, computeAccess(a, allMembers, teams));
+    Object.assign(a, computeAccess(a, allMembers, teams, accMap)); accMap[a.id] = a;
     const roster = a.memberEmails.filter(em => roleRank(a.roles[em]) >= 2 && allMembers[em]).map(em => {
       const m = allMembers[em];
       return { id: 'demo-' + slug(em.split('@')[0]).replace(/\./g, '-'), name: m.name || em, email: em, role: DEFAULT_ROLES.includes(m.jobRole) ? m.jobRole : 'Account Lead', color: m.color || 'grey', demo: true };
@@ -5887,7 +5911,7 @@ function openSampleDialog() {
   const roles = DEFAULT_ROLES.filter(r => r !== 'Client');
   const w = openModal(`<div class="modal-head"><h2>Load sample business</h2><button class="icon-btn" data-x>${ico('x')}</button></div>
     <div class="modal-body">
-      <p class="set-p">Adds ${DEMO_ACCOUNTS.length} accounts — <b>${esc(DEMO_ACCOUNTS.map(a => a.name).join(', '))}</b> — with teams, people with different access, and briefs, tasks and campaigns inside each. You take the Account Lead seat on General Motors. Everything comes out again with one click.</p>
+      <p class="set-p">Adds <b>${esc(DEMO_ACCOUNTS.filter(a => !a.parent).map(a => a.name).join(', '))}</b>, with ${DEMO_ACCOUNTS.filter(a => a.parent).length} sub-accounts under General Motors (${esc(DEMO_ACCOUNTS.filter(a => a.parent).map(a => a.name).join(', '))}). Plus teams, people with different access, and briefs, tasks and campaigns inside each. You take the Account Lead seat on General Motors. Everything comes out again with one click.</p>
       <div class="set-h">${ico('people')} Your GM team (optional)</div>
       <p class="set-p">Type your teammates' names to put them on the General Motors account. Leave a row empty to use the example name. Names are saved in this platform only.</p>
       <div class="sd-team">${seats.map((p, i) => `<div class="sd-row"><input class="inp" data-sdn="${i}" maxlength="60" placeholder="${esc(p[0])}"><select class="sel" data-sdr="${i}">${roles.map(r => `<option ${r === p[1] ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></div>`).join('')}</div>
@@ -5904,7 +5928,7 @@ async function clearSampleBusiness() {
   const accs = allAccounts(true).filter(a => a.demo), teams = bizTeams().filter(t => t.demo);
   const mem = bizMembers().filter(m => m.demo && m.id !== userEmail() && m.id !== S.biz.owner);
   if (!accs.length && !teams.length && !mem.length) return toast('No sample data to remove');
-  if (!await confirmBox(`Remove the sample business — ${plural(accs.length, 'account')}, ${plural(teams.length, 'team')} and ${plural(mem.length, 'person', 'people')}? Your own accounts, teams and people stay.`, 'Remove')) return;
+  if (!await confirmBox(`Remove the sample business - ${plural(accs.length, 'account')}, ${plural(teams.length, 'team')} and ${plural(mem.length, 'person', 'people')}? Your own accounts, teams and people stay.`, 'Remove')) return;
   if (S.acc && S.acc.demo) { if (store && store.stop) store.stop(); store = null; S.acc = null; S.ws = null; }
   for (const a of accs) await wipeAccount(a);
   for (const t of teams) await bizApi.delTeam(t.id);
@@ -5926,7 +5950,7 @@ async function clearSampleBusiness() {
 }
 
 /* =====================================================================
-   TASK DETAILS — clients, labels and (for brief steps) status & timing.
+   TASK DETAILS - clients, labels and (for brief steps) status & timing.
    Called by openTask; returns the extra side-panel HTML and wiring.
    ===================================================================== */
 function taskExtrasHTML(d) {
@@ -5958,10 +5982,10 @@ function afterTaskSave(ex, d) {
   const b = d.briefId ? S.data.briefs[d.briefId] : null, hs = b ? b.clientIds || [] : clientIdsOf(d), kind = d.briefId ? 'step' : 'task';
   if (!ex) { if (!d.briefId) logAct('task_created', { kind, taskId: d.id, clientIds: hs, title: d.title }); if (d.assignee) notifyTask(d); return; }
   if ((ex.assignee || null) !== (d.assignee || null)) {
-    logAct(d.briefId ? 'step_assigned' : 'task_assigned', { kind, briefId: d.briefId, taskId: d.id, clientIds: hs, title: d.title, from: ex.assignee ? personName(ex.assignee) : '—', to: d.assignee ? personName(d.assignee) : '—' });
+    logAct(d.briefId ? 'step_assigned' : 'task_assigned', { kind, briefId: d.briefId, taskId: d.id, clientIds: hs, title: d.title, from: ex.assignee ? personName(ex.assignee) : '-', to: d.assignee ? personName(d.assignee) : '-' });
     if (d.assignee) { if (b) notifySteps(b, d.assignee, [d]); else notifyTask(d); }
   }
-  if ((ex.due || null) !== (d.due || null)) logAct(d.briefId ? 'step_due' : 'task_due', { kind, briefId: d.briefId, taskId: d.id, clientIds: hs, title: d.title, from: ex.due ? fmtDay(ex.due) : '—', to: d.due ? fmtDay(d.due) : '—' });
+  if ((ex.due || null) !== (d.due || null)) logAct(d.briefId ? 'step_due' : 'task_due', { kind, briefId: d.briefId, taskId: d.id, clientIds: hs, title: d.title, from: ex.due ? fmtDay(ex.due) : '-', to: d.due ? fmtDay(d.due) : '-' });
   if (d.briefId && (ex.status || 'To do') !== (d.status || 'To do')) setStepStatus({ ...ex, ...d, status: ex.status }, d.status);
 }
 function notifyTask(t) {
@@ -5972,7 +5996,7 @@ function notifyTask(t) {
 }
 
 /* =====================================================================
-   WIRING — actions, filters and search boxes for the views above.
+   WIRING - actions, filters and search boxes for the views above.
    ===================================================================== */
 Object.assign(ACTIONS, {
   'cl-add': () => openClientForm(null),
@@ -6065,7 +6089,7 @@ const DENTSU_D = 'M8.4 3.6 8.4 6.5 6.6 6.5C1.1 6.5 0 10.6 0 13.5 0 16.4 0.7 17.5
 function logoMark(cls = '') { return `<svg class="mark dentsu-mark ${cls}" viewBox="-0.2 3.2 80.6 17.6" role="img" aria-label="dentsu"><path fill="currentColor" d="${DENTSU_D}"/></svg>`; }
 const wordmark = () => `<span class="wordmark">${esc(CFG.appName || 'Ads Workspace')}</span>`;
 /* =====================================================================
-   ACCOUNTS — one platform, many client accounts (like an ads manager).
+   ACCOUNTS - one platform, many client accounts (like an ads manager).
    Business level: people (who can sign in), teams and accounts.
    Each account keeps its own data (lists, briefs, campaigns, notes…), its
    own tools on/off and its own logo. Access is Admin / Editor / Viewer,
@@ -6105,9 +6129,14 @@ const bizMembers = () => Object.values(S.biz.members).sort((a, b) => String(a.na
 const bizTeams = () => Object.values(S.biz.teams).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const allAccounts = withArchived => Object.values(S.biz.accounts).filter(a => withArchived || !a.archived).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const memberName = em => (S.biz.members[em] && S.biz.members[em].name) || em;
+// Business roles: owners (the first owner is ownerEmail in config.js, and owners can add more), admins, members.
+const BIZ_ROLES = [['member', 'Member'], ['admin', 'Admin'], ['owner', 'Owner']];
+const isOwnerEmail = em => !!em && (em === (S.biz.owner || String(CFG.ownerEmail || '').toLowerCase()) || (S.biz.members[em] || {}).bizRole === 'owner');
+const isFirstOwner = em => !!em && em === (S.biz.owner || String(CFG.ownerEmail || '').toLowerCase());
+const isOwnerUser = () => !!S.user && (S.user.isOwner || isOwnerEmail(userEmail()));
 const isBizAdmin = () => {
   if (!S.user) return false;
-  if (S.user.isOwner) return true;
+  if (isOwnerUser()) return true;
   const m = S.biz.members[userEmail()]; return !!(m && m.bizRole === 'admin');
 };
 const accRoleOf = (a, em) => {
@@ -6122,20 +6151,50 @@ const canAdminAcc = () => S.accRole === 'admin';
 const accKey = () => 'tb:acc:' + userEmail();
 
 // Who gets what: the strongest role a person has through everyone-access, their teams or a direct grant.
-function computeAccess(a, members = S.biz.members, teams = S.biz.teams) {
+/* ---------- sub-accounts: an account can sit under another (GM → GM Cadillac → Al Ghanim Cadillac) ---------- */
+const ACC_KINDS = [['brand', 'Brand'], ['dealer', 'Dealer'], ['market', 'Market'], ['unit', 'Business unit']];
+const kindLabel = k => (ACC_KINDS.find(x => x[0] === k) || [])[1] || '';
+// the chain above an account, nearest first (stops at missing parents and loops)
+function accAncestors(a, accounts = S.biz.accounts) {
+  const out = [], seen = new Set([a && a.id]);
+  let p = a && a.parentId ? accounts[a.parentId] : null;
+  while (p && !seen.has(p.id) && out.length < 6) { out.push(p); seen.add(p.id); p = p.parentId ? accounts[p.parentId] : null; }
+  return out;
+}
+const accChildren = (id, withArchived = true) => Object.values(S.biz.accounts).filter(a => a.parentId === id && (withArchived || !a.archived)).sort((x, y) => String(x.name).localeCompare(String(y.name)));
+function accDescendants(id) { const out = []; const walk = pid => accChildren(pid).forEach(c => { if (!out.includes(c) && c.id !== id) { out.push(c); walk(c.id); } }); walk(id); return out; }
+const accPath = a => [...accAncestors(a).reverse(), a].map(x => x.name).join(' › ');
+// accounts in tree order: each parent followed by its sub-accounts (a child whose parent isn't in the list stands on its own)
+function accTree(list) {
+  const ids = new Set(list.map(a => a.id)), byParent = {};
+  list.forEach(a => { const p = a.parentId && ids.has(a.parentId) ? a.parentId : ''; (byParent[p] = byParent[p] || []).push(a); });
+  const out = [], seen = new Set();
+  const walk = (pid, depth) => (byParent[pid] || []).sort((x, y) => String(x.name).localeCompare(String(y.name))).forEach(a => { if (seen.has(a.id)) return; seen.add(a.id); out.push({ a, depth }); walk(a.id, depth + 1); });
+  walk('', 0);
+  list.forEach(a => { if (!seen.has(a.id)) out.push({ a, depth: 0 }); });   // loops, just in case
+  return out;
+}
+// "GM Chevrolet", "Al Ghanim Cadillac (Dealer)" - brands read fine on their own
+const accLabel = a => a.name + (a.parentId && a.kind && a.kind !== 'brand' ? ` (${kindLabel(a.kind)})` : '');
+const accSelectOptions = (list, sel = '') => accTree(list).map(({ a, depth }) => `<option value="${esc(a.id)}" ${sel === a.id ? 'selected' : ''}>${'\u00a0'.repeat(depth * 4)}${depth ? '↳ ' : ''}${esc(accLabel(a))}</option>`).join('');
+
+// Who can open an account: its own teams and people, plus everyone with access to the accounts above it.
+function computeAccess(a, members = S.biz.members, teams = S.biz.teams, accounts = S.biz.accounts) {
   const roles = {};
   const bump = (em, r) => { em = String(em || '').toLowerCase(); if (!em || !ACC_ROLES.includes(r)) return; if (roleRank(r) > roleRank(roles[em])) roles[em] = r; };
-  const acc = a.access || {};
-  Object.entries(acc.teams || {}).forEach(([tid, r]) => {
-    if (tid === '*') Object.keys(members).forEach(em => bump(em, r));
-    else if (teams[tid]) (teams[tid].memberEmails || []).forEach(em => bump(em, r));
+  [a, ...accAncestors(a, accounts)].forEach(x => {
+    const acc = x.access || {};
+    Object.entries(acc.teams || {}).forEach(([tid, r]) => {
+      if (tid === '*') Object.keys(members).forEach(em => bump(em, r));
+      else if (teams[tid]) (teams[tid].memberEmails || []).forEach(em => bump(em, r));
+    });
+    Object.entries(acc.people || {}).forEach(([em, r]) => bump(em, r));
   });
-  Object.entries(acc.people || {}).forEach(([em, r]) => bump(em, r));
   const sorted = {}; Object.keys(roles).sort().forEach(k => sorted[k] = roles[k]);
   return { roles: sorted, memberEmails: Object.keys(sorted) };
 }
 async function syncAccess(ids) {
-  const list = ids ? ids.map(id => S.biz.accounts[id]).filter(Boolean) : allAccounts(true);
+  const list = ids ? [...new Set(ids.flatMap(id => [id, ...accDescendants(id).map(d => d.id)]))].map(id => S.biz.accounts[id]).filter(Boolean) : allAccounts(true);
   for (const a of list) {
     const { roles, memberEmails } = computeAccess(a);
     if (JSON.stringify(roles) !== JSON.stringify(a.roles || {})) await bizApi.patchAccount(a.id, { roles, memberEmails });
@@ -6143,12 +6202,15 @@ async function syncAccess(ids) {
 }
 // How a person gets into an account, for the access lists ("Automotive team", "Direct", "Everyone").
 function accessVia(a, em) {
-  const out = [], acc = a.access || {};
-  Object.entries(acc.teams || {}).forEach(([tid, r]) => {
-    if (tid === '*') out.push(`Everyone · ${ACC_ROLE_LABEL[r]}`);
-    else if (S.biz.teams[tid] && (S.biz.teams[tid].memberEmails || []).includes(em)) out.push(`${S.biz.teams[tid].name} · ${ACC_ROLE_LABEL[r]}`);
+  const out = [];
+  [a, ...accAncestors(a)].forEach((x, i) => {
+    const acc = x.access || {}, from = i ? ` (from ${x.name})` : '';
+    Object.entries(acc.teams || {}).forEach(([tid, r]) => {
+      if (tid === '*') out.push(`Everyone · ${ACC_ROLE_LABEL[r]}${from}`);
+      else if (S.biz.teams[tid] && (S.biz.teams[tid].memberEmails || []).includes(em)) out.push(`${S.biz.teams[tid].name} · ${ACC_ROLE_LABEL[r]}${from}`);
+    });
+    if ((acc.people || {})[em]) out.push(`Direct · ${ACC_ROLE_LABEL[acc.people[em]]}${from}`);
   });
-  if ((acc.people || {})[em]) out.push(`Direct · ${ACC_ROLE_LABEL[acc.people[em]]}`);
   return out;
 }
 
@@ -6194,7 +6256,7 @@ function openBestAccount() {
   const mine = myAccounts();
   const want = new URLSearchParams(location.search).get('a') || lsGet(accKey());
   const pick = mine.find(a => a.id === want) || mine[0];
-  if (pick) return openAccount(pick, /^#\/(accounts|business)/.test(location.hash) ? location.hash : null);
+  if (pick) return openAccount(pick, /^#\/(accounts|business|guide|home)/.test(location.hash) ? location.hash : null);
   // no account to open: the business pages still work (create one, or wait for access)
   if (store && store.stop) store.stop();
   store = null; S.acc = null; S.ws = null; S.accRole = null;
@@ -6279,18 +6341,18 @@ function accSwitcherHTML() {
   const a = S.acc;
   return `<button class="acc-switch" data-action="acc-menu" aria-haspopup="true" title="Switch account">
     ${a ? accLogo(a) : `<span class="acc-logo sw-grey">${ico('grid', 'i-sm')}</span>`}
-    <span class="acc-sw-txt"><small>${a ? 'Account' : 'Business'}</small><b>${esc(a ? a.name : 'All accounts')}</b></span>${ico('down', 'i-sm')}</button>`;
+    <span class="acc-sw-txt"><small>${a ? esc(accAncestors(a).map(p => p.name).reverse().join(' › ') || 'Account') : 'Business'}</small><b>${esc(a ? a.name : 'All accounts')}</b></span>${ico('down', 'i-sm')}</button>`;
 }
 function openAccMenu(anchor) {
   closeMenu();
   const m = document.createElement('div'); m.className = 'menu acc-menu';
   let q = '';
   const paint = () => {
-    const list = myAccounts().filter(a => !q || `${a.name} ${a.sector || ''}`.toLowerCase().includes(q));
+    const list = myAccounts().filter(a => !q || `${accPath(a)} ${a.sector || ''} ${kindLabel(a.kind)}`.toLowerCase().includes(q));
     m.innerHTML = `<div class="am-search">${ico('search', 'i-sm')}<input placeholder="Search accounts" value="${esc(q)}" data-amq></div>
       <button class="am-row am-all ${!S.acc || /^#\/accounts/.test(location.hash) ? 'on' : ''}" data-am-go="#/accounts">${ico('grid')}<span><b>All accounts</b><small>${myAccounts().length} account${myAccounts().length === 1 ? '' : 's'} · overview</small></span></button>
-      <div class="am-list">${list.map(a => { const st = a.stats || {};
-        return `<button class="am-row ${S.acc && S.acc.id === a.id ? 'on' : ''}" data-am-id="${esc(a.id)}">${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc([a.sector, ACC_ROLE_LABEL[accRoleOf(a)]].filter(Boolean).join(' · '))}</small></span>
+      <div class="am-list">${accTree(list).map(({ a, depth }) => { const st = a.stats || {};
+        return `<button class="am-row ${S.acc && S.acc.id === a.id ? 'on' : ''} ${depth ? 'sub' : ''}" style="--d:${q ? 0 : depth}" data-am-id="${esc(a.id)}">${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc([a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector, ACC_ROLE_LABEL[accRoleOf(a)]].filter(Boolean).join(' · '))}</small></span>
           ${st.crit ? `<span class="am-badge crit" title="${st.crit} critical alerts">${st.crit}</span>` : st.alerts ? `<span class="am-badge" title="${st.alerts} alerts">${st.alerts}</span>` : ''}${S.acc && S.acc.id === a.id ? ico('check', 'i-sm') : ''}</button>`; }).join('')
         || `<div class="am-empty">${myAccounts().length ? 'No accounts match.' : 'You don’t have access to any accounts yet.'}</div>`}</div>
       <div class="am-foot">${S.acc ? `<button data-am-act="settings">${ico('gear', 'i-sm')} Account settings</button>` : ''}
@@ -6327,8 +6389,9 @@ function renderAccounts() {
   const by = { name: (a, b) => a.name.localeCompare(b.name), attention: (a, b) => ((st(b).crit || 0) * 3 + (st(b).alerts || 0)) - ((st(a).crit || 0) * 3 + (st(a).alerts || 0)) || a.name.localeCompare(b.name),
     overdue: (a, b) => (st(b).overdue || 0) - (st(a).overdue || 0), briefs: (a, b) => (st(b).briefs || 0) - (st(a).briefs || 0), live: (a, b) => (st(b).live || 0) - (st(a).live || 0), updated: (a, b) => (st(b).at || 0) - (st(a).at || 0) };
   list = list.sort(by[f.sort] || by.name);
+  const rows = f.sort === 'name' && !q ? accTree(list) : list.map(a => ({ a, depth: 0 }));
   const sum = k => all.reduce((s, a) => s + (st(a)[k] || 0), 0);
-  const n = (v, cls = '') => (v == null ? '<span class="mut">—</span>' : v ? `<span class="${cls}">${fmtN(v)}</span>` : '<span class="mut">0</span>');
+  const n = (v, cls = '') => (v == null ? '<span class="mut">-</span>' : v ? `<span class="${cls}">${fmtN(v)}</span>` : '<span class="mut">0</span>');
   const sel = (key, opts, label) => `<label class="filt ${f[key] !== 'All' && key !== 'sort' ? 'on' : ''}">${label}<select data-aof="${key}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${f[key] === v ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select></label>`;
   return topbar('Business /') + `<div class="content"><div class="db ao">
     <div class="page-head"><h1>All accounts</h1><div class="page-desc empty" style="cursor:default">${plural(all.length, 'account')} you can open${isBizAdmin() ? ` · ${plural(bizMembers().length, 'person', 'people')} · ${plural(bizTeams().length, 'team')}` : ''}. Numbers update each time someone opens an account.</div></div>
@@ -6349,12 +6412,12 @@ function renderAccounts() {
     ${!all.length ? `<div class="ct-empty">${ico('grid')}<br>${isBizAdmin() ? 'No accounts yet.<br><br><button class="btn btn-primary" data-action="acc-create">Create the first account</button>' : 'You don’t have access to any accounts yet.<br>Ask a business admin to add you to a team or an account.'}</div>`
       : !list.length ? '<div class="ct-empty">No accounts match.</div>'
       : `<div class="tbl-wrap"><table class="tbl ao-table"><thead><tr><th>Account</th><th>Your access</th><th>Teams</th><th class="num">Open tasks</th><th class="num">Overdue</th><th class="num">Active briefs</th><th class="num">At risk</th><th class="num">Live campaigns</th><th class="num">Alerts</th><th>Updated</th><th></th></tr></thead><tbody>
-      ${list.map(a => { const s = a.stats; return `<tr data-action="acc-open" data-id="${esc(a.id)}" class="${S.acc && S.acc.id === a.id ? 'cur' : ''} ${a.archived ? 'mut' : ''}">
-        <td><div class="ao-name">${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.sector || '')}${a.archived ? ' · archived' : ''}</small></span></div></td>
+      ${rows.map(({ a, depth }) => { const s = a.stats; return `<tr data-action="acc-open" data-id="${esc(a.id)}" class="${S.acc && S.acc.id === a.id ? 'cur' : ''} ${a.archived ? 'mut' : ''} ${depth ? 'ao-sub' : ''}">
+        <td><div class="ao-name" style="--d:${depth}">${depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? [kindLabel(a.kind) || 'Sub-account', depth ? '' : accAncestors(a).map(p => p.name).reverse().join(' › ')].filter(Boolean).join(' · ') : a.sector || '')}${a.archived ? ' · archived' : ''}</small></span></div></td>
         <td>${roleTag(accRoleOf(a))}</td>
-        <td class="ao-teams" title="${esc(teamsOf(a).join(', '))}">${teamsOf(a).slice(0, 2).map(t => `<span class="tag">${esc(t)}</span>`).join('')}${teamsOf(a).length > 2 ? `<span class="tag more">+${teamsOf(a).length - 2}</span>` : ''}${teamsOf(a).length ? '' : '<span class="mut">Direct only</span>'}</td>
+        <td class="ao-teams" title="${esc(teamsOf(a).join(', '))}">${teamsOf(a).slice(0, 2).map(t => `<span class="tag">${esc(t)}</span>`).join('')}${teamsOf(a).length > 2 ? `<span class="tag more">+${teamsOf(a).length - 2}</span>` : ''}${teamsOf(a).length ? '' : a.parentId && accAncestors(a).length ? `<span class="tag inh">${ico('flow', 'i-xs')} from ${esc(accAncestors(a)[0].name)}</span>` : '<span class="mut">Direct only</span>'}</td>
         <td class="num">${n(s && s.open)}</td><td class="num">${n(s && s.overdue, 'tx-over')}</td><td class="num">${n(s && s.briefs)}</td><td class="num">${n(s && s.risk, 'tx-over')}</td><td class="num">${n(s && s.live)}</td>
-        <td class="num">${s ? (s.alerts ? `<span class="al-pill ${s.crit ? 'crit' : ''}" title="${s.crit || 0} critical · ${s.alerts - (s.crit || 0)} warnings">${s.alerts}</span>` : '<span class="mut">0</span>') : '<span class="mut">—</span>'}</td>
+        <td class="num">${s ? (s.alerts ? `<span class="al-pill ${s.crit ? 'crit' : ''}" title="${s.crit || 0} critical · ${s.alerts - (s.crit || 0)} warnings">${s.alerts}</span>` : '<span class="mut">0</span>') : '<span class="mut">-</span>'}</td>
         <td class="mut">${s && s.at ? esc(timeAgo(s.at)) : 'not opened yet'}</td>
         <td>${accRoleOf(a) === 'admin' ? `<button class="icon-btn" data-action="acc-row-menu" data-id="${esc(a.id)}" title="More">${ico('dots')}</button>` : ''}</td></tr>`; }).join('')}
       </tbody></table></div>`}
@@ -6366,21 +6429,25 @@ function accRowMenu(anchor, id) {
     { label: 'Open', icon: 'right', onClick: () => switchAccount(id) },
     { label: 'Edit name, logo & tools', icon: 'pencil', onClick: () => openAccountForm(id) },
     { label: 'Access', icon: 'people', onClick: () => openAccessModal(id) },
+    ...(isBizAdmin() ? [{ label: 'Add a sub-account', icon: 'plus', onClick: () => openAccountForm(null, id) }] : []),
     ...(isBizAdmin() ? ['-', { label: a.archived ? 'Restore account' : 'Archive account', icon: 'archive', onClick: () => archiveAccount(id, !a.archived) },
       { label: 'Delete account', icon: 'trash', danger: true, onClick: () => deleteAccount(id) }] : []),
   ], 'right');
 }
 async function archiveAccount(id, on) {
   const a = S.biz.accounts[id]; if (!a) return;
-  if (on && !await confirmBox(`Archive <b>${esc(a.name)}</b>? It disappears from everyone's switcher; its data is kept and you can restore it from All accounts → Archived.`, 'Archive', 'Archive account')) return;
-  await bizApi.patchAccount(id, { archived: on, updatedAt: Date.now() });
+  const subs = accDescendants(id);
+  if (on && !await confirmBox(`Archive <b>${esc(a.name)}</b>${subs.length ? ` and its ${plural(subs.length, 'sub-account')}` : ''}? ${subs.length ? 'They disappear' : 'It disappears'} from everyone's switcher; the data is kept and you can restore it from All accounts → Archived.`, 'Archive', 'Archive account')) return;
+  for (const x of [a, ...subs]) await bizApi.patchAccount(x.id, { archived: on, updatedAt: Date.now() });
   audit(on ? 'account_archived' : 'account_restored', a.name);
   toast(on ? `${a.name} archived` : `${a.name} restored`);
 }
 async function deleteAccount(id) {
   const a = S.biz.accounts[id]; if (!a) return;
+  const subs = accChildren(id);
+  if (subs.length) return toast(`${a.name} has ${plural(subs.length, 'sub-account')}. Move or delete ${subs.length === 1 ? 'it' : 'them'} first.`);
   const r = await promptBox({ title: 'Delete account', label: `This removes ${a.name} and everything in it for everyone. Type the account name to confirm.`, placeholder: a.name, ok: 'Delete' });
-  if (!r || r.value.trim() !== a.name) { if (r) toast('The name didn’t match — nothing was deleted'); return; }
+  if (!r || r.value.trim() !== a.name) { if (r) toast('The name didn’t match - nothing was deleted'); return; }
   if (S.acc && S.acc.id === id) { S.acc = null; }
   await wipeAccount(a);
   audit('account_deleted', a.name);
@@ -6407,10 +6474,14 @@ async function readLogo(file) {
     return out;
   } finally { URL.revokeObjectURL(url); }
 }
-function openAccountForm(id) {
+function openAccountForm(id, parentId = '') {
   if (!isBizAdmin() && !(id && accRoleOf(S.biz.accounts[id]) === 'admin')) return toast('Only admins can do this');
   const ex = id ? S.biz.accounts[id] : null;
-  const d = ex ? clone(ex) : { id: uid(), name: '', sector: '', color: COLORS[allAccounts(true).length % 8], logo: '', modules: presetModules(false), access: { teams: {}, people: {} }, createdAt: Date.now(), createdBy: userEmail() };
+  const par = !ex && parentId ? S.biz.accounts[parentId] : null;
+  const d = ex ? clone(ex) : { id: uid(), name: '', sector: par ? par.sector || '' : '', color: COLORS[allAccounts(true).length % 8], logo: '', modules: par ? clone(par.modules || {}) : presetModules(false),
+    parentId: par ? par.id : '', kind: par ? 'brand' : '', access: { teams: {}, people: {} }, createdAt: Date.now(), createdBy: userEmail() };
+  const blocked = new Set(ex ? [ex.id, ...accDescendants(ex.id).map(x => x.id)] : []);   // an account can't sit under itself
+  const parentChoices = allAccounts().filter(a => !blocked.has(a.id));
   d.modules = d.modules || {}; d.access = d.access || { teams: {}, people: {} };
   const w = openModal(`<div class="modal-head"><h2>${ex ? 'Edit account' : 'Create account'}</h2><button class="icon-btn" data-x>${ico('x')}</button></div>
     <form class="modal-body acc-form">
@@ -6418,6 +6489,9 @@ function openAccountForm(id) {
         <div style="flex:1;min-width:0"><div class="field"><label>Account name *</label><input class="inp" name="name" value="${esc(d.name)}" maxlength="80" autofocus placeholder="The client, e.g. Northwind Motors"></div>
           <div class="row2"><div class="field"><label>Sector</label><input class="inp" name="sector" list="af-sectors" value="${esc(d.sector || '')}" maxlength="60"><datalist id="af-sectors">${DEFAULT_SECTORS.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>
             <div class="field"><label>Logo</label><div style="display:flex;gap:6px"><label class="btn" style="cursor:pointer">${ico('upload', 'i-sm')} Upload<input type="file" accept="image/*" data-logofile hidden></label><button type="button" class="btn" data-logoclear>Remove</button></div></div></div></div></div>
+      ${isBizAdmin() ? `<div class="row2"><div class="field"><label>Part of</label><select class="sel" name="parent"><option value="">Nothing: a top-level client</option>${accSelectOptions(parentChoices, d.parentId || '')}</select></div>
+        <div class="field" data-kindf ${d.parentId ? '' : 'hidden'}><label>Type of sub-account</label><select class="sel" name="kind">${ACC_KINDS.map(([k, l]) => `<option value="${k}" ${(d.kind || 'brand') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+        <p class="set-p" data-inherit ${d.parentId ? '' : 'hidden'} style="margin-top:-4px">Everyone with access to <b data-parname>${esc((S.biz.accounts[d.parentId] || {}).name || '')}</b> can open this sub-account too. Add more teams or people below.</p>` : ''}
       <div class="field"><label>Colour (used when there's no logo)</label><div class="swatches">${COLORS.map(c => `<button type="button" class="swatch sw-${c} ${d.color === c ? 'on' : ''}" data-c="${c}"></button>`).join('')}</div></div>
       ${!ex ? `<div class="field"><label>Who gets access</label><div class="af-access">
         <div class="af-acc-row"><span>Everyone in the business</span>${roleSelect('*', d.access.teams['*'])}</div>
@@ -6431,17 +6505,26 @@ function openAccountForm(id) {
   w.querySelector('[name=name]').addEventListener('input', paintLogo);
   $$('[data-x]', w).forEach(b => b.onclick = () => w.close());
   $$('.swatch', w).forEach(b => b.onclick = () => { d.color = b.dataset.c; $$('.swatch', w).forEach(x => x.classList.toggle('on', x === b)); paintLogo(); });
-  w.querySelector('[data-logofile]').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { d.logo = await readLogo(f); paintLogo(); } catch { toast('Couldn’t use that image — try a PNG or JPG under 2 MB'); } };
+  w.querySelector('[data-logofile]').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { d.logo = await readLogo(f); paintLogo(); } catch { toast('Couldn’t use that image - try a PNG or JPG under 2 MB'); } };
   w.querySelector('[data-logoclear]').onclick = () => { d.logo = ''; paintLogo(); };
   w.addEventListener('click', e => { const b = e.target.closest('[data-preset]'); if (!b) return; d.modules = presetModules(b.dataset.preset === 'all');
     $$('[data-tool]', w).forEach(c => { c.checked = d.modules[c.dataset.tool] !== false; c.closest('.tool-tile').classList.toggle('on', c.checked); }); });
-  w.addEventListener('change', e => { const t = e.target; if (t.dataset.tool) d.modules[t.dataset.tool] = t.checked; if (t.dataset.role != null) { if (t.value) d.access.teams[t.dataset.role] = t.value; else delete d.access.teams[t.dataset.role]; } });
+  w.addEventListener('change', e => { const t = e.target;
+    if (t.name === 'parent') { const pa = S.biz.accounts[t.value]; w.querySelector('[data-kindf]').hidden = !pa; w.querySelector('[data-inherit]').hidden = !pa; if (pa) w.querySelector('[data-parname]').textContent = pa.name; }
+    if (t.dataset.tool) d.modules[t.dataset.tool] = t.checked; if (t.dataset.role != null) { if (t.value) d.access.teams[t.dataset.role] = t.value; else delete d.access.teams[t.dataset.role]; } });
   w.querySelector('form').onsubmit = e => e.preventDefault();
   w.querySelector('[data-ok]').onclick = async () => {
     const name = w.querySelector('[name=name]').value.trim(); if (!name) return toast('Give the account a name');
     if (allAccounts(true).some(a => a.id !== d.id && a.name.toLowerCase() === name.toLowerCase())) return toast('There’s already an account with that name');
     Object.assign(d, { name, sector: w.querySelector('[name=sector]').value.trim().slice(0, 60), updatedAt: Date.now() });
-    if (ex) { await bizApi.patchAccount(d.id, { name: d.name, sector: d.sector, color: d.color, logo: d.logo || '', modules: d.modules, updatedAt: d.updatedAt }); audit('account_edited', d.name); toast('Account saved'); }
+    const pSel = w.querySelector('[name=parent]');
+    if (pSel) { d.parentId = pSel.value || ''; d.kind = d.parentId ? w.querySelector('[name=kind]').value : ''; }
+    if (ex) {
+      const moved = isBizAdmin() && ((ex.parentId || '') !== (d.parentId || '') || (ex.kind || '') !== (d.kind || ''));
+      await bizApi.patchAccount(d.id, { name: d.name, sector: d.sector, color: d.color, logo: d.logo || '', modules: d.modules, ...(moved ? { parentId: d.parentId, kind: d.kind } : {}), updatedAt: d.updatedAt });
+      if (moved) await syncAccess([d.id]);
+      audit('account_edited', d.name); toast('Account saved');
+    }
     else {
       Object.assign(d, computeAccess(d), { stats: null, archived: false });
       await bizApi.putAccount(d); audit('account_created', d.name);
@@ -6464,23 +6547,29 @@ function openAccessModal(id) {
   const w = openModal(`<div class="modal-head"><h2>Access · ${esc(a.name)}</h2><button class="icon-btn" data-x>${ico('x')}</button></div><div class="modal-body" data-body style="max-height:70vh;overflow:auto"></div>
     <div class="modal-foot"><span class="mut" style="font-size:12px">Business admins can always open every account.</span><span class="spacer"></span><button class="btn" data-x>Cancel</button><button class="btn btn-primary" data-ok>Save access</button></div>`, 'wide');
   const body = w.querySelector('[data-body]');
+  const ups = accAncestors(a);
   const draw = () => {
-    const eff = computeAccess({ access: acc });
+    const eff = computeAccess({ ...a, access: acc });
     const direct = Object.keys(acc.people).sort();
     const others = bizMembers().filter(m => !acc.people[m.id]);
-    body.innerHTML = `<div class="set-h">${ico('people')} Teams</div>
-      <p class="set-p">Give a whole team access. Everyone added to the team later gets in too.</p>
+    body.innerHTML = `${ups.length ? `<div class="set-h">${ico('flow')} Inherited</div>
+      <p class="set-p">${esc(a.name)} is part of <b>${esc(ups.map(x => x.name).reverse().join(' › '))}</b>, so everyone with access there can open it too:</p>
+      <div class="chips" style="margin-bottom:6px">${ups.flatMap(x => [...Object.entries((x.access || {}).teams || {}).map(([t, r]) => `${t === '*' ? 'Everyone' : (S.biz.teams[t] || {}).name || 'Removed team'} · ${ACC_ROLE_LABEL[r]}`),
+        ...Object.entries((x.access || {}).people || {}).map(([em, r]) => `${memberName(em)} · ${ACC_ROLE_LABEL[r]}`)].map(t => `<span class="tag">${esc(t)} <small class="mut">from ${esc(x.name)}</small></span>`)).join('') || '<span class="mut">No one yet.</span>'}</div>
+      <p class="set-p mut">Below you can add more teams or people, or a higher role, just for ${esc(a.name)}.</p>` : ''}
+      <div class="set-h">${ico('people')} Teams</div>
+      <p class="set-p">Give a whole team access. Everyone added to the team later gets in too.${accDescendants(a.id).length ? ` It also covers the ${plural(accDescendants(a.id).length, 'sub-account')} under ${esc(a.name)}.` : ''}</p>
       <div class="af-access"><div class="af-acc-row"><span>Everyone in the business <small class="mut">${plural(bizMembers().length, 'person', 'people')}</small></span>${roleSelect('*', acc.teams['*'])}</div>
-      ${bizTeams().map(t => `<div class="af-acc-row"><span>${esc(t.name)} <small class="mut">${esc((t.memberEmails || []).map(memberName).join(', ') || 'no one yet')}</small></span>${roleSelect(t.id, acc.teams[t.id])}</div>`).join('') || '<p class="set-p mut">No teams yet — create them in Business settings → Teams.</p>'}</div>
+      ${bizTeams().map(t => `<div class="af-acc-row"><span>${esc(t.name)} <small class="mut">${esc((t.memberEmails || []).map(memberName).join(', ') || 'no one yet')}</small></span>${roleSelect(t.id, acc.teams[t.id])}</div>`).join('') || '<p class="set-p mut">No teams yet - create them in Business settings → Teams.</p>'}</div>
       <div class="set-h">${ico('user')} People</div>
       <p class="set-p">Add someone directly, for example a freelancer or a client contact as a viewer.</p>
       <div class="af-access">${direct.map(em => `<div class="af-acc-row"><span>${esc(memberName(em))} <small class="mut">${esc(em)}</small></span><select class="sel sm" data-person="${esc(em)}">${ACC_ROLES.map(r => `<option value="${r}" ${acc.people[em] === r ? 'selected' : ''}>${ACC_ROLE_LABEL[r]}</option>`).join('')}<option value="">Remove</option></select></div>`).join('')}
         ${others.length ? `<div class="af-acc-row"><select class="sel" data-addp><option value="">Add a person…</option>${others.map(m => `<option value="${esc(m.id)}">${esc(m.name || m.id)} · ${esc(m.id)}</option>`).join('')}</select>
           <select class="sel sm" data-addr>${ACC_ROLES.map(r => `<option value="${r}" ${r === 'editor' ? 'selected' : ''}>${ACC_ROLE_LABEL[r]}</option>`).join('')}</select><button class="btn sm" data-addgo>Add</button></div>` : ''}
-        ${isBizAdmin() ? '' : '<p class="set-p mut">People must be in the business first — a business admin adds them.</p>'}</div>
+        ${isBizAdmin() ? '' : '<p class="set-p mut">People must be in the business first - a business admin adds them.</p>'}</div>
       <div class="set-h">${ico('eye')} Who can open ${esc(a.name)}</div>
       <table class="tbl acc-eff"><thead><tr><th>Person</th><th>Access</th><th>Through</th></tr></thead><tbody>
-      ${eff.memberEmails.map(em => `<tr><td>${esc(memberName(em))} <small class="mut">${esc(em)}</small></td><td>${roleTag(eff.roles[em])}</td><td class="mut">${esc(accessVia({ access: acc }, em).join(' · '))}</td></tr>`).join('') || '<tr><td colspan="3" class="mut">Nobody yet (apart from business admins).</td></tr>'}
+      ${eff.memberEmails.map(em => `<tr><td>${esc(memberName(em))} <small class="mut">${esc(em)}</small></td><td>${roleTag(eff.roles[em])}</td><td class="mut">${esc(accessVia({ ...a, access: acc }, em).join(' · '))}</td></tr>`).join('') || '<tr><td colspan="3" class="mut">Nobody yet (apart from business admins).</td></tr>'}
       </tbody></table>
       <p class="set-p" style="margin-top:10px">${ACC_ROLES.map(r => `<b>${ACC_ROLE_LABEL[r]}</b>: ${esc(ACC_ROLE_HELP[r])}`).join(' · ')}</p>`;
   };
@@ -6500,6 +6589,7 @@ function openAccessModal(id) {
     const next = { ...a, access: acc }; const eff = computeAccess(next);
     if (!isBizAdmin() && eff.roles[userEmail()] !== 'admin') return toast('Keep yourself as an admin of this account, or ask a business admin');
     await bizApi.patchAccount(a.id, { access: acc, ...eff, updatedAt: Date.now() });
+    if (accDescendants(a.id).length) await syncAccess(accDescendants(a.id).map(x => x.id));
     audit('access_changed', `${a.name}: ${eff.memberEmails.length} people`);
     toast('Access saved'); w.close();
   };
@@ -6518,42 +6608,44 @@ function renderBusiness() {
 }
 function bizAccountsHTML() {
   const list = allAccounts(true);
+  const top = DEMO_ACCOUNTS.filter(x => !x.parent), subN = DEMO_ACCOUNTS.length - top.length;
   return `<div class="ct-toolbar"><span class="mut">Each account is a client with its own data, tools and access.</span><span class="spacer"></span><button class="btn btn-primary" data-action="acc-create">${ico('plus', 'i-sm')} Create account</button></div>
     <div class="tbl-wrap"><table class="tbl bz-table"><thead><tr><th>Account</th><th>Access</th><th>Tools</th><th class="num">People</th><th>Status</th><th></th></tr></thead><tbody>
-    ${list.map(a => { const acc = a.access || {}; const on = TOOLS.filter(t => (a.modules || {})[t[0]] !== false);
-      return `<tr class="${a.archived ? 'mut' : ''}"><td><div class="ao-name">${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.sector || '')}</small></span></div></td>
-      <td class="ao-teams">${Object.entries(acc.teams || {}).map(([t, r]) => `<span class="tag">${esc(t === '*' ? 'Everyone' : (S.biz.teams[t] || {}).name || 'Removed team')} · ${ACC_ROLE_LABEL[r]}</span>`).join('')}${Object.keys(acc.people || {}).length ? `<span class="tag">${plural(Object.keys(acc.people).length, 'person', 'people')} direct</span>` : ''}</td>
+    ${accTree(list).map(({ a, depth }) => { const acc = a.access || {}; const on = TOOLS.filter(t => (a.modules || {})[t[0]] !== false);
+      return `<tr class="${a.archived ? 'mut' : ''} ${depth ? 'ao-sub' : ''}"><td><div class="ao-name" style="--d:${depth}">${depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector || '')}</small></span></div></td>
+      <td class="ao-teams">${a.parentId && accAncestors(a).length ? `<span class="tag inh" title="Everyone with access to ${esc(accAncestors(a)[0].name)} can open it">${ico('flow', 'i-xs')} from ${esc(accAncestors(a)[0].name)}</span>` : ''}${Object.entries(acc.teams || {}).map(([t, r]) => `<span class="tag">${esc(t === '*' ? 'Everyone' : (S.biz.teams[t] || {}).name || 'Removed team')} · ${ACC_ROLE_LABEL[r]}</span>`).join('')}${Object.keys(acc.people || {}).length ? `<span class="tag">${plural(Object.keys(acc.people).length, 'person', 'people')} direct</span>` : ''}</td>
       <td><span title="${esc(on.map(t => t[1]).join(', '))}">${on.length} of ${TOOLS.length}</span></td><td class="num">${(a.memberEmails || []).length}</td>
       <td>${a.archived ? 'Archived' : 'Active'}</td>
       <td style="white-space:nowrap;text-align:right"><button class="btn sm" data-action="acc-access" data-id="${esc(a.id)}">Access</button> <button class="btn sm" data-action="acc-edit" data-id="${esc(a.id)}">Edit</button> <button class="icon-btn" data-action="acc-row-menu" data-id="${esc(a.id)}">${ico('dots')}</button></td></tr>`; }).join('') || '<tr><td colspan="6" class="mut">No accounts yet.</td></tr>'}
     </tbody></table></div>
     <div class="set-h" style="margin-top:22px">${ico('sparkle')} Sample business (for demos)</div>
-    <p class="set-p">Example accounts — ${esc(DEMO_ACCOUNTS.map(a => a.name).join(', '))} — with teams, people with different access, and briefs, tasks and campaigns inside each. Put your own team's names on the GM account when you load it. ${CFG.sampleData ? 'A brand-new platform starts with it loaded (<code>sampleData</code> in config.js). ' : ''}Everything it adds is tagged and comes out again with one click; your own accounts, teams and people aren't touched.</p>
+    <p class="set-p">Example accounts: ${esc(top.map(a => a.name).join(', '))}, with ${subN} sub-accounts under General Motors (brands and dealers), teams, people with different access, and briefs, tasks and campaigns inside each. Put your own team's names on the GM account when you load it. ${CFG.sampleData ? 'A brand-new platform starts with it loaded (<code>sampleData</code> in config.js). ' : ''}Everything it adds is tagged and comes out again with one click; your own accounts, teams and people aren't touched.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-action="bz-sample-load">${ico('sparkle', 'i-sm')} Load sample business</button><button class="btn btn-danger" data-action="bz-sample-clear">${ico('trash', 'i-sm')} Remove sample business</button></div>`;
 }
 function bizPeopleHTML() {
   const ms = bizMembers();
   const teamsOf = em => bizTeams().filter(t => (t.memberEmails || []).includes(em));
   const ownerRow = S.mode === 'cloud' && CFG.ownerEmail && !S.biz.members[CFG.ownerEmail.toLowerCase()];
-  return `<p class="set-p">Only people listed here can sign in. Business admins can open every account and manage people, teams and accounts. ${S.mode === 'cloud' ? `They sign up at <b>${esc(location.origin + location.pathname)}</b> with this email.` : ''}</p>
+  return `<p class="set-p">Only people listed here can sign in. <b>Owners</b> and <b>admins</b> open every account and manage people, teams and accounts; only owners can add or remove other owners. ${S.mode === 'cloud' ? `They sign up at <b>${esc(location.origin + location.pathname)}</b> with this email.` : ''}</p>
     <div class="tbl-wrap"><table class="tbl bz-table"><thead><tr><th>Name</th><th>Email</th><th>Job role</th><th>Business role</th><th>Teams</th><th class="num">Accounts</th><th></th></tr></thead><tbody>
     ${ownerRow ? `<tr><td><b>Owner</b></td><td>${esc(CFG.ownerEmail)}</td><td></td><td>Owner</td><td></td><td class="num">all</td><td></td></tr>` : ''}
     ${ms.map(m => `<tr><td><div class="ao-name"><span class="avatar sw-${esc(m.color || 'grey')}">${esc(initials(m.name || m.id))}</span><input class="inp ghost" data-mname="${esc(m.id)}" value="${esc(m.name || '')}" maxlength="60" placeholder="Name"></div></td>
       <td>${esc(m.id)}</td>
-      <td><select class="sel sm" data-mjob="${esc(m.id)}"><option value="">—</option>${[...new Set([...DEFAULT_ROLES.filter(r => r !== 'Client'), 'Head of Performance', m.jobRole].filter(Boolean))].map(r => `<option ${m.jobRole === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></td>
-      <td>${m.id === (S.biz.owner || CFG.ownerEmail) ? 'Owner' : `<select class="sel sm" data-mrole="${esc(m.id)}"><option value="member" ${m.bizRole !== 'admin' ? 'selected' : ''}>Member</option><option value="admin" ${m.bizRole === 'admin' ? 'selected' : ''}>Admin</option></select>`}</td>
-      <td class="ao-teams">${teamsOf(m.id).map(t => `<span class="tag">${esc(t.name)}</span>`).join('') || '<span class="mut">—</span>'}</td>
-      <td class="num">${m.bizRole === 'admin' ? 'all' : allAccounts().filter(a => (a.roles || {})[m.id]).length}</td>
-      <td style="white-space:nowrap;text-align:right">${S.mode === 'local' ? `<button class="btn sm ${userEmail() === m.id ? 'on' : ''}" data-viewas="${esc(m.id)}" title="See the platform the way this person does (local mode)">${userEmail() === m.id ? 'Viewing as' : 'View as'}</button> ` : ''}${m.id !== userEmail() && m.id !== S.biz.owner ? `<button class="icon-btn" data-mdel="${esc(m.id)}" title="Remove">${ico('trash', 'i-sm')}</button>` : ''}</td></tr>`).join('')}
+      <td><select class="sel sm" data-mjob="${esc(m.id)}"><option value="">-</option>${[...new Set([...DEFAULT_ROLES.filter(r => r !== 'Client'), 'Head of Performance', m.jobRole].filter(Boolean))].map(r => `<option ${m.jobRole === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></td>
+      <td>${isFirstOwner(m.id) ? '<b>Owner</b>' : m.id === userEmail() || (m.bizRole === 'owner' && !isOwnerUser()) ? (BIZ_ROLES.find(r => r[0] === (m.bizRole || 'member')) || [, 'Member'])[1]
+        : `<select class="sel sm" data-mrole="${esc(m.id)}">${BIZ_ROLES.filter(([k]) => k !== 'owner' || isOwnerUser()).map(([k, l]) => `<option value="${k}" ${(m.bizRole || 'member') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}</td>
+      <td class="ao-teams">${teamsOf(m.id).map(t => `<span class="tag">${esc(t.name)}</span>`).join('') || '<span class="mut">-</span>'}</td>
+      <td class="num">${m.bizRole === 'admin' || isOwnerEmail(m.id) ? 'all' : allAccounts().filter(a => (a.roles || {})[m.id]).length}</td>
+      <td style="white-space:nowrap;text-align:right">${S.mode === 'local' ? `<button class="btn sm ${userEmail() === m.id ? 'on' : ''}" data-viewas="${esc(m.id)}" title="See the platform the way this person does (local mode)">${userEmail() === m.id ? 'Viewing as' : 'View as'}</button> ` : ''}${m.id !== userEmail() && !isFirstOwner(m.id) && (m.bizRole !== 'owner' || isOwnerUser()) ? `<button class="icon-btn" data-mdel="${esc(m.id)}" title="Remove">${ico('trash', 'i-sm')}</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>
     <form class="bz-add" data-addmember><input class="inp" name="name" placeholder="Name" maxlength="60"><input class="inp" name="email" type="email" placeholder="work email" maxlength="254" required>
       <select class="sel" name="job"><option value="">Job role…</option>${DEFAULT_ROLES.filter(r => r !== 'Client').map(r => `<option>${esc(r)}</option>`).join('')}</select>
-      <select class="sel" name="role"><option value="member">Member</option><option value="admin">Admin</option></select>
+      <select class="sel" name="role">${BIZ_ROLES.filter(([k]) => k !== 'owner' || isOwnerUser()).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
       <select class="sel" name="team"><option value="">Add to team…</option>${bizTeams().map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select><button class="btn btn-primary">Add person</button></form>`;
 }
 function bizTeamsHTML() {
   const ts = bizTeams();
-  return `<p class="set-p">Teams make access simple: give a team access to an account once, and everyone in it — now or later — gets in with that role.</p>
+  return `<p class="set-p">Teams make access simple: give a team access to an account once, and everyone in it - now or later - gets in with that role.</p>
     <div class="bz-teams">${ts.map(t => { const accs = allAccounts(true).filter(a => ((a.access || {}).teams || {})[t.id]);
       const others = bizMembers().filter(m => !(t.memberEmails || []).includes(m.id));
       const freeAccs = allAccounts().filter(a => !((a.access || {}).teams || {})[t.id]);
@@ -6562,8 +6654,9 @@ function bizTeamsHTML() {
         <div class="chips">${(t.memberEmails || []).map(em => `<span class="tag">${esc(memberName(em))}<button data-tmdel="${esc(t.id)}" data-em="${esc(em)}" title="Remove">${ico('x', 'i-xs')}</button></span>`).join('') || '<span class="mut">No one yet</span>'}
           ${others.length ? `<select class="sel sm" data-tmadd="${esc(t.id)}"><option value="">+ Add person</option>${others.map(m => `<option value="${esc(m.id)}">${esc(m.name || m.id)}</option>`).join('')}</select>` : ''}</div>
         <div class="bz-sub">Accounts</div>
-        <div class="chips">${accs.map(a => `<span class="tag acc-chip">${accLogo(a, 'xs')}${esc(a.name)}<select class="sel xs" data-tarole="${esc(t.id)}" data-acc="${esc(a.id)}">${ACC_ROLES.map(r => `<option value="${r}" ${a.access.teams[t.id] === r ? 'selected' : ''}>${ACC_ROLE_LABEL[r]}</option>`).join('')}<option value="">Remove</option></select></span>`).join('') || '<span class="mut">No accounts yet</span>'}
-          ${freeAccs.length ? `<select class="sel sm" data-taadd="${esc(t.id)}"><option value="">+ Add account</option>${freeAccs.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('')}</select>` : ''}</div></div>`; }).join('')}
+        <div class="chips">${accs.map(a => `<span class="tag acc-chip" title="${esc(accPath(a))}">${accLogo(a, 'xs')}${esc(accLabel(a))}${accDescendants(a.id).length ? `<small class="mut">+${plural(accDescendants(a.id).length, 'sub-account')}</small>` : ''}<select class="sel xs" data-tarole="${esc(t.id)}" data-acc="${esc(a.id)}">${ACC_ROLES.map(r => `<option value="${r}" ${a.access.teams[t.id] === r ? 'selected' : ''}>${ACC_ROLE_LABEL[r]}</option>`).join('')}<option value="">Remove</option></select></span>`).join('') || '<span class="mut">No accounts yet</span>'}
+          ${freeAccs.length ? `<select class="sel sm" data-taadd="${esc(t.id)}"><option value="">+ Add account</option>${accSelectOptions(freeAccs)}</select>` : ''}</div>
+        ${accs.some(a => accDescendants(a.id).length) ? '<p class="set-p mut" style="margin:6px 0 0">Access to an account includes its sub-accounts.</p>' : ''}</div>`; }).join('')}
       <form class="bz-team bz-newteam" data-addteam><div class="bz-sub">New team</div><input class="inp" placeholder="e.g. Automotive team" maxlength="60"><button class="btn btn-primary">Create team</button></form></div>`;
 }
 // One listener for the business page (inputs, selects and small buttons that aren't data-action).
@@ -6572,17 +6665,23 @@ document.addEventListener('change', async e => {
   const ds = t.dataset;
   if (ds.mname) { const m = S.biz.members[ds.mname]; if (m && t.value.trim()) await bizApi.putMember({ ...m, name: t.value.trim().slice(0, 60) }); }
   if (ds.mjob) { const m = S.biz.members[ds.mjob]; if (m) await bizApi.putMember({ ...m, jobRole: t.value }); }
-  if (ds.mrole) { const m = S.biz.members[ds.mrole]; if (m) { await bizApi.putMember({ ...m, bizRole: t.value }); audit('business_role', `${m.id} → ${t.value}`); } }
+  if (ds.mrole) {
+    const m = S.biz.members[ds.mrole]; if (!m) return;
+    if ((t.value === 'owner' || m.bizRole === 'owner') && !isOwnerUser()) { t.value = m.bizRole || 'member'; return toast('Only owners can change owners'); }
+    if (t.value === 'owner' && !await confirmBox(`Make <b>${esc(m.name || m.id)}</b> an owner? Owners can do everything here, including adding and removing other owners.`, 'Make owner')) { t.value = m.bizRole || 'member'; return; }
+    await bizApi.putMember({ ...m, bizRole: t.value }); audit('business_role', `${m.id}: ${t.value}`); render({ mainOnly: true });
+  }
   if (ds.tname) { const tm = S.biz.teams[ds.tname]; if (tm && t.value.trim()) await bizApi.putTeam({ ...tm, name: t.value.trim().slice(0, 60) }); }
   if (ds.tmadd && t.value) { const tm = S.biz.teams[ds.tmadd]; await bizApi.putTeam({ ...tm, memberEmails: [...new Set([...(tm.memberEmails || []), t.value])] }); await syncAccess(); }
-  if (ds.taadd && t.value) { const a = S.biz.accounts[t.value]; const access = clone(a.access || { teams: {}, people: {} }); access.teams = { ...(access.teams || {}), [ds.taadd]: 'editor' }; await bizApi.patchAccount(a.id, { access, ...computeAccess({ ...a, access }) }); }
-  if (ds.tarole) { const a = S.biz.accounts[ds.acc]; const access = clone(a.access || { teams: {}, people: {} }); if (t.value) access.teams[ds.tarole] = t.value; else delete access.teams[ds.tarole]; await bizApi.patchAccount(a.id, { access, ...computeAccess({ ...a, access }) }); }
+  if (ds.taadd && t.value) { const a = S.biz.accounts[t.value]; const access = clone(a.access || { teams: {}, people: {} }); access.teams = { ...(access.teams || {}), [ds.taadd]: 'editor' }; await bizApi.patchAccount(a.id, { access, ...computeAccess({ ...a, access }) }); await syncAccess(accDescendants(a.id).map(x => x.id)); }
+  if (ds.tarole) { const a = S.biz.accounts[ds.acc]; const access = clone(a.access || { teams: {}, people: {} }); if (t.value) access.teams[ds.tarole] = t.value; else delete access.teams[ds.tarole]; await bizApi.patchAccount(a.id, { access, ...computeAccess({ ...a, access }) }); await syncAccess(accDescendants(a.id).map(x => x.id)); }
 });
 document.addEventListener('click', async e => {
   const b = e.target.closest && e.target.closest('.bz button'); if (!b) return;
   const ds = b.dataset;
   if (ds.mdel) {
     const m = S.biz.members[ds.mdel]; if (!m) return;
+    if (m.bizRole === 'owner' && !isOwnerUser()) return toast('Only owners can remove an owner');
     if (!await confirmBox(`Remove <b>${esc(m.name || m.id)}</b> from the business? They lose access to every account. Their work stays.`, 'Remove')) return;
     for (const t of bizTeams().filter(t => (t.memberEmails || []).includes(m.id))) await bizApi.putTeam({ ...t, memberEmails: t.memberEmails.filter(x => x !== m.id) });
     for (const a of allAccounts(true).filter(a => ((a.access || {}).people || {})[m.id])) { const access = clone(a.access); delete access.people[m.id]; await bizApi.patchAccount(a.id, { access }); }
@@ -6604,10 +6703,11 @@ document.addEventListener('submit', async e => {
     const em = f.email.value.trim().toLowerCase();
     if (!okEmailId(em)) return toast('That doesn’t look like an email');
     if (S.biz.members[em]) return toast('Already in the business');
+    if (f.role.value === 'owner' && !await confirmBox(`Add <b>${esc(em)}</b> as an owner? Owners can do everything here, including adding and removing other owners.`, 'Add owner')) return;
     await bizApi.putMember({ id: em, name: f.name.value.trim().slice(0, 60) || em.split('@')[0], jobRole: f.job.value, bizRole: f.role.value, color: COLORS[bizMembers().length % 8], addedAt: Date.now(), addedBy: userEmail() });
     if (f.team.value) { const tm = S.biz.teams[f.team.value]; await bizApi.putTeam({ ...tm, memberEmails: [...new Set([...(tm.memberEmails || []), em])] }); }
     await syncAccess(); audit('member_added', em);
-    toast(`${em} added${S.mode === 'cloud' ? ' — send them the link to sign up' : ''}`);
+    toast(`${em} added${S.mode === 'cloud' ? ' - send them the link to sign up' : ''}`);
   }
   if ('addteam' in f.dataset) {
     const name = f.querySelector('input').value.trim(); if (!name) return;
@@ -6619,7 +6719,7 @@ document.addEventListener('submit', async e => {
 const wsMine = () => canAdminAcc();
 
 /* =====================================================================
-   GUIDE & HELP — a getting-started page plus a built-in chatbot.
+   GUIDE & HELP - a getting-started page plus a built-in chatbot.
    The chatbot answers from the preset questions below: no AI service,
    no network calls, nothing typed into it leaves the browser.
    ===================================================================== */
@@ -6639,11 +6739,14 @@ const GUIDE = [
   { id: 'setup', c: 'start', q: 'How do I set up a new client account?', k: 'create account new client setup add logo onboard',
     a: '<ol><li><b>Business settings → People</b>: add everyone by work email.</li><li><b>Teams</b>: group them, for example "GM team".</li><li><b>Accounts → Create account</b>: name, logo and sector.</li><li>Give teams access as Admin, Editor or Viewer.</li><li>Choose the tools the account needs.</li></ol><p>Only business admins can create accounts.</p>',
     go: 'new-account', gl: 'Create an account', rel: ['roles', 'tools', 's-access'] },
+  { id: 'subaccounts', c: 'start', q: 'What are sub-accounts?', k: 'sub account subaccount brand dealer market child parent nested group chevrolet cadillac gmc al ghanim al jomaih aga',
+    a: '<p>An account can sit under another one, like brands and dealers under a client: <b>General Motors</b> › <b>GM Cadillac</b> › <b>Al Ghanim Cadillac (Dealer)</b>. Each sub-account has its own briefs, boards, tools and data.</p><p>Access flows down: anyone with access to General Motors can open its sub-accounts too. You can add extra people or a higher role on a sub-account only.</p><p>To add one: All accounts or Business settings → the <b>…</b> menu on an account → <b>Add a sub-account</b>, or choose <b>Part of</b> when you create an account.</p>',
+    go: '#/accounts', gl: 'Open All accounts', rel: ['setup', 'roles', 's-access'] },
   { id: 'roles', c: 'start', q: 'What can Admins, Editors and Viewers do?', k: 'role roles admin editor viewer permission rights can cannot',
-    a: '<ul><li><b>Business admin</b>: adds people and teams, creates accounts, sees every account.</li><li><b>Account admin</b>: changes the account\'s name, logo, access and tools.</li><li><b>Editor</b>: does the work — briefs, tasks, campaigns, notes.</li><li><b>Viewer</b>: sees everything in the account but can\'t change anything.</li></ul>',
+    a: '<ul><li><b>Owner</b>: everything a business admin can do, plus adding and removing other owners.</li><li><b>Business admin</b>: adds people and teams, creates accounts, sees every account.</li><li><b>Account admin</b>: changes the account\'s name, logo, access and tools.</li><li><b>Editor</b>: does the work - briefs, tasks, campaigns, notes.</li><li><b>Viewer</b>: sees everything in the account but can\'t change anything.</li></ul>',
     rel: ['s-access', 's-viewer', 'setup'] },
   { id: 'tools', c: 'start', q: 'How do I switch tools on or off?', k: 'tools modules features turn on off enable disable hide simplify',
-    a: '<p>Open <b>Account settings</b> (the gear at the top of the sidebar) → <b>Tools</b>. Account admins can switch each tool on or off for everyone in that account.</p><p>New accounts start with the essentials: My work, Task lists, Briefs, Campaign Tracker, Alerts and Dashboard. Turning a tool off only hides it — nothing is deleted.</p>',
+    a: '<p>Open <b>Account settings</b> (the gear at the top of the sidebar) → <b>Tools</b>. Account admins can switch each tool on or off for everyone in that account.</p><p>New accounts start with the essentials: My work, Task lists, Briefs, Campaign Tracker, Alerts and Dashboard. Turning a tool off only hides it - nothing is deleted.</p>',
     go: 'tools', gl: 'Open Tools', rel: ['setup', 'roles'] },
 
   // ---------- using the platform ----------
@@ -6694,7 +6797,7 @@ const GUIDE = [
 
   // ---------- media maths ----------
   { id: 'm-pacing', c: 'media', q: 'How do I calculate pacing?', k: 'pacing formula expected spend budget flight on track percentage',
-    a: '<p><b>Expected spend to date</b> = budget × (days elapsed ÷ flight days)</p><p><b>Pacing</b> = actual spend ÷ expected spend</p><p>Example: 30,000 over 30 days, on day 12, should have spent 12,000. Spent 10,800 = 90% pacing. Around 95–105% is usually on track; agree the tolerance per client.</p>',
+    a: '<p><b>Expected spend to date</b> = budget × (days elapsed ÷ flight days)</p><p><b>Pacing</b> = actual spend ÷ expected spend</p><p>Example: 30,000 over 30 days, on day 12, should have spent 12,000. Spent 10,800 = 90% pacing. Around 95-105% is usually on track; agree the tolerance per client.</p>',
     rel: ['m-under', 'm-over'] },
   { id: 'm-under', c: 'media', q: 'A campaign is under-pacing. What should I check?', k: 'under pacing underspend not spending delivery low spend',
     a: '<ul><li><b>Delivery limits:</b> bid or cost caps too low, or a narrow audience.</li><li><b>Ads:</b> disapproved, limited or ended creatives.</li><li><b>Learning:</b> recent big edits reset it.</li><li><b>Budget setup:</b> daily budget lower than the plan needs.</li></ul><p>Then broaden targeting, raise caps, add creatives or move budget to what\'s delivering.</p>',
@@ -6706,10 +6809,10 @@ const GUIDE = [
     a: '<ul><li><b>CPM</b> = cost ÷ impressions × 1,000</li><li><b>CPC</b> = cost ÷ clicks</li><li><b>CTR</b> = clicks ÷ impressions</li><li><b>CVR</b> = conversions ÷ clicks</li><li><b>CPA / CPL</b> = cost ÷ conversions (or leads)</li><li><b>ROAS</b> = revenue ÷ cost</li><li><b>Frequency</b> = impressions ÷ reach</li></ul>',
     rel: ['m-bench', 'm-fatigue'] },
   { id: 'm-bench', c: 'media', q: 'What\'s a good CTR or CPM?', k: 'benchmark good average ctr cpm cpc normal compare',
-    a: '<p>It varies a lot by platform, format, objective, market and season. Compare like with like — same platform, objective, market and time of year — and use the account\'s own past campaigns as the main benchmark.</p>',
+    a: '<p>It varies a lot by platform, format, objective, market and season. Compare like with like - same platform, objective, market and time of year - and use the account\'s own past campaigns as the main benchmark.</p>',
     rel: ['m-formulas', 'm-season'] },
   { id: 'm-learning', c: 'media', q: 'What is the learning phase?', k: 'learning phase limited reset edits algorithm meta tiktok google',
-    a: '<p>After launch or a big change, the platform is still learning who converts, so results swing. On Meta an ad set generally needs about 50 optimisation events in a week to exit learning.</p><p>Avoid frequent big edits to targeting, creative, optimisation event, bidding or budget — they can restart it.</p>',
+    a: '<p>After launch or a big change, the platform is still learning who converts, so results swing. On Meta an ad set generally needs about 50 optimisation events in a week to exit learning.</p><p>Avoid frequent big edits to targeting, creative, optimisation event, bidding or budget - they can restart it.</p>',
     rel: ['m-under', 'm-objective'] },
   { id: 'm-fatigue', c: 'media', q: 'How do I spot creative fatigue?', k: 'creative fatigue frequency refresh ad tired ctr dropping',
     a: '<p>Over a week or two: frequency climbing, CTR falling, CPM and CPA rising. Rotate in new creatives before performance drops, and test new hooks rather than small tweaks.</p>',
@@ -6740,8 +6843,11 @@ const GUIDE = [
   { id: 's-access', c: 'sec', q: 'How do I give or remove someone\'s access?', k: 'access give remove revoke add member invite leaver team',
     a: '<p>Business admins: <b>Business settings → People</b> to add someone by work email, then <b>Teams</b> to put them on the right team. Account admins can also change who has access from the account\'s <b>Access</b>.</p><p>Removing someone takes effect immediately.</p>',
     go: 'access', gl: 'Open access', rel: ['roles', 's-who-sees'] },
+  { id: 's-owners', c: 'sec', q: 'How do I add another owner?', k: 'owner owners upper management director add owner co-owner business admin promote',
+    a: '<p>Owners can do everything, including adding and removing other owners. Business admins can manage people, teams and accounts, but can\'t change owners.</p><p>An owner opens <b>Business settings → People</b>, adds the person by work email (or finds them in the list) and sets <b>Business role</b> to <b>Owner</b>. They sign up with that email and they\'re in.</p>',
+    go: 'people', gl: 'Open People', rel: ['s-access', 'roles'] },
   { id: 's-who-sees', c: 'sec', q: 'Who can see an account?', k: 'privacy who can see access private visible data shared',
-    a: '<p>Only people with access to it — through a team or one by one — and business admins. The database rules enforce this on Google\'s servers, so it holds even if someone tampers with the page.</p>',
+    a: '<p>Only people with access to it - through a team or one by one - and business admins. The database rules enforce this on Google\'s servers, so it holds even if someone tampers with the page.</p>',
     rel: ['s-access', 'roles'] },
   { id: 's-viewer', c: 'sec', q: 'Why can\'t I edit anything?', k: 'cant edit read only view only viewer locked greyed',
     a: '<p>You have <b>Viewer</b> access to this account, so you can see everything but not change it. Ask the account admin or a business admin to make you an Editor.</p>', rel: ['roles'] },
@@ -6757,9 +6863,9 @@ const GUIDE = [
     a: '<p>Click your initials at the top of the sidebar, then <b>Sign out</b>.</p>' },
 ];
 const GUIDE_BY = Object.fromEntries(GUIDE.map(g => [g.id, g]));
-const GUIDE_START = { start: ['first-day', 'switch', 'setup', 'roles', 'tools'], app: ['brief-new', 'workflow', 'mywork', 'alerts', 'campaign-add', 'undo'],
-  media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['s-access', 's-who-sees', 's-viewer', 's-noaccess', 's-reset'] };
-const GUIDE_FAQ = ['what', 'switch', 'roles', 'tools', 'workflow', 's-who-sees', 's-signup'];
+const GUIDE_START = { start: ['first-day', 'switch', 'subaccounts', 'setup', 'roles', 'tools'], app: ['brief-new', 'workflow', 'mywork', 'alerts', 'campaign-add', 'undo'],
+  media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['s-access', 's-owners', 's-who-sees', 's-viewer', 's-noaccess', 's-reset'] };
+const GUIDE_FAQ = ['what', 'subaccounts', 'switch', 'roles', 'tools', 'workflow', 's-who-sees', 's-signup'];
 
 // tiny keyword matcher: words in the question count most, then the extra keywords
 const G_STOP = new Set('a an and are as at be can do does for from how i in is it me my of on or our should the to we what when where which who why with you your there this that'.split(' '));
@@ -6786,7 +6892,7 @@ function guideCan(t) {
   if (!S.ready) return false;
   if (t === '#/accounts' || t === '#/guide') return true;
   if (t === 'switcher') return myAccounts().length > 0;
-  if (t === 'new-account') return isBizAdmin();
+  if (t === 'new-account' || t === 'people') return isBizAdmin();
   if (!S.acc) return t === 'access' && isBizAdmin();
   if (t === 'tools' || t === 'settings') return true;
   if (t === 'access') return canAdminAcc() || isBizAdmin();
@@ -6805,6 +6911,7 @@ function guideGo(t) {
   setTimeout(() => {
     if (t === 'switcher') { const b = document.querySelector('.acc-switch'); if (b) openAccMenu(b); else go('#/accounts'); }
     else if (t === 'new-account') openAccountForm();
+    else if (t === 'people') { S.bz.tab = 'people'; go('#/business'); }
     else if (t === 'tools') openSettings('tools');
     else if (t === 'settings') openSettings();
     else if (t === 'access') { if (S.acc && canAdminAcc()) openAccessModal(S.acc.id); else { S.bz.tab = 'people'; go('#/business'); } }
@@ -6820,7 +6927,7 @@ function guideFab() {
   let f = document.getElementById('gb-fab');
   if (!f) {
     f = document.createElement('button'); f.id = 'gb-fab'; f.className = 'gb-fab'; f.type = 'button';
-    f.setAttribute('aria-label', 'Help — ask a question'); f.title = 'Help  ( ? )';
+    f.setAttribute('aria-label', 'Help - ask a question'); f.title = 'Help  ( ? )';
     f.innerHTML = `${ico('help')}<span class="lb">Help</span>`;
     f.addEventListener('click', () => openGuide());
     document.body.appendChild(f);
@@ -6904,7 +7011,7 @@ document.addEventListener('click', e => {
   if (t.dataset.guideGo) { e.preventDefault(); return guideGo(t.dataset.guideGo); }
   if (t.dataset.guideOpen !== undefined) { e.preventDefault(); return openGuide(t.dataset.guideOpen || undefined); }
   if (t.dataset.gbQ) { const inp = document.querySelector('.gb-form input'); if (inp) inp.value = ''; const b = document.querySelector('.gb-auto'); if (b) b.innerHTML = ''; return gbAsk(t.dataset.gbQ); }
-  if (t.dataset.gbCat) { GB.cat = t.dataset.gbCat; const c = GUIDE_CATS.find(x => x[0] === GB.cat); gbPush({ who: 'bot', html: `<p><b>${c[1]}</b> — popular questions:</p>`, sugg: GUIDE_START[GB.cat] }); return gbPaint(); }
+  if (t.dataset.gbCat) { GB.cat = t.dataset.gbCat; const c = GUIDE_CATS.find(x => x[0] === GB.cat); gbPush({ who: 'bot', html: `<p><b>${c[1]}</b> - popular questions:</p>`, sugg: GUIDE_START[GB.cat] }); return gbPaint(); }
   if (t.dataset.gbClose !== undefined) return closeGuide();
   if (t.dataset.gbReset !== undefined) { GB.log.length = 0; GB.helped = {}; GB.cat = 'start'; document.getElementById('gb')?.remove(); return openGuide(); }
   if (t.dataset.gbHelp) {
@@ -6958,10 +7065,11 @@ function guideSteps() {
 }
 function renderGuide() {
   const steps = guideSteps(), done = steps.filter(s => s.done).length;
-  const roleRows = [['Business admin', 'Adds people and teams, creates accounts, sees every account', true, true, true, true],
+  const roleRows = [['Owner', 'Everything a business admin can do, plus adding and removing other owners', true, true, true, true],
+    ['Business admin', 'Adds people and teams, creates accounts, sees every account', true, true, true, true],
     ['Account admin', 'Runs one account: name, logo, access and tools', false, true, true, true], ['Editor', 'Does the work: briefs, tasks, campaigns, notes', false, false, true, true],
     ['Viewer', 'Sees the account, changes nothing', false, false, false, true]];
-  const yes = v => v ? `<span class="gd-yes">${ico('check', 'i-sm')}<span class="sr">Yes</span></span>` : '<span class="mut">—</span>';
+  const yes = v => v ? `<span class="gd-yes">${ico('check', 'i-sm')}<span class="sr">Yes</span></span>` : '<span class="mut">-</span>';
   const biz = go => go === 'people' || go === 'teams';
   const btn = (go, label) => (biz(go) ? isBizAdmin() : guideCan(go))
     ? `<button class="btn sm" ${biz(go) ? `data-action="gd-biz" data-t="${go}"` : `data-guide-go="${go}"`}>${esc(label)} ${ico('arrowRight', 'i-sm')}</button>` : '';
@@ -6998,148 +7106,211 @@ function renderGuide() {
 }
 
 /* =====================================================================
-   HOMEPAGE — what signed-out visitors see first (and #/home when signed in).
-   The product window is a static preview drawn in HTML: example accounts,
-   not live data.
+   HOMEPAGE - what signed-out visitors see first (and #/home, or the logo, when signed in).
+   Laid out like Doable's homepage, in the dentsu brand. The product
+   pictures are drawn in HTML with example accounts, not live data.
    ===================================================================== */
 function homeHTML(signedIn) {
   const name = esc(CFG.appName || 'Ads Workspace');
   const dark = document.documentElement.dataset.theme === 'dark';
+  const arrow = ico('arrowRight', 'i-sm');
   const cta = signedIn
-    ? `<button class="lp-btn lp-primary" data-go="#/">Open my accounts ${ico('arrowRight', 'i-sm')}</button><button class="lp-btn lp-ghost" data-go="#/guide">Open the guide</button>`
-    : `<button class="lp-btn lp-primary" data-home="in">Sign in ${ico('arrowRight', 'i-sm')}</button><a class="lp-btn lp-ghost" href="#lp-how" data-scroll>See how it works</a>`;
-  const tile = (initials, color) => `<span class="lpm-logo ${color === 'black' ? 'blk' : 'sw-' + color}">${initials}</span>`;
-  const accRow = (ini, color, nm, sec, briefs, alerts, live, teams) => `<div class="lpm-row">${tile(ini, color)}<div class="lpm-nm"><b>${nm}</b><i>${sec}</i></div>
-    <span class="lpm-num">${briefs}<small>briefs</small></span><span class="lpm-num ${alerts ? 'warn' : ''}">${alerts}<small>alerts</small></span><span class="lpm-num">${live}<small>live</small></span><span class="lpm-teams">${teams}</span></div>`;
+    ? `<button class="lp-btn lp-primary" data-go="#/">Open my accounts ${arrow}</button><button class="lp-btn lp-soft" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>`
+    : `<button class="lp-btn lp-primary" data-home="in">Sign in ${arrow}</button><button class="lp-btn lp-soft" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>`;
+  const tile = (ini, color, cls = '') => `<span class="lpm-logo ${color === 'black' ? 'blk' : 'sw-' + color} ${cls}">${ini}</span>`;
+
+  // hero: the account switcher, open, with brands and dealers under General Motors
+  const swRow = (ini, color, nm, sub, d) => `<span class="lps-row" style="--d:${d}">${tile(ini, color)}<span><b>${nm}</b><small>${sub}</small></span></span>`;
+  const HERO = `<div class="lp-scene" aria-hidden="true">
+      <div class="lps-switch">
+        <div class="lps-btn">${tile('GM', 'blue')}<span><small>Account</small><b>General Motors</b></span>${ico('down', 'i-sm')}</div>
+        <div class="lps-menu"><span class="lps-hl"></span>
+          ${swRow('GM', 'blue', 'General Motors', 'Automotive · Admin', 0)}${swRow('GC', 'yellow', 'GM Chevrolet', 'Brand · Editor', 1)}${swRow('AC', 'blue', 'AGA Chevrolet', 'Dealer · Editor', 2)}
+          ${swRow('GG', 'red', 'GM GMC', 'Brand · Editor', 1)}${swRow('GC', 'grey', 'GM Cadillac', 'Brand · Editor', 1)}${swRow('AG', 'teal', 'Al Ghanim Cadillac', 'Dealer · Editor', 2)}
+          ${swRow('AJ', 'purple', 'Al Jomaih Cadillac', 'Dealer · Editor', 2)}${swRow('S', 'grey', 'Siddiqi', 'Luxury retail · Viewer', 0)}${swRow('F', 'red', 'Ferrero', 'FMCG · Viewer', 0)}
+        </div>
+      </div>
+      <span class="lp-chip c1"><span class="dot"></span>Year-End Sales Event · Live</span>
+      <span class="lp-chip c2">${ico('okcircle')}Weekly check done</span>
+      <span class="lp-chip c3">${ico('gauge')}Pacing 98%</span>
+      <span class="lp-chip c4">${ico('people')}GM team · Editor</span>
+      <span class="lp-chip c5">${ico('brief')}RB-0005 submitted</span>
+    </div>`;
+
+  // product tour: one window, five views
+  const card = (title, meta, cls = '') => `<div class="lpm-card"><i class="ring ${cls}"></i><div><b>${title}</b><span class="${cls}">${meta}</span></div></div>`;
+  const col = (nm, n, cards) => `<div class="lpm-col"><h5><span>${nm}</span><em>${n}</em></h5>${cards}</div>`;
+  const accRow = (ini, color, nm, sec, briefs, alerts, live, d = 0) => `<div class="lpm-row" style="--d:${d}">${tile(ini, color)}<div class="lpm-nm"><b>${nm}</b><i>${sec}</i></div>
+    <span class="lpm-num">${briefs}<small>briefs</small></span><span class="lpm-num ${alerts ? 'warn' : ''}">${alerts}<small>alerts</small></span><span class="lpm-num">${live}<small>live</small></span></div>`;
   const step = (label, st) => `<span class="lpm-step ${st}"><i>${st === 'done' ? ico('check', 'i-sm') : ''}</i>${label}</span>`;
   const camp = (nm, acc, st, tags, foot) => `<div class="lpm-camp"><div class="t"><b>${nm}</b><span class="lpm-st ${st === 'Live' ? 'live' : ''}">${st}</span></div><i>${acc}</i><div class="lpm-tags">${tags.map(t => `<span>${t}</span>`).join('')}</div><div class="lpm-foot">${foot}</div></div>`;
   const TOUR = [
-    { id: 'acc', icon: 'grid', label: 'Accounts', side: 'acc', capt: 'Every client is its own account. Switch from the top of the sidebar, or see them all side by side.',
+    { icon: 'inbox', label: 'To-Do', side: 'todo', capt: 'One board per account, one section per brand. Drag cards between sections, repeat anything weekly or monthly.',
+      html: `<div class="lpm-h">To-Do <span class="mut">· General Motors</span></div><div class="lpm-board">
+        ${col('Chevrolet', 2, card('Weekly pacing check', 'Today · repeats', 'ok') + card('Year-End lead-form creatives', 'Saturday'))}
+        ${col('GMC', 2, card('Yukon search terms', 'Tomorrow') + card('Monthly performance deck', 'Monday'))}
+        ${col('Cadillac', 2, card('Pixel QA on landing pages', 'Overdue · 18 Nov', 'od') + card('Escalade IQ recap', 'Sunday'))}
+        ${col('OnStar', 1, card('Budget and keyword review', 'Tuesday'))}
+        ${col('ACDelco', 2, card('Parts search report', 'Wednesday') + card('Brand-safety exclusions', 'Monthly'))}</div>` },
+    { icon: 'grid', label: 'Accounts', side: 'acc', capt: 'Every client is its own account, with brands and dealers as sub-accounts. See them all side by side.',
       html: `<div class="lpm-h">All accounts</div>
-        ${accRow('GM', 'blue', 'General Motors', 'Automotive · Chevrolet, GMC, Cadillac', 6, 2, 3, 'GM team')}
-        ${accRow('S', 'grey', 'Siddiqi', 'Luxury retail', 3, 0, 1, 'Retail & FMCG team')}
-        ${accRow('F', 'red', 'Ferrero', 'FMCG · Nutella, Kinder, Ferrero Rocher', 3, 1, 1, 'Retail & FMCG team')}
-        ${accRow('d', 'black', 'Agency internal', 'Internal', 0, 0, 0, 'Everyone')}` },
-    { id: 'brief', icon: 'brief', label: 'Briefs', side: 'brief', capt: 'Each brief runs through the same steps, with an owner and a deadline at every stage.',
+        ${accRow('GM', 'blue', 'General Motors', 'Automotive · 6 sub-accounts', 6, 2, 3)}
+        ${accRow('GC', 'grey', 'GM Cadillac', 'Brand', 1, 1, 0, 1)}
+        ${accRow('AG', 'teal', 'Al Ghanim Cadillac', 'Dealer', 1, 0, 0, 2)}
+        ${accRow('S', 'grey', 'Siddiqi', 'Luxury retail', 3, 0, 1)}
+        ${accRow('F', 'red', 'Ferrero', 'FMCG', 3, 1, 1)}` },
+    { icon: 'brief', label: 'Briefs', side: 'brief', capt: 'Each brief runs through the same steps, with an owner and a deadline at every stage.',
       html: `<div class="lpm-h">Chevrolet Year-End Sales Event</div><div class="lpm-meta"><span>Tactical / promotion</span><span>UAE, KSA</span><span>Search · Meta · Snap · TikTok</span></div>
         <div class="lpm-flow">${step('Kick-off', 'done')}${step('Media plan', 'done')}${step('Client approval', 'done')}${step('Setup', 'done')}${step('QA', 'done')}${step('Live', 'now')}${step('Report', '')}</div>
         <div class="lpm-grid2"><div class="lpm-box"><small>Objective</small><b>Leads</b><span>Test-drive leads and high-value behaviours</span></div>
         <div class="lpm-box"><small>Current step</small><b>Live · optimise</b><span>Owner: Paid Search · on time</span></div></div>` },
-    { id: 'camp', icon: 'campaign', label: 'Campaigns', side: 'camp', capt: 'Status, pacing and the weekly optimisation check for every live flight.',
+    { icon: 'campaign', label: 'Campaigns', side: 'camp', capt: 'Status, pacing and the weekly optimisation check for every live flight.',
       html: `<div class="lpm-h">Campaign Tracker</div><div class="lpm-camps">
-        ${camp('CHEV_YearEnd_Leads', 'Chevrolet', 'Live', ['UAE', 'KSA', 'Search', 'Meta', 'Snap'], 'Pacing <b class="ok">On track</b> · Weekly check <b class="ok">Done</b>')}
-        ${camp('GMC Yukon — Search conquest', 'GMC', 'Live', ['UAE', 'KSA', 'Search'], 'Pacing <b class="warn">Under</b> · Weekly check <b class="warn">Due</b>')}
-        ${camp('Escalade IQ launch', 'Cadillac', 'Live', ['GCC', 'Meta', 'YouTube'], 'Creatives <b class="ok">Ready</b>')}
-        ${camp('Ramadan 2027 offers', 'All brands', 'Pending', ['UAE', 'KSA', 'Meta', 'TikTok'], 'Brief submitted')}</div>` },
-    { id: 'access', icon: 'people', label: 'Access', side: 'acc', capt: 'Give each team Admin, Editor or Viewer access to the accounts they work on — and nothing else.',
-      html: `<div class="lpm-h">Access · General Motors</div>
-        <div class="lpm-acc"><span>${ico('people', 'i-sm')} GM team</span><em>Editor</em></div>
-        <div class="lpm-acc"><span>${ico('people', 'i-sm')} Leadership</span><em class="v">Viewer</em></div>
-        <div class="lpm-acc"><span>${ico('star', 'i-sm')} Account lead</span><em class="a">Admin</em></div>
-        <div class="lpm-acc mut"><span>${ico('people', 'i-sm')} Retail &amp; FMCG team</span><em class="n">No access</em></div>
-        <p class="lpm-note">Tools in this account: My work · Briefs · Campaign Tracker · Alerts · Dashboard</p>` },
-    { id: 'dash', icon: 'chart', label: 'Dashboard', side: 'dash', capt: 'Turnaround, SLAs and bottlenecks for any period — worked out from the account\'s own data.',
+        ${camp('CHEV_YearEnd_Leads', 'GM Chevrolet', 'Live', ['UAE', 'KSA', 'Search', 'Meta', 'Snap'], 'Pacing <b class="ok">On track</b> · Weekly check <b class="ok">Done</b>')}
+        ${camp('GMC Yukon - Search conquest', 'GM GMC', 'Live', ['UAE', 'KSA', 'Search'], 'Pacing <b class="warn">Under</b> · Weekly check <b class="warn">Due</b>')}
+        ${camp('Escalade IQ launch', 'GM Cadillac', 'Live', ['GCC', 'Meta', 'YouTube'], 'Creatives <b class="ok">Ready</b>')}
+        ${camp('Ramadan 2027 offers', 'General Motors', 'Pending', ['UAE', 'KSA', 'Meta', 'TikTok'], 'Brief submitted')}</div>` },
+    { icon: 'chart', label: 'Dashboard', side: 'dash', capt: 'Turnaround, SLAs and bottlenecks for any period, worked out from the account\'s own data.',
       html: `<div class="lpm-h">Dashboard <span class="mut">· this quarter</span></div>
-        <div class="lpm-kpis"><div><b>6</b><span>Briefs this quarter</span></div><div><b>2</b><span>Steps past SLA</span></div><div><b>3</b><span>Campaigns live</span></div></div>
+        <div class="lpm-kpis"><div><b>6</b><span>Briefs received</span></div><div><b>2</b><span>Steps past SLA</span></div><div><b>3</b><span>Campaigns live</span></div></div>
         <div class="lpm-bars">${[34, 52, 46, 70, 58, 82, 64, 76].map(h => `<i style="height:${h}%"></i>`).join('')}</div><div class="lpm-axis"><span>Week 1</span><span>Week 8</span></div>` },
   ];
-  const sideRow = (k, icon, label) => `<p data-lp-side="${k}">${ico(icon)}${label}</p>`;
-  const feat = (icon, title, text) => `<div class="lp-feat rv">${ico(icon)}<h3>${title}</h3><p>${text}</p></div>`;
+  const sideRow = (k, icon, label, cnt = '') => `<p data-lp-side="${k}">${ico(icon)}${label}${cnt ? `<em>${cnt}</em>` : ''}</p>`;
+
+  // feature cards: still until hovered, then the little preview plays
+  const feat = (tint, icon, kicker, title, text, prev) => `<div class="lp-feat ${tint} rv" tabindex="0"><div class="lp-prev" aria-hidden="true">${prev}</div><span class="lp-fk">${ico(icon)}${kicker}</span><h3>${title}</h3><p>${text}</p></div>`;
+  const PV_SWITCH = `<div class="pv-sw"><div class="pv-swbtn">${tile('GM', 'blue', 'xs')}<i class="pv-line" style="width:46%"></i></div>
+      <div class="pv-swmenu"><span class="pv-swhl"></span><span class="pv-swr">${tile('GM', 'blue', 'xs')}General Motors</span><span class="pv-swr d1">${tile('GC', 'grey', 'xs')}GM Cadillac</span><span class="pv-swr d2">${tile('AG', 'teal', 'xs')}Al Ghanim Cadillac <em>Dealer</em></span></div></div>`;
+  const PV_ACCESS = `<div class="pv-acc"><span class="pv-ar"><b>GM team</b><em class="pv-role">Editor</em></span><span class="pv-ar"><b>Leadership</b><em class="pv-role v">Viewer</em></span>
+      <span class="pv-ar"><b>Retail &amp; FMCG team</b><em class="pv-role n">No access</em><em class="pv-role flip">Viewer</em></span><span class="pv-inh">${ico('flow', 'i-xs')} Covers 6 sub-accounts</span></div>`;
+  const pvCard = (w, cls = '') => `<span class="pv-card ${cls}"><i class="pv-ring"></i><i class="pv-line" style="width:${w}%"></i></span>`;
+  const PV_BOARD = `<div class="pv-board"><div class="pv-col"><b>Chevrolet</b>${pvCard(70)}${pvCard(52)}</div><div class="pv-col"><b>GMC</b>${pvCard(64)}<span class="pv-slot"></span></div>
+      <div class="pv-col"><b>Cadillac</b>${pvCard(58, 'done')}</div><span class="pv-card pv-fly"><i class="pv-ring">${ico('check')}</i><i class="pv-line" style="width:60%"></i></span></div>`;
+  const PV_FLOW = `<div class="pv-flow"><div class="pv-steps">${['Kick-off', 'Plan', 'Approval', 'Setup', 'Live'].map((l, i) => `<span class="pv-st s${i}"><i>${ico('check')}</i>${l}</span>`).join('')}</div>
+      <div class="pv-prog"><i></i></div><div class="pv-note"><span>Next: <b>Setup</b> · Paid Search</span><em>SLA 2 days</em></div></div>`;
+  const PV_CAMP = `<div class="pv-camp"><div class="pv-ct"><i class="pv-line" style="width:46%"></i><span class="pv-live">Live</span></div>
+      <div class="pv-chips"><span class="pv-chip">Meta · Leads</span><span class="pv-chip pv-snap"><i class="pv-bars"></i>Snap</span><span class="pv-chip">Search</span></div>
+      <div class="pv-pace"><span>Pacing</span><i class="pv-meter"><i></i></i><em>On track</em></div>
+      <div class="pv-wk"><span>Weekly check</span><em class="pv-due">Due</em><em class="pv-done">Done</em></div></div>`;
+  const PV_TOOLS = `<div class="pv-tools">${[['My work', 1], ['Briefs', 1], ['Campaign Tracker', 1], ['Team calendar', 0], ['Notebook', 0]].map(([l, on], i) => `<span class="pv-tool ${on ? 'on' : 't' + i}"><b>${l}</b><i class="pv-sw-t"></i></span>`).join('')}</div>`;
+
+  const media = (icon, tint, title, text) => `<div class="lp-mi rv"><span class="ic ${tint}">${ico(icon)}</span><b>${title}</b><span>${text}</span></div>`;
   const role = (title, text, can) => `<div class="lp-role rv"><h3>${title}</h3><p>${text}</p><ul>${can.map(c => `<li>${ico('check', 'i-sm')}${c}</li>`).join('')}</ul></div>`;
   const faq = GUIDE_FAQ.map(id => GUIDE_BY[id]).filter(Boolean).map(g => `<details><summary>${esc(g.q)}${ico('plus')}</summary><div class="ans">${g.a}</div></details>`).join('');
   return `<div class="lp">
     <header class="lp-nav"><div class="lp-wrap">
       <a class="lp-brand" href="#lp-top" data-scroll>${logoMark('lp-logo')}<span class="brand-sep"></span>${wordmark()}</a>
-      <nav class="lp-links"><a href="#lp-product" data-scroll>Product</a><a href="#lp-how" data-scroll>How it works</a><a href="#lp-roles" data-scroll>Roles</a><a href="#lp-help" data-scroll>Help</a><a href="#lp-faq" data-scroll>FAQ</a></nav>
+      <nav class="lp-links"><a href="#lp-product" data-scroll>Product</a><a href="#lp-media" data-scroll>For media teams</a><a href="#lp-help" data-scroll>Help</a><a href="#lp-faq" data-scroll>FAQ</a></nav>
       <div class="lp-actions">
         <button class="lp-theme" data-home-theme title="${dark ? 'Light' : 'Dark'} mode">${ico(dark ? 'sun' : 'moon')}</button>
         ${signedIn ? `<button class="lp-btn lp-primary sm" data-go="#/">Open app</button>` : `<button class="lp-btn lp-primary sm" data-home="in">Sign in</button>`}
       </div></div>
     </header>
-    <section class="lp-hero" id="lp-top">
-      ${heroArt()}
-      <div class="lp-wrap">
-        <div class="lp-eyebrow">dentsu · ${name}</div>
-        <h1>Every client account.<br>One workspace.</h1>
-        <p class="lp-sub">Briefs, campaigns, tasks and reporting for each client in its own account. Switch between them like an ads manager, and give each team access only to the accounts it works on.</p>
+    <div class="lp-wrap" id="lp-top">
+      <section class="lp-hero">
+        <a class="lp-pill" href="#lp-help" data-scroll><b>New</b> Sub-accounts for brands and dealers, plus built-in help ${arrow}</a>
+        <h1>The workspace for <em>every client account<svg viewBox="0 0 300 12" preserveAspectRatio="none"><path pathLength="1" d="M3 8 L297 5"/></svg></em>.</h1>
+        <p class="lp-sub">Briefs, campaigns, to-dos and dashboards for each client, in its own account. Switch between them like an ads manager. Built for teams running Meta, Snap, TikTok, Search and YouTube.</p>
         <div class="lp-cta">${cta}</div>
-        <p class="lp-note">For dentsu teams. Your business admin sets up who can open which account.</p>
-      </div>
-    </section>
-    <div class="lp-plats"><div class="lp-wrap"><span class="lbl">Plan and track work across</span>${['Meta', 'Snapchat', 'TikTok', 'Google Ads', 'YouTube', 'LinkedIn', 'X'].map(p => `<span>${p}</span>`).join('')}</div></div>
+        <div class="lp-note">Each team sees only its own accounts · Syncs live · Works on any device</div>
+        ${HERO}
+      </section>
+      <div class="lp-plats rv"><span class="lbl">Track campaigns across</span>${['Meta', 'Snapchat', 'TikTok', 'Google Search', 'PMax', 'YouTube', 'LinkedIn', 'X'].map(p => `<span class="lp-plat">${p}</span>`).join('')}</div>
 
-    <section class="lp-sec" id="lp-product"><div class="lp-wrap">
-      <div class="lp-kicker rv">Product</div>
-      <h2 class="rv">Built like an ads manager, for the work around the ads.</h2>
-      <div class="lp-tabs rv" role="tablist">${TOUR.map((t, i) => `<button class="lp-tab ${i ? '' : 'on'}" role="tab" data-tour="${i}">${ico(t.icon)}${t.label}<i class="bar"></i></button>`).join('')}</div>
-      <div class="lp-window rv" aria-hidden="true">
-        <div class="lpm-side">${logoMark('lpm-mark')}
-          <div class="lpm-switch">${tile('GM', 'blue')}<div><small>Account</small><b>General Motors</b></div>${ico('down', 'i-sm')}</div>
-          ${sideRow('mw', 'inbox', 'My work')}${sideRow('brief', 'brief', 'Briefs')}${sideRow('camp', 'campaign', 'Campaign Tracker')}${sideRow('al', 'bell', 'Alerts')}${sideRow('dash', 'chart', 'Dashboard')}
-          <p class="hd">Business</p>${sideRow('acc', 'grid', 'All accounts')}</div>
-        <div class="lpm-panes">${TOUR.map((t, i) => `<div class="lpm-pane ${i ? '' : 'on'}" data-side="${t.side}" data-capt="${esc(t.capt)}">${t.html}</div>`).join('')}</div>
-      </div>
-      <p class="lp-capt" id="lp-capt">${esc(TOUR[0].capt)}</p>
-      <p class="lp-small">Preview with example accounts.</p>
-    </div></section>
+      <section class="lp-sec lp-center" id="lp-product">
+        <div class="lp-kicker rv">${ico('sidebar')}One workspace</div>
+        <h2 class="rv">Everything your team runs on, side by side.</h2>
+        <div class="lp-tabs rv" role="tablist">${TOUR.map((t, i) => `<button class="lp-tab ${i ? '' : 'on'}" role="tab" data-tour="${i}">${ico(t.icon)}${t.label}<i class="bar"></i></button>`).join('')}</div>
+        <div class="lp-window rv">
+          <div class="lpm-bar"><i></i><i></i><i></i><span>dentsu ${name}</span></div>
+          <div class="lpm-body">
+            <div class="lpm-side">${logoMark('lpm-mark')}
+              <div class="lpm-switch">${tile('GM', 'blue')}<div><small>Account</small><b>General Motors</b></div>${ico('down', 'i-sm')}</div>
+              ${sideRow('mw', 'inbox', 'My work', 4)}${sideRow('brief', 'brief', 'Briefs', 5)}${sideRow('camp', 'campaign', 'Campaign Tracker', 2)}${sideRow('dash', 'chart', 'Dashboard')}
+              <p class="hd">Lists</p>${sideRow('todo', 'inbox', 'To-Do', 10).replace(ico('inbox'), '<s>#</s>')}
+              <p class="hd">Business</p>${sideRow('acc', 'grid', 'All accounts', 10)}</div>
+            <div class="lpm-panes">${TOUR.map((t, i) => `<div class="lpm-pane ${i ? '' : 'on'}" data-side="${t.side}" data-capt="${esc(t.capt)}">${t.html}</div>`).join('')}</div>
+          </div>
+        </div>
+        <p class="lp-capt" id="lp-capt">${esc(TOUR[0].capt)}</p>
+      </section>
 
-    <section class="lp-sec lp-alt" id="lp-features"><div class="lp-wrap">
-      <div class="lp-kicker rv">What's inside</div>
-      <h2 class="rv">Everything a client team needs. Nothing it doesn't.</h2>
-      <div class="lp-feats">
-        ${feat('swap', 'Account switcher', 'Each client has its own account, logo and data. Jump between them from the top of the sidebar.')}
-        ${feat('people', 'Access by team', 'Teams and people get Admin, Editor or Viewer access to specific accounts. Everyone else never sees them.')}
-        ${feat('grid', 'Tools per account', 'Start with the essentials and switch on extras — brands, notebook, team calendar — only where they help.')}
-        ${feat('brief', 'Briefs with a workflow', 'One template for every request. Each step has an owner and an SLA, and the next person is notified.')}
-        ${feat('campaign', 'Campaign Tracker', 'Flights, markets, platforms and objectives, with pacing and a weekly optimisation check.')}
-        ${feat('bell', 'Alerts and dashboards', 'Late, stuck and at-risk work is flagged. Dashboards and All accounts show where things stand.')}
-      </div>
-    </div></section>
+      <section class="lp-sec" id="lp-features">
+        <div class="lp-kicker rv">${ico('sparkle')}Features</div>
+        <h2 class="rv">Less chasing. More doing.</h2>
+        <p class="lp-lead rv">Hover a card to see it in action.</p>
+        <div class="lp-feats">
+          ${feat('t-pink', 'swap', 'Account switcher', 'Every client in one menu', 'Each client has its own account and logo. Brands and dealers sit underneath as sub-accounts.', PV_SWITCH)}
+          ${feat('t-purple', 'people', 'Access', 'Each team sees only its accounts', 'Admin, Editor or Viewer per team. Access to General Motors covers its brands and dealers too.', PV_ACCESS)}
+          ${feat('t-teal', 'inbox', 'Boards', 'A section per brand', 'Chevrolet, GMC, Cadillac, OnStar, ACDelco. Drag cards where they belong and repeat anything weekly or monthly.', PV_BOARD)}
+          ${feat('t-grey', 'brief', 'Briefs & workflow', 'Every request, every step', 'One template for every brief. Each step has an owner and an SLA, and the next person is told when it\'s their turn.', PV_FLOW)}
+          ${feat('t-blue', 'campaign', 'Campaign Tracker', 'Every flight at a glance', 'Status, pacing, creatives and weekly checks. Pause a platform mid-flight and keep the history.', PV_CAMP)}
+          ${feat('t-green', 'grid', 'Tools per account', 'Only what each client needs', 'Start with the essentials and switch on extras, like the notebook or team calendar, where they help.', PV_TOOLS)}
+        </div>
+      </section>
 
-    <section class="lp-sec" id="lp-how"><div class="lp-wrap">
-      <div class="lp-kicker rv">How it works</div>
-      <h2 class="rv">Set up a client in three steps.</h2>
-      <ol class="lp-how">
-        <li class="rv"><span>01</span><h3>Create the account</h3><p>Name, logo and sector. A business admin creates one account per client.</p></li>
-        <li class="rv"><span>02</span><h3>Give teams access</h3><p>Pick which teams can open it, and whether they're Admins, Editors or Viewers.</p></li>
-        <li class="rv"><span>03</span><h3>Choose the tools</h3><p>Switch on what the account needs. The team starts briefing and tracking straight away.</p></li>
-      </ol>
-    </div></section>
+      <section class="lp-sec" id="lp-media">
+        <div class="lp-kicker rv">${ico('campaign')}Built for media performance</div>
+        <h2 class="rv">Made by a media team, for media teams.</h2>
+        <p class="lp-lead rv">Not a generic project tool with a marketing template. It knows what a flight, a pacing sheet and a weekly optimisation check are.</p>
+        <div class="lp-media">
+          ${media('gauge', 't-yellow', 'Pacing you can see', 'On track, under or over, flagged on every campaign, with the account\'s pacing sheet one click away.')}
+          ${media('okcircle', 't-green', 'Weekly checks that don\'t slip', 'Every live campaign asks for its optimisation check and keeps the history.')}
+          ${media('pause', 't-blue', 'Pause one platform, not the plan', 'Pause Snap while Meta keeps running. Every pause and resume is logged.')}
+          ${media('target', 't-purple', 'Objectives per platform', 'Only the objectives each platform really sells, from Reach to Leads to Conversions.')}
+          ${media('alert', 't-red', 'Needs attention, sorted', 'Late steps, missing creatives and checks due float to the top of Alerts.')}
+          ${media('chart', 't-pink', 'A dashboard for any period', 'Turnaround, SLAs, bottlenecks, campaigns live and platform mix.')}
+        </div>
+        <div class="lp-stats">
+          <div class="lp-stat rv"><b>${MARKETS.length}</b><span>markets across the GCC, Iraq and Egypt</span></div>
+          <div class="lp-stat rv"><b>${PLATFORMS.length}</b><span>platforms, each with its real objectives</span></div>
+          <div class="lp-stat rv"><b>${TOOLS.length}</b><span>tools you can switch on per account</span></div>
+          <div class="lp-stat rv"><b>30</b><span>days to restore anything you delete</span></div>
+        </div>
+      </section>
 
-    <section class="lp-sec lp-alt" id="lp-roles"><div class="lp-wrap">
-      <div class="lp-kicker rv">Roles</div>
-      <h2 class="rv">Everyone sees what they need.</h2>
-      <div class="lp-roles">
-        ${role('Business admin', 'Runs the platform.', ['Adds people and teams', 'Creates client accounts', 'Sees every account'])}
-        ${role('Account admin', 'Runs one client account.', ['Sets who has access', 'Chooses the tools', 'Edits name and logo'])}
-        ${role('Editor', 'Does the client work.', ['Briefs and workflow steps', 'Tasks and campaigns', 'Notes and calendar'])}
-        ${role('Viewer', 'Keeps an eye on things.', ['Sees the whole account', 'Dashboards and alerts', 'Changes nothing'])}
-      </div>
-    </div></section>
+      <section class="lp-sec" id="lp-how">
+        <div class="lp-kicker rv">${ico('flow')}How it works</div>
+        <h2 class="rv">Set up a client in three steps.</h2>
+        <ol class="lp-how">
+          <li class="rv"><span>01</span><h3>Create the account</h3><p>Name, logo and sector. Add brands, markets or dealers underneath as sub-accounts.</p></li>
+          <li class="rv"><span>02</span><h3>Give teams access</h3><p>Pick which teams can open it, as Admins, Editors or Viewers. Sub-accounts follow along.</p></li>
+          <li class="rv"><span>03</span><h3>Choose the tools</h3><p>Switch on what the account needs. The team starts briefing and tracking straight away.</p></li>
+        </ol>
+        <div class="lp-roles">
+          ${role('Owners & admins', 'Run the platform.', ['Add people, teams and accounts', 'See every account', 'Owners can add other owners'])}
+          ${role('Account admin', 'Runs one client account.', ['Sets who has access', 'Chooses the tools', 'Edits name and logo'])}
+          ${role('Editor', 'Does the client work.', ['Briefs and workflow steps', 'Tasks and campaigns', 'Notes and calendar'])}
+          ${role('Viewer', 'Keeps an eye on things.', ['Sees the whole account', 'Dashboards and alerts', 'Changes nothing'])}
+        </div>
+      </section>
 
-    <section class="lp-sec" id="lp-help"><div class="lp-wrap lp-help">
-      <div class="rv"><div class="lp-kicker">Help built in</div><h2>Stuck? Ask.</h2>
-        <p class="lp-lead">A guide with a getting-started checklist, and a help chat that answers questions about the platform, access and media maths — then takes you to the right page. Press <kbd>?</kbd> anywhere.</p>
-        <div class="lp-cta"><button class="lp-btn lp-primary" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>${signedIn ? '<button class="lp-btn lp-ghost" data-go="#/guide">Open the guide</button>' : ''}</div></div>
-      <div class="lp-chat rv" aria-hidden="true"><span class="q">How do I give my team access?</span>
-        <span class="a">Business settings → <b>People</b> to add them, then <b>Teams</b> to put them on the right team. Account admins can also change access from the account.</span>
-        <span class="go">Open access ${ico('arrowRight', 'i-sm')}</span>
-        <div class="chips"><span>What can Viewers do?</span><span>How do I calculate pacing?</span><span>How do I switch tools on?</span></div></div>
-    </div></section>
+      <section class="lp-sec" id="lp-help">
+        <div class="lp-help rv">
+          <div><span class="lp-help-av">${ico('help')}</span><h2>Stuck? Ask.</h2>
+            <p class="lp-lead">Instant answers on using ${name}, access, and media maths like pacing and ROAS, with a button that takes you to the right page. It's built in and nothing you type leaves the browser. Press <kbd>?</kbd> anywhere.</p>
+            <div class="lp-cta left"><button class="lp-btn lp-accent" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>${signedIn ? '<button class="lp-btn lp-ghost" data-go="#/guide">Open the guide</button>' : ''}</div></div>
+          <div class="lp-chat" aria-hidden="true"><span class="q">How do I give my team access?</span>
+            <span class="a">Business settings → <b>People</b> to add them, then <b>Teams</b> to put them on the right team. Access to an account covers its sub-accounts.</span>
+            <span class="go">Open access ${arrow}</span>
+            <div class="chips"><span>What can Viewers do?</span><span>How do I calculate pacing?</span><span>What are sub-accounts?</span></div></div>
+        </div>
+      </section>
 
-    <section class="lp-sec lp-alt" id="lp-faq"><div class="lp-wrap">
-      <div class="lp-kicker rv">FAQ</div><h2 class="rv">Questions, answered.</h2>
-      <div class="lp-faq rv">${faq}</div>
-    </div></section>
-
-    <section class="lp-final"><div class="lp-wrap">
+      <section class="lp-sec" id="lp-faq">
+        <div class="lp-center"><div class="lp-kicker rv">${ico('help')}FAQ</div><h2 class="rv">Questions, answered.</h2></div>
+        <div class="lp-faq rv">${faq}</div>
+        <div class="lp-faq-more rv"><button class="lp-btn lp-ghost" data-guide-open>More answers ${arrow}</button></div>
+      </section>
+    </div>
+    <section class="lp-final">${heroArt()}<div class="lp-wrap">
       <h2 class="rv">Bring every client into one place.</h2>
       <p class="rv">${signedIn ? 'Your accounts are one click away.' : 'Ask your business admin to add your work email, then sign in.'}</p>
-      <div class="lp-cta rv">${signedIn ? `<button class="lp-btn lp-white" data-go="#/">Open my accounts ${ico('arrowRight', 'i-sm')}</button>` : `<button class="lp-btn lp-white" data-home="in">Sign in ${ico('arrowRight', 'i-sm')}</button><button class="lp-btn lp-outline" data-home="up">Create your login</button>`}</div>
+      <div class="lp-cta rv">${signedIn ? `<button class="lp-btn lp-white" data-go="#/">Open my accounts ${arrow}</button>` : `<button class="lp-btn lp-white" data-home="in">Sign in ${arrow}</button><button class="lp-btn lp-outline" data-home="up">Create your login</button>`}</div>
     </div></section>
     <footer class="lp-foot"><div class="lp-wrap">
       <div class="brandcol"><div class="lp-brand">${logoMark('lp-logo')}<span class="brand-sep"></span>${wordmark()}</div><span>Client work, one account at a time.</span><span class="mut">Build ${BUILD}</span></div>
-      <div><h6>Product</h6><a href="#lp-product" data-scroll>Accounts</a><a href="#lp-features" data-scroll>Features</a><a href="#lp-how" data-scroll>How it works</a><a href="#lp-roles" data-scroll>Roles</a></div>
+      <div><h6>Product</h6><a href="#lp-product" data-scroll>To-Do boards</a><a href="#lp-product" data-scroll>Accounts</a><a href="#lp-features" data-scroll>Features</a><a href="#lp-how" data-scroll>How it works</a></div>
       <div><h6>Help</h6><button data-guide-open>Ask a question</button><button data-guide-open="m-pacing">Pacing formula</button><a href="#lp-faq" data-scroll>FAQ</a></div>
       <div><h6>Account</h6>${signedIn ? '<button data-go="#/">Open my accounts</button>' : '<button data-home="in">Sign in</button><button data-home="up">Create your login</button>'}<button data-guide-open="s-who-sees">Privacy &amp; access</button></div>
     </div></footer>
@@ -7198,8 +7369,8 @@ const authErr = e => {
   // Same message whether the email exists or the password is wrong, so the form can't be used to find accounts.
   return ({ 'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.', 'auth/user-not-found': 'Wrong email or password.',
     'auth/invalid-login-credentials': 'Wrong email or password.', 'auth/user-disabled': 'Wrong email or password.',
-    'auth/email-already-in-use': 'That email already has an account — sign in instead.', 'auth/weak-password': 'Use at least 8 characters, with a mix of letters and numbers.',
-    'auth/password-does-not-meet-requirements': 'That password doesn’t meet the password rules — use at least 8 characters with letters and numbers.',
+    'auth/email-already-in-use': 'That email already has an account - sign in instead.', 'auth/weak-password': 'Use at least 8 characters, with a mix of letters and numbers.',
+    'auth/password-does-not-meet-requirements': 'That password doesn’t meet the password rules - use at least 8 characters with letters and numbers.',
     'auth/invalid-email': 'That email address isn’t valid.', 'auth/too-many-requests': 'Too many attempts. Wait a minute and try again.',
     'auth/network-request-failed': 'No connection. Check your internet and try again.', 'auth/operation-not-allowed': 'Email/password sign-in isn’t enabled in Firebase yet (see SETUP step 3).' })[c] || `Something went wrong${c ? ` (${c})` : ''}. Try again.`;
 };
@@ -7243,8 +7414,8 @@ async function bootCloud() {
       .catch(err => console.warn('security log entry not saved', err && err.code));
   };
   // Business data: people, teams and the accounts you can open.
-  // Every change is applied to the in-memory copy straight away (so the next step — e.g. working out who
-  // has access after a team change — sees it), then written; the live listeners confirm it moments later.
+  // Every change is applied to the in-memory copy straight away (so the next step - e.g. working out who
+  // has access after a team change - sees it), then written; the live listeners confirm it moments later.
   bizApi = {
     putMember: m => { S.biz.members[m.id] = clone(m); return F.setDoc(F.doc(db, 'members', m.id), clone(m)).catch(writeErr); },
     delMember: em => { delete S.biz.members[em]; return F.deleteDoc(F.doc(db, 'members', em)).catch(writeErr); },
@@ -7337,14 +7508,14 @@ async function bootCloud() {
   };
   const showVerify = user => {
     authScreen(`<div class="auth-msg">We sent a verification link to <b>${esc(user.email)}</b>. Open it, then come back and press Continue. (Check spam too.)</div>
-      <button class="btn btn-primary" data-v="go">I've verified — continue</button>
+      <button class="btn btn-primary" data-v="go">I've verified - continue</button>
       <div class="auth-links"><button data-v="resend">Resend email</button><button data-v="out">Sign out</button></div>`);
     $$('[data-v]').forEach(b => b.onclick = async () => {
       const v = b.dataset.v;
       if (v === 'out') return A.signOut(auth);
       if (v === 'resend') { try { await A.sendEmailVerification(user); b.textContent = 'Sent ✓'; } catch (e) { b.textContent = authErr(e); } return; }
       await user.reload(); await user.getIdToken(true);
-      if (auth.currentUser.emailVerified) enter(auth.currentUser); else b.textContent = 'Not verified yet — try again';
+      if (auth.currentUser.emailVerified) enter(auth.currentUser); else b.textContent = 'Not verified yet - try again';
     });
   };
   const showNoAccess = (email, note = '') => {
@@ -7372,7 +7543,7 @@ async function bootCloud() {
     if (member && member.name) S.user.name = member.name;
     S.biz = { members: {}, teams: {}, accounts: {}, owner, ready: false };
     bizUnsubs.forEach(u => u()); bizUnsubs = [];
-    await startBiz(email, isOwner || (member && member.bizRole === 'admin'));
+    await startBiz(email, isOwner || (member && ['admin', 'owner'].includes(member.bizRole)));
     if (isOwner && CFG.sampleData && !allAccounts(true).length && !lsGet('tb:sampleDone:' + email)) {
       lsSet('tb:sampleDone:' + email, '1');
       await loadSampleBusiness({ silent: true });

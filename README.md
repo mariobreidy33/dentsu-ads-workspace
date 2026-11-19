@@ -2,7 +2,7 @@
 
 One platform for every client account, set up like an ads manager. An account switcher with client logos sits at the top left. Each team sees only the accounts it's been given, with Admin, Editor or Viewer access. Every account has its own data and its own set of tools. Built on Doable (briefs, workflow and SLAs, task lists, Campaign Tracker, calendar, notebook, activity log, alerts, dashboards), in the dentsu brand.
 
-Signed-out visitors land on a homepage that explains the platform. Inside, a **Guide** page has a getting-started checklist, and a **Help** chat (bottom right, or press `?`) answers questions about the platform, access and media maths, then takes you to the right page. Its answers are built in — nothing typed into it leaves the browser.
+Signed-out visitors land on a homepage that explains the platform. Inside, a **Guide** page has a getting-started checklist, and a **Help** chat (bottom right, or press `?`) answers questions about the platform, access and media maths, then takes you to the right page. Its answers are built in - nothing typed into it leaves the browser.
 
 **Live:** https://mariobreidy33.github.io/dentsu-ads-workspace/ (Firebase project `dentsu-ads-workspace`, data in me-central1 Doha). Every push to `main` redeploys it.
 
@@ -12,11 +12,14 @@ Signed-out visitors land on a homepage that explains the platform. Inside, a **G
 
 | Level | What lives there |
 |---|---|
-| **Business** | *People* (who can sign in, with a job role and Member/Admin business role), *Teams* (e.g. GM team, Retail & FMCG team, Leadership) and *Accounts*. Business admins open every account and manage all of this. |
-| **Account** (one per client) | Name, logo, sector, colour; which **tools** are on; who has **access** — teams or individual people as Admin, Editor or Viewer. Its own lists, briefs, brands, campaigns, calendar, notes, activity log and settings. |
+| **Business** | *People* (who can sign in, with a job role and a business role: Member, Admin or Owner), *Teams* (e.g. GM team, Retail & FMCG team, Leadership) and *Accounts*. Business admins open every account and manage all of this. |
+| **Sub-accounts** | Any account can sit under another: General Motors › GM Cadillac › Al Ghanim Cadillac (Dealer). Each has its own data and tools; access to an account covers everything under it, and a sub-account can add more people or a higher role. |
+| **Account** (one per client) | Name, logo, sector, colour; which **tools** are on; who has **access** - teams or individual people as Admin, Editor or Viewer. Its own lists, briefs, brands, campaigns, calendar, notes, activity log and settings. |
 | **All accounts** | An overview of every account you can open: your access, teams, open and overdue work, active briefs, briefs at risk, live campaigns and alerts. Click a row to switch. |
 
-**Access roles.** *Admin* — everything, plus the account's logo, tools and access. *Editor* — works on everything in the account. *Viewer* — sees everything, changes nothing (e.g. leadership or a client contact). Give access to a whole team once, and anyone added to that team later gets in too. The security rules enforce the same roles.
+**Business roles.** *Owner* - everything, including adding and removing other owners (the first owner is `ownerEmail` in config.js). *Admin* - manages people, teams and accounts and opens every account, but can't change owners. *Member* - opens the accounts they've been given.
+
+**Access roles.** *Admin* - everything, plus the account's logo, tools and access. *Editor* - works on everything in the account. *Viewer* - sees everything, changes nothing (e.g. leadership or a client contact). Give access to a whole team once, and anyone added to that team later gets in too. The security rules enforce the same roles.
 
 **Tools you can switch on or off per account.** My work · Task lists (lists, Today, Upcoming) · Team calendar · Briefs & workflow · Brands · All tasks & labels · Campaign Tracker · Alerts · Dashboard · Activity log · Notebook. New accounts start with the essentials (My work, Task lists, Briefs, Campaign Tracker, Alerts, Dashboard); *All tools* switches the rest on in one click. Switching a tool off hides it for everyone in that account. Nothing is deleted, so switching it back on brings everything back.
 
