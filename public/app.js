@@ -5908,6 +5908,12 @@ async function clearSampleBusiness() {
   if (S.acc && S.acc.demo) { if (store && store.stop) store.stop(); store = null; S.acc = null; S.ws = null; }
   for (const a of accs) await wipeAccount(a);
   for (const t of teams) await bizApi.delTeam(t.id);
+  // sample people also leave any real team or real account you added them to
+  const gone = new Set(mem.map(m => m.id));
+  for (const t of bizTeams().filter(t => !t.demo && (t.memberEmails || []).some(em => gone.has(em)))) await bizApi.putTeam({ ...t, memberEmails: t.memberEmails.filter(em => !gone.has(em)) });
+  for (const a of allAccounts(true).filter(a => !a.demo && Object.keys((a.access || {}).people || {}).some(em => gone.has(em)))) {
+    const access = clone(a.access); gone.forEach(em => delete access.people[em]); await bizApi.patchAccount(a.id, { access });
+  }
   for (const m of mem) await bizApi.delMember(m.id);
   if (S.mode === 'local' && S.biz.owner === 'sara@example.com') {   // hand this browser back to the placeholder owner
     S.biz.members[LOCAL_ME] = S.biz.members[LOCAL_ME] || { id: LOCAL_ME, name: 'Me', jobRole: 'Account Lead', bizRole: 'admin', color: 'red', addedAt: Date.now() };
