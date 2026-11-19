@@ -2276,7 +2276,7 @@ document.addEventListener('keydown', e => {
     if (m && m.classList.contains('overlay') && m.querySelector('[data-ok]')) return;   // a confirm dialog is open
     e.preventDefault(); undoLast(); return;
   }
-  if (typing || e.metaKey || e.ctrlKey || e.altKey || topModal() || !S.ready || !store) return;
+  if (typing || e.metaKey || e.ctrlKey || e.altKey || topModal() || !S.ready || !store || e.shiftKey || document.querySelector('#root .lp')) return;
   if (e.key === 'q') { e.preventDefault(); openTask(null, { projectId: curProjectId() }); }
   else if (e.key === '/') { e.preventDefault(); openSearch(); }
 });
@@ -6933,7 +6933,7 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape' && GB.open && (inGuide || !document.querySelector('.overlay,.drawer,.menu'))) { e.stopImmediatePropagation(); closeGuide(); return; }
   const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
-  if (e.key === '?' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.overlay,.drawer,.auth')) { e.preventDefault(); GB.open ? closeGuide() : openGuide(); }
+  if ((e.key === '?' || (e.key === '/' && e.shiftKey)) && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.overlay,.drawer,.auth')) { e.preventDefault(); GB.open ? closeGuide() : openGuide(); }
 }, true);
 
 /* ---------- the Guide page ---------- */
