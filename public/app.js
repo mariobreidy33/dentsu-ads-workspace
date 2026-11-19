@@ -10,7 +10,7 @@ if (window.top !== window.self) {
 /* ===================== utilities ===================== */
 const CFG_MISSING = !window.APP_CONFIG;   // config.js didn't load: stop with a clear message instead of guessing
 const CFG = window.APP_CONFIG || {};
-const BUILD = '2026-11-19-home';   // shown in Settings, so you can confirm which version is live
+const BUILD = '2026-11-19-tree';   // shown in Settings, so you can confirm which version is live
 // Firebase Web SDK, pinned to an exact version (updated from 10.12.2). If the CDN can't serve it,
 // the previous version is tried so the app still opens.
 const FB_VERSIONS = ['12.19.0', '10.12.2'];
@@ -2206,6 +2206,9 @@ const ACTIONS = {
   'trash-empty': () => emptyTrash(),
   'acc-menu': a => openAccMenu(a),
   'acc-open': a => switchAccount(a.dataset.id),
+  'tree-toggle': a => { treeToggle(a.dataset.id); render({ mainOnly: true }); },
+  'tree-all': a => { treeAll(!!a.dataset.open, allAccounts(true)); render({ mainOnly: true }); },
+  'person-access': a => openPersonAccess(a.dataset.em),
   'acc-create': () => openAccountForm(null),
   'acc-edit': a => openAccountForm(a.dataset.id),
   'acc-access': a => openAccessModal(a.dataset.id),
@@ -6165,15 +6168,38 @@ const accChildren = (id, withArchived = true) => Object.values(S.biz.accounts).f
 function accDescendants(id) { const out = []; const walk = pid => accChildren(pid).forEach(c => { if (!out.includes(c) && c.id !== id) { out.push(c); walk(c.id); } }); walk(id); return out; }
 const accPath = a => [...accAncestors(a).reverse(), a].map(x => x.name).join(' › ');
 // accounts in tree order: each parent followed by its sub-accounts (a child whose parent isn't in the list stands on its own)
-function accTree(list) {
+// Pass { fold: true } to skip the sub-accounts of parents that are closed (like an MCC tree);
+// each row then says whether it has sub-accounts (kids) and whether it's open.
+function accTree(list, { fold = false } = {}) {
   const ids = new Set(list.map(a => a.id)), byParent = {};
   list.forEach(a => { const p = a.parentId && ids.has(a.parentId) ? a.parentId : ''; (byParent[p] = byParent[p] || []).push(a); });
-  const out = [], seen = new Set();
-  const walk = (pid, depth) => (byParent[pid] || []).sort((x, y) => String(x.name).localeCompare(String(y.name))).forEach(a => { if (seen.has(a.id)) return; seen.add(a.id); out.push({ a, depth }); walk(a.id, depth + 1); });
-  walk('', 0);
-  list.forEach(a => { if (!seen.has(a.id)) out.push({ a, depth: 0 }); });   // loops, just in case
+  const out = [], seen = new Set(), closed = fold ? treeClosed() : new Set();
+  const walk = (pid, depth, hidden) => (byParent[pid] || []).sort((x, y) => String(x.name).localeCompare(String(y.name))).forEach(a => {
+    if (seen.has(a.id)) return; seen.add(a.id);
+    const kids = (byParent[a.id] || []).length, open = !closed.has(a.id);
+    if (!hidden) out.push({ a, depth, kids, open });
+    walk(a.id, depth + 1, hidden || !open);
+  });
+  walk('', 0, false);
+  list.forEach(a => { if (!seen.has(a.id)) out.push({ a, depth: 0, kids: 0, open: true }); });   // loops, just in case
   return out;
 }
+const treeClosed = () => { try { return new Set(JSON.parse(lsGet('tb:treeClosed') || '[]')); } catch { return new Set(); } };
+function treeToggle(id, open) {
+  const c = treeClosed();
+  if (open === undefined) open = c.has(id);
+  if (open) c.delete(id); else c.add(id);
+  lsSet('tb:treeClosed', JSON.stringify([...c]));
+}
+function treeAll(open, list) {
+  const c = treeClosed();
+  list.filter(a => accChildren(a.id).length).forEach(a => (open ? c.delete(a.id) : c.add(a.id)));
+  lsSet('tb:treeClosed', JSON.stringify([...c]));
+}
+// the little open/close arrow in front of an account that has sub-accounts
+const treeTwisty = (r, attr = 'data-action="tree-toggle"') => (r.kids
+  ? `<span class="twisty ${r.open ? 'open' : ''}" role="button" tabindex="0" ${attr} data-id="${esc(r.a.id)}" title="${r.open ? 'Hide' : 'Show'} ${plural(r.kids, 'sub-account')}" aria-expanded="${r.open}">${ico('right', 'i-sm')}</span>`
+  : '<span class="twisty none"></span>');
 // "GM Chevrolet", "Al Ghanim Cadillac (Dealer)" - brands read fine on their own
 const accLabel = a => a.name + (a.parentId && a.kind && a.kind !== 'brand' ? ` (${kindLabel(a.kind)})` : '');
 const accSelectOptions = (list, sel = '') => accTree(list).map(({ a, depth }) => `<option value="${esc(a.id)}" ${sel === a.id ? 'selected' : ''}>${'\u00a0'.repeat(depth * 4)}${depth ? '↳ ' : ''}${esc(accLabel(a))}</option>`).join('');
@@ -6351,8 +6377,8 @@ function openAccMenu(anchor) {
     const list = myAccounts().filter(a => !q || `${accPath(a)} ${a.sector || ''} ${kindLabel(a.kind)}`.toLowerCase().includes(q));
     m.innerHTML = `<div class="am-search">${ico('search', 'i-sm')}<input placeholder="Search accounts" value="${esc(q)}" data-amq></div>
       <button class="am-row am-all ${!S.acc || /^#\/accounts/.test(location.hash) ? 'on' : ''}" data-am-go="#/accounts">${ico('grid')}<span><b>All accounts</b><small>${myAccounts().length} account${myAccounts().length === 1 ? '' : 's'} · overview</small></span></button>
-      <div class="am-list">${accTree(list).map(({ a, depth }) => { const st = a.stats || {};
-        return `<button class="am-row ${S.acc && S.acc.id === a.id ? 'on' : ''} ${depth ? 'sub' : ''}" style="--d:${q ? 0 : depth}" data-am-id="${esc(a.id)}">${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc([a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector, ACC_ROLE_LABEL[accRoleOf(a)]].filter(Boolean).join(' · '))}</small></span>
+      <div class="am-list">${(q ? list.map(a => ({ a, depth: 0, kids: 0 })) : accTree(list, { fold: true })).map(r => { const { a, depth } = r; const st = a.stats || {};
+        return `<button class="am-row ${S.acc && S.acc.id === a.id ? 'on' : ''} ${depth ? 'sub' : ''}" style="--d:${depth}" data-am-id="${esc(a.id)}">${q ? '' : treeTwisty(r, 'data-am-tog')}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc([a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector, ACC_ROLE_LABEL[accRoleOf(a)]].filter(Boolean).join(' · '))}</small></span>
           ${st.crit ? `<span class="am-badge crit" title="${st.crit} critical alerts">${st.crit}</span>` : st.alerts ? `<span class="am-badge" title="${st.alerts} alerts">${st.alerts}</span>` : ''}${S.acc && S.acc.id === a.id ? ico('check', 'i-sm') : ''}</button>`; }).join('')
         || `<div class="am-empty">${myAccounts().length ? 'No accounts match.' : 'You don’t have access to any accounts yet.'}</div>`}</div>
       <div class="am-foot">${S.acc ? `<button data-am-act="settings">${ico('gear', 'i-sm')} Account settings</button>` : ''}
@@ -6366,6 +6392,8 @@ function openAccMenu(anchor) {
     if (e.key === 'Enter') { const b = m.querySelector('[data-am-id]'); if (b) { closeMenu(); switchAccount(b.dataset.amId); } }
   });
   m.addEventListener('click', e => {
+    const tg = e.target.closest('[data-am-tog]');
+    if (tg) { e.stopPropagation(); e.preventDefault(); const sc = m.querySelector('.am-list').scrollTop; treeToggle(tg.dataset.id); paint(); m.querySelector('.am-list').scrollTop = sc; return; }
     const b = e.target.closest('button'); if (!b) return; e.stopPropagation();
     closeMenu();
     if (b.dataset.amId) switchAccount(b.dataset.amId);
@@ -6389,7 +6417,8 @@ function renderAccounts() {
   const by = { name: (a, b) => a.name.localeCompare(b.name), attention: (a, b) => ((st(b).crit || 0) * 3 + (st(b).alerts || 0)) - ((st(a).crit || 0) * 3 + (st(a).alerts || 0)) || a.name.localeCompare(b.name),
     overdue: (a, b) => (st(b).overdue || 0) - (st(a).overdue || 0), briefs: (a, b) => (st(b).briefs || 0) - (st(a).briefs || 0), live: (a, b) => (st(b).live || 0) - (st(a).live || 0), updated: (a, b) => (st(b).at || 0) - (st(a).at || 0) };
   list = list.sort(by[f.sort] || by.name);
-  const rows = f.sort === 'name' && !q ? accTree(list) : list.map(a => ({ a, depth: 0 }));
+  const tree = f.sort === 'name' && !q, rows = tree ? accTree(list, { fold: true }) : list.map(a => ({ a, depth: 0, kids: 0 }));
+  const hasTree = tree && list.some(a => accChildren(a.id).length);
   const sum = k => all.reduce((s, a) => s + (st(a)[k] || 0), 0);
   const n = (v, cls = '') => (v == null ? '<span class="mut">-</span>' : v ? `<span class="${cls}">${fmtN(v)}</span>` : '<span class="mut">0</span>');
   const sel = (key, opts, label) => `<label class="filt ${f[key] !== 'All' && key !== 'sort' ? 'on' : ''}">${label}<select data-aof="${key}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${f[key] === v ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select></label>`;
@@ -6406,14 +6435,15 @@ function renderAccounts() {
       ${bizTeams().length ? sel('team', [['All', 'All'], ['*', 'Everyone'], ...bizTeams().map(t => [t.id, t.name])], 'Team') : ''}
       <label class="filt">${ico('sort', 'i-sm')}<select data-aof="sort">${AO_SORTS.map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       ${isBizAdmin() ? `<label class="filt"><input type="checkbox" data-aoarch ${f.archived ? 'checked' : ''}> Archived</label>` : ''}
+      ${hasTree ? `<button class="btn sm" data-action="tree-all" data-open="1">${ico('down', 'i-sm')} Expand all</button><button class="btn sm" data-action="tree-all" data-open="">${ico('up', 'i-sm')} Collapse all</button>` : ''}
       <span class="spacer"></span>
       ${isBizAdmin() ? `<button class="btn btn-primary" data-action="acc-create">${ico('plus', 'i-sm')} Create account</button>` : ''}
     </div>
     ${!all.length ? `<div class="ct-empty">${ico('grid')}<br>${isBizAdmin() ? 'No accounts yet.<br><br><button class="btn btn-primary" data-action="acc-create">Create the first account</button>' : 'You don’t have access to any accounts yet.<br>Ask a business admin to add you to a team or an account.'}</div>`
       : !list.length ? '<div class="ct-empty">No accounts match.</div>'
       : `<div class="tbl-wrap"><table class="tbl ao-table"><thead><tr><th>Account</th><th>Your access</th><th>Teams</th><th class="num">Open tasks</th><th class="num">Overdue</th><th class="num">Active briefs</th><th class="num">At risk</th><th class="num">Live campaigns</th><th class="num">Alerts</th><th>Updated</th><th></th></tr></thead><tbody>
-      ${rows.map(({ a, depth }) => { const s = a.stats; return `<tr data-action="acc-open" data-id="${esc(a.id)}" class="${S.acc && S.acc.id === a.id ? 'cur' : ''} ${a.archived ? 'mut' : ''} ${depth ? 'ao-sub' : ''}">
-        <td><div class="ao-name" style="--d:${depth}">${depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? [kindLabel(a.kind) || 'Sub-account', depth ? '' : accAncestors(a).map(p => p.name).reverse().join(' › ')].filter(Boolean).join(' · ') : a.sector || '')}${a.archived ? ' · archived' : ''}</small></span></div></td>
+      ${rows.map(r => { const { a, depth } = r; const s = a.stats; return `<tr data-action="acc-open" data-id="${esc(a.id)}" class="${S.acc && S.acc.id === a.id ? 'cur' : ''} ${a.archived ? 'mut' : ''} ${depth ? 'ao-sub' : ''}">
+        <td><div class="ao-name" style="--d:${depth}">${depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${hasTree ? treeTwisty(r) : ''}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? [kindLabel(a.kind) || 'Sub-account', depth ? '' : accAncestors(a).map(p => p.name).reverse().join(' › ')].filter(Boolean).join(' · ') : a.sector || '')}${a.archived ? ' · archived' : ''}</small></span></div></td>
         <td>${roleTag(accRoleOf(a))}</td>
         <td class="ao-teams" title="${esc(teamsOf(a).join(', '))}">${teamsOf(a).slice(0, 2).map(t => `<span class="tag">${esc(t)}</span>`).join('')}${teamsOf(a).length > 2 ? `<span class="tag more">+${teamsOf(a).length - 2}</span>` : ''}${teamsOf(a).length ? '' : a.parentId && accAncestors(a).length ? `<span class="tag inh">${ico('flow', 'i-xs')} from ${esc(accAncestors(a)[0].name)}</span>` : '<span class="mut">Direct only</span>'}</td>
         <td class="num">${n(s && s.open)}</td><td class="num">${n(s && s.overdue, 'tx-over')}</td><td class="num">${n(s && s.briefs)}</td><td class="num">${n(s && s.risk, 'tx-over')}</td><td class="num">${n(s && s.live)}</td>
@@ -6595,6 +6625,52 @@ function openAccessModal(id) {
   };
 }
 
+/* ---------- one person's access, account by account (any sub-account too) ---------- */
+function openPersonAccess(em) {
+  if (!isBizAdmin()) return toast('Only business admins can do this');
+  const m = S.biz.members[em]; if (!m) return;
+  const list = allAccounts();
+  const direct = Object.fromEntries(list.map(a => [a.id, ((a.access || {}).people || {})[em] || '']));
+  const start = { ...direct };
+  const allPower = m.bizRole === 'admin' || isOwnerEmail(em);
+  const w = openModal(`<div class="modal-head"><h2>Accounts · ${esc(m.name || em)}</h2><button class="icon-btn" data-x>${ico('x')}</button></div>
+    <div class="modal-body" data-body style="max-height:68vh;overflow:auto"></div>
+    <div class="modal-foot"><span class="mut" style="font-size:12px">Access to an account includes its sub-accounts.</span><span class="spacer"></span><button class="btn" data-x>Cancel</button><button class="btn btn-primary" data-ok>Save</button></div>`, 'wide');
+  const body = w.querySelector('[data-body]');
+  const draw = () => {
+    // what they'd get with the choices made so far: inherited from teams and parents, plus these direct roles
+    const accMap = { ...S.biz.accounts };
+    list.forEach(a => { const acc = clone(a.access || { teams: {}, people: {} }); acc.people = { ...(acc.people || {}) }; if (direct[a.id]) acc.people[em] = direct[a.id]; else delete acc.people[em]; accMap[a.id] = { ...a, access: acc }; });
+    const eff = id => computeAccess(accMap[id], S.biz.members, S.biz.teams, accMap).roles[em] || '';
+    const via = id => accessVia(accMap[id], em).filter(x => !/^Direct · [A-Za-z]+$/.test(x));
+    body.innerHTML = `${allPower ? `<p class="set-p"><b>${esc(m.name || em)}</b> is ${isOwnerEmail(em) ? 'an owner' : 'a business admin'}, so they can already open every account. Roles set here apply if that changes.</p>` : `<p class="set-p">Pick a role on any account or sub-account, for example just <b>Al Ghanim Cadillac</b>. Access they already get from their teams, or from the account above, shows next to each one.</p>`}
+      <div class="pa-tools"><button class="btn sm" data-pa-all="1">${ico('down', 'i-sm')} Expand all</button><button class="btn sm" data-pa-all="">${ico('up', 'i-sm')} Collapse all</button></div>
+      <div class="pa-list">${accTree(list, { fold: true }).map(r => { const a = r.a, e = eff(a.id), v = via(a.id);
+        return `<div class="pa-row ${direct[a.id] !== start[a.id] ? 'changed' : ''}"><div class="ao-name" style="--d:${r.depth}">${r.depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${treeTwisty(r, 'data-pa-tog')}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector || '')}</small></span></div>
+          <div class="pa-now">${e ? roleTag(e) : '<span class="mut">No access</span>'}${v.length ? `<small class="mut">${esc(v.join(' · '))}</small>` : ''}</div>
+          <select class="sel sm" data-pa="${esc(a.id)}"><option value="">${direct[a.id] ? 'Remove direct access' : 'No direct access'}</option>${ACC_ROLES.map(x => `<option value="${x}" ${direct[a.id] === x ? 'selected' : ''}>${ACC_ROLE_LABEL[x]}</option>`).join('')}</select></div>`; }).join('') || '<p class="set-p mut">No accounts yet.</p>'}</div>`;
+  };
+  draw();
+  $$('[data-x]', w).forEach(b => b.onclick = () => w.close());
+  body.addEventListener('change', e => { const t = e.target; if (t.dataset.pa != null) { direct[t.dataset.pa] = t.value; draw(); } });
+  body.addEventListener('click', e => {
+    const tg = e.target.closest('[data-pa-tog]'); if (tg) { treeToggle(tg.dataset.id); draw(); return; }
+    const all = e.target.closest('[data-pa-all]'); if (all) { treeAll(!!all.dataset.paAll, list); draw(); }
+  });
+  w.querySelector('[data-ok]').onclick = async () => {
+    const changed = list.filter(a => direct[a.id] !== start[a.id]);
+    if (!changed.length) return w.close();
+    for (const a of changed) {
+      const access = clone(a.access || { teams: {}, people: {} }); access.people = { ...(access.people || {}) };
+      if (direct[a.id]) access.people[em] = direct[a.id]; else delete access.people[em];
+      await bizApi.patchAccount(a.id, { access, ...computeAccess({ ...a, access }), updatedAt: Date.now() });
+    }
+    await syncAccess(changed.map(a => a.id));
+    audit('access_changed', `${em}: ${changed.map(a => `${a.name} ${direct[a.id] || 'none'}`).join(', ')}`.slice(0, 300));
+    toast(`Access saved for ${m.name || em}`); w.close(); render({ mainOnly: true });
+  };
+}
+
 /* ---------- business settings: accounts, people, teams ---------- */
 function renderBusiness() {
   const tab = S.bz.tab;
@@ -6609,10 +6685,12 @@ function renderBusiness() {
 function bizAccountsHTML() {
   const list = allAccounts(true);
   const top = DEMO_ACCOUNTS.filter(x => !x.parent), subN = DEMO_ACCOUNTS.length - top.length;
-  return `<div class="ct-toolbar"><span class="mut">Each account is a client with its own data, tools and access.</span><span class="spacer"></span><button class="btn btn-primary" data-action="acc-create">${ico('plus', 'i-sm')} Create account</button></div>
+  return `<div class="ct-toolbar"><span class="mut">Each account is a client with its own data, tools and access. Brands and dealers sit underneath as sub-accounts.</span><span class="spacer"></span>
+    ${list.some(x => accChildren(x.id).length) ? `<button class="btn sm" data-action="tree-all" data-open="1">${ico('down', 'i-sm')} Expand all</button><button class="btn sm" data-action="tree-all" data-open="">${ico('up', 'i-sm')} Collapse all</button>` : ''}
+    <button class="btn btn-primary" data-action="acc-create">${ico('plus', 'i-sm')} Create account</button></div>
     <div class="tbl-wrap"><table class="tbl bz-table"><thead><tr><th>Account</th><th>Access</th><th>Tools</th><th class="num">People</th><th>Status</th><th></th></tr></thead><tbody>
-    ${accTree(list).map(({ a, depth }) => { const acc = a.access || {}; const on = TOOLS.filter(t => (a.modules || {})[t[0]] !== false);
-      return `<tr class="${a.archived ? 'mut' : ''} ${depth ? 'ao-sub' : ''}"><td><div class="ao-name" style="--d:${depth}">${depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector || '')}</small></span></div></td>
+    ${accTree(list, { fold: true }).map(r => { const { a, depth } = r; const acc = a.access || {}; const on = TOOLS.filter(t => (a.modules || {})[t[0]] !== false);
+      return `<tr class="${a.archived ? 'mut' : ''} ${depth ? 'ao-sub' : ''}"><td><div class="ao-name" style="--d:${depth}">${depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${list.some(x => accChildren(x.id).length) ? treeTwisty(r) : ''}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector || '')}</small></span></div></td>
       <td class="ao-teams">${a.parentId && accAncestors(a).length ? `<span class="tag inh" title="Everyone with access to ${esc(accAncestors(a)[0].name)} can open it">${ico('flow', 'i-xs')} from ${esc(accAncestors(a)[0].name)}</span>` : ''}${Object.entries(acc.teams || {}).map(([t, r]) => `<span class="tag">${esc(t === '*' ? 'Everyone' : (S.biz.teams[t] || {}).name || 'Removed team')} · ${ACC_ROLE_LABEL[r]}</span>`).join('')}${Object.keys(acc.people || {}).length ? `<span class="tag">${plural(Object.keys(acc.people).length, 'person', 'people')} direct</span>` : ''}</td>
       <td><span title="${esc(on.map(t => t[1]).join(', '))}">${on.length} of ${TOOLS.length}</span></td><td class="num">${(a.memberEmails || []).length}</td>
       <td>${a.archived ? 'Archived' : 'Active'}</td>
@@ -6636,7 +6714,7 @@ function bizPeopleHTML() {
         : `<select class="sel sm" data-mrole="${esc(m.id)}">${BIZ_ROLES.filter(([k]) => k !== 'owner' || isOwnerUser()).map(([k, l]) => `<option value="${k}" ${(m.bizRole || 'member') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}</td>
       <td class="ao-teams">${teamsOf(m.id).map(t => `<span class="tag">${esc(t.name)}</span>`).join('') || '<span class="mut">-</span>'}</td>
       <td class="num">${m.bizRole === 'admin' || isOwnerEmail(m.id) ? 'all' : allAccounts().filter(a => (a.roles || {})[m.id]).length}</td>
-      <td style="white-space:nowrap;text-align:right">${S.mode === 'local' ? `<button class="btn sm ${userEmail() === m.id ? 'on' : ''}" data-viewas="${esc(m.id)}" title="See the platform the way this person does (local mode)">${userEmail() === m.id ? 'Viewing as' : 'View as'}</button> ` : ''}${m.id !== userEmail() && !isFirstOwner(m.id) && (m.bizRole !== 'owner' || isOwnerUser()) ? `<button class="icon-btn" data-mdel="${esc(m.id)}" title="Remove">${ico('trash', 'i-sm')}</button>` : ''}</td></tr>`).join('')}
+      <td style="white-space:nowrap;text-align:right"><button class="btn sm" data-action="person-access" data-em="${esc(m.id)}" title="Choose the accounts and sub-accounts ${esc(m.name || m.id)} can open">Accounts</button> ${S.mode === 'local' ? `<button class="btn sm ${userEmail() === m.id ? 'on' : ''}" data-viewas="${esc(m.id)}" title="See the platform the way this person does (local mode)">${userEmail() === m.id ? 'Viewing as' : 'View as'}</button> ` : ''}${m.id !== userEmail() && !isFirstOwner(m.id) && (m.bizRole !== 'owner' || isOwnerUser()) ? `<button class="icon-btn" data-mdel="${esc(m.id)}" title="Remove">${ico('trash', 'i-sm')}</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>
     <form class="bz-add" data-addmember><input class="inp" name="name" placeholder="Name" maxlength="60"><input class="inp" name="email" type="email" placeholder="work email" maxlength="254" required>
       <select class="sel" name="job"><option value="">Job role…</option>${DEFAULT_ROLES.filter(r => r !== 'Client').map(r => `<option>${esc(r)}</option>`).join('')}</select>
@@ -6741,7 +6819,7 @@ const GUIDE = [
     go: 'new-account', gl: 'Create an account', rel: ['roles', 'tools', 's-access'] },
   { id: 'subaccounts', c: 'start', q: 'What are sub-accounts?', k: 'sub account subaccount brand dealer market child parent nested group chevrolet cadillac gmc al ghanim al jomaih aga',
     a: '<p>An account can sit under another one, like brands and dealers under a client: <b>General Motors</b> › <b>GM Cadillac</b> › <b>Al Ghanim Cadillac (Dealer)</b>. Each sub-account has its own briefs, boards, tools and data.</p><p>Access flows down: anyone with access to General Motors can open its sub-accounts too. You can add extra people or a higher role on a sub-account only.</p><p>To add one: All accounts or Business settings → the <b>…</b> menu on an account → <b>Add a sub-account</b>, or choose <b>Part of</b> when you create an account.</p>',
-    go: '#/accounts', gl: 'Open All accounts', rel: ['setup', 'roles', 's-access'] },
+    go: '#/accounts', gl: 'Open All accounts', rel: ['s-one-sub', 'setup', 'roles'] },
   { id: 'roles', c: 'start', q: 'What can Admins, Editors and Viewers do?', k: 'role roles admin editor viewer permission rights can cannot',
     a: '<ul><li><b>Owner</b>: everything a business admin can do, plus adding and removing other owners.</li><li><b>Business admin</b>: adds people and teams, creates accounts, sees every account.</li><li><b>Account admin</b>: changes the account\'s name, logo, access and tools.</li><li><b>Editor</b>: does the work - briefs, tasks, campaigns, notes.</li><li><b>Viewer</b>: sees everything in the account but can\'t change anything.</li></ul>',
     rel: ['s-access', 's-viewer', 'setup'] },
@@ -6846,6 +6924,9 @@ const GUIDE = [
   { id: 's-owners', c: 'sec', q: 'How do I add another owner?', k: 'owner owners upper management director add owner co-owner business admin promote',
     a: '<p>Owners can do everything, including adding and removing other owners. Business admins can manage people, teams and accounts, but can\'t change owners.</p><p>An owner opens <b>Business settings → People</b>, adds the person by work email (or finds them in the list) and sets <b>Business role</b> to <b>Owner</b>. They sign up with that email and they\'re in.</p>',
     go: 'people', gl: 'Open People', rel: ['s-access', 'roles'] },
+  { id: 's-one-sub', c: 'sec', q: 'How do I give someone access to just one sub-account?', k: 'access one sub account dealer brand specific single only person freelancer client contact',
+    a: '<p>Business settings → <b>People</b> → <b>Accounts</b> next to their name. Pick a role on just that sub-account, for example Viewer on <b>Al Ghanim Cadillac</b>, and save. They\'ll see only that one, and anything under it.</p><p>For a whole team, open <b>Teams</b> and choose the sub-account in <b>+ Add account</b>. You can also use <b>Access</b> on the sub-account itself.</p>',
+    go: 'people', gl: 'Open People', rel: ['subaccounts', 's-access'] },
   { id: 's-who-sees', c: 'sec', q: 'Who can see an account?', k: 'privacy who can see access private visible data shared',
     a: '<p>Only people with access to it - through a team or one by one - and business admins. The database rules enforce this on Google\'s servers, so it holds even if someone tampers with the page.</p>',
     rel: ['s-access', 'roles'] },
@@ -6864,7 +6945,7 @@ const GUIDE = [
 ];
 const GUIDE_BY = Object.fromEntries(GUIDE.map(g => [g.id, g]));
 const GUIDE_START = { start: ['first-day', 'switch', 'subaccounts', 'setup', 'roles', 'tools'], app: ['brief-new', 'workflow', 'mywork', 'alerts', 'campaign-add', 'undo'],
-  media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['s-access', 's-owners', 's-who-sees', 's-viewer', 's-noaccess', 's-reset'] };
+  media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['s-access', 's-one-sub', 's-owners', 's-who-sees', 's-viewer', 's-noaccess'] };
 const GUIDE_FAQ = ['what', 'subaccounts', 'switch', 'roles', 'tools', 'workflow', 's-who-sees', 's-signup'];
 
 // tiny keyword matcher: words in the question count most, then the extra keywords
@@ -7031,6 +7112,7 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('input', e => { if (e.target.closest && e.target.closest('[data-gb-form]')) gbAuto(e.target); });
 document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('twisty')) { e.preventDefault(); e.stopPropagation(); e.target.click(); return; }
   const inGuide = e.target.closest && e.target.closest('#gb');
   if (inGuide && e.target.matches('.gb-form input') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
     const items = [...document.querySelectorAll('.gb-auto button')]; if (!items.length) return;

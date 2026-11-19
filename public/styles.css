@@ -1319,7 +1319,7 @@ body{font-family:var(--font);font-size:13px;letter-spacing:.005em}
 .am-list{max-height:min(420px,55vh);overflow:auto;padding:4px}
 .am-row{display:flex!important;align-items:center;gap:10px;width:100%;padding:7px 8px!important;border-radius:3px;text-align:left}
 .am-row:hover,.am-row.on{background:var(--hover)}
-.am-row>span:not(.acc-logo):not(.am-badge){flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.am-row>span:not(.acc-logo):not(.am-badge):not(.twisty){flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
 .am-row b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .am-row small{color:var(--muted);font-size:11.5px}
 .am-row.on>.i{color:var(--accent-text)}
@@ -2145,3 +2145,23 @@ body.view-only [data-action="nb-new"],body.view-only [data-action="add-event"],b
 .upd-bar{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:96;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px;border-radius:4px;background:#323232;color:#fff;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:toastIn .3s var(--ease)}
 .upd-bar .btn-primary{background:#fff;color:#323232}
 .upd-bar .icon-btn{color:#B4B9C3}
+
+/* open / close sub-account trees */
+.twisty{width:20px;height:20px;flex:none;display:inline-grid;place-items:center;border-radius:3px;color:var(--muted);cursor:pointer;transition:background .15s}
+.twisty .i{width:13px;height:13px;transition:transform .15s}
+.twisty.open .i{transform:rotate(90deg)}
+.twisty:hover{background:var(--hover);color:var(--text)}
+.twisty:focus-visible{outline:2px solid var(--dn-purple);outline-offset:1px}
+.twisty.none{cursor:default;background:none}
+.am-row .twisty{margin:0 -4px}
+.am-row:not(.sub) .twisty.none{width:0;margin:0 -5px 0 0}
+.ao-name{gap:8px}
+/* one person's accounts */
+.pa-tools{display:flex;gap:6px;margin:0 0 8px}
+.pa-list{border-top:1px solid var(--line)}
+.pa-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 170px;gap:12px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line)}
+.pa-row.changed{background:color-mix(in srgb,var(--dn-purple) 8%,transparent)}
+.pa-row .acc-logo{width:26px;height:26px;font-size:10px}
+.pa-now{display:flex;flex-direction:column;gap:2px;align-items:flex-start;min-width:0}
+.pa-now small{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+@media (max-width:640px){ .pa-row{grid-template-columns:1fr} }
