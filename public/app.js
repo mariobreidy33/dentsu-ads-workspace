@@ -79,8 +79,11 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const clone = o => JSON.parse(JSON.stringify(o));
-const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { } };
+// Every key gets its own prefix: this app can share a web address (origin) with the original Doable on
+// GitHub Pages, and the two must never read or overwrite each other's saved settings or local data.
+const LS = 'dentsu-ads:';
+const lsGet = k => { try { return localStorage.getItem(LS + k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(LS + k, v); } catch { } };
 
 const pad = n => String(n).padStart(2, '0');
 const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -447,7 +450,7 @@ class LocalStore {
     this.key = ns ? 'tb:data:v1:' + ns : 'tb:data:v1';
     const raw = lsGet(this.key);
     if (raw) { try { const d = JSON.parse(raw); COLS.forEach(c => S.data[c] = cleanCol(c, d[c])); } catch { } }
-    this.onStorage = e => { if (e.key === this.key && e.newValue) { try { const d = JSON.parse(e.newValue); COLS.forEach(c => S.data[c] = cleanCol(c, d[c])); this.cb && this.cb(); } catch { } } };
+    this.onStorage = e => { if (e.key === LS + this.key && e.newValue) { try { const d = JSON.parse(e.newValue); COLS.forEach(c => S.data[c] = cleanCol(c, d[c])); this.cb && this.cb(); } catch { } } };
     window.addEventListener('storage', this.onStorage);
   }
   start(cb) { this.cb = cb; cb(); }
@@ -6138,7 +6141,7 @@ const localBizApi = {
   async delTeam(id) { delete S.biz.teams[id]; saveBizLocal(); bizChanged(); },
   async putAccount(a) { S.biz.accounts[a.id] = clone(a); saveBizLocal(); bizChanged(); },
   async patchAccount(id, f, quiet) { if (!S.biz.accounts[id]) return; Object.assign(S.biz.accounts[id], clone(f)); saveBizLocal(); if (!quiet) bizChanged(); },
-  async delAccount(id) { delete S.biz.accounts[id]; saveBizLocal(); try { localStorage.removeItem('tb:data:v1:' + id); } catch { } bizChanged(); },
+  async delAccount(id) { delete S.biz.accounts[id]; saveBizLocal(); try { localStorage.removeItem(LS + 'tb:data:v1:' + id); } catch { } bizChanged(); },
   // write a set of operations into an account that isn't open (sample data)
   async writeAccount(id, ops, acts = []) {
     if (S.acc && S.acc.id === id && store && !store.readOnly) { await store.batch(ops); for (const e of acts) await store.log(e); return; }

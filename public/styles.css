@@ -1963,3 +1963,6 @@ body.view-only [data-action="nb-new"],body.view-only [data-action="add-event"],b
 .sp.full .sp-track i{background:var(--c-today)}
 .add-task-btn .plus{box-shadow:none}
 :root[data-theme=light] .cal-cell.weekend{background:#DCDDE1}
+.auth-card .btn-primary,:root:not([data-theme=light]) .auth-card .btn-primary{background:#323232;color:#fff}
+.auth-card .btn-primary:hover{background:#000}
+.auth-card .inp{background:#fff;color:#323232;border-color:#C9CBD0}
