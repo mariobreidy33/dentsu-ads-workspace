@@ -1,0 +1,135 @@
+rules_version = '2';
+// =====================================================================
+// Security rules for dentsu Ads Workspace — one platform, many client accounts.
+// Paste into Firebase console → Firestore Database → Rules → Publish,
+// or deploy with:  firebase deploy --only firestore:rules
+//
+// BEFORE PUBLISHING: replace OWNER_EMAIL below with the owner's email
+// (lowercase, the same value as ownerEmail in public/config.js).
+//
+// Who can do what
+//   members/{email}     people who can sign in. bizRole 'admin' = business admin.
+//   teams/{id}          groups of people, used to give access to accounts.
+//   workspaces/{id}     one document per client account: name, logo, tools,
+//                       access, and roles = { email: 'admin' | 'editor' | 'viewer' }.
+//   workspaces/{id}/…   everything inside the account (lists, briefs, campaigns…).
+//   Business admins (and the owner) can open and manage every account.
+//   Account admins manage their account's name, logo, tools and access.
+//   Editors change the account's data. Viewers can only read it.
+// =====================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function ownerEmail() { return 'mariobreidy33@gmail.com'; }
+
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function me() { return request.auth.token.email.lower(); }
+    function isOwner() { return signedIn() && me() == ownerEmail(); }
+    function memberDoc() { return /databases/$(database)/documents/members/$(me()); }
+    function isMember() { return signedIn() && (isOwner() || exists(memberDoc())); }
+    function isBizAdmin() { return signedIn() && (isOwner() || (exists(memberDoc()) && get(memberDoc()).data.get('bizRole', 'member') == 'admin')); }
+    function isMemberEmail(e) { return e == ownerEmail() || exists(/databases/$(database)/documents/members/$(e)); }
+
+    // the account document and the caller's role in it
+    function acc(wid) { return get(/databases/$(database)/documents/workspaces/$(wid)).data; }
+    function accRole(wid) { return acc(wid).get('roles', {}).get(me(), ''); }
+    function canRead(wid) { return isBizAdmin() || (isMember() && accRole(wid) in ['admin', 'editor', 'viewer']); }
+    function canEdit(wid) { return isBizAdmin() || (isMember() && accRole(wid) in ['admin', 'editor']); }
+
+    // ---------- People: business admins add and remove them ----------
+    // Anyone signed in may read their own entry (that's how the app knows to let them in).
+    match /members/{em} {
+      allow get: if isMember() || (signedIn() && em == me());
+      allow list: if isMember();
+      allow create, update: if isBizAdmin() && em == em.lower() && em.matches('^[^@\\s]+@[^@\\s]+$')
+        && request.resource.data.get('bizRole', 'member') in ['admin', 'member'];
+      allow delete: if isBizAdmin() && em != me();
+    }
+
+    // ---------- Teams ----------
+    match /teams/{id} {
+      allow read: if isMember();
+      allow write: if isBizAdmin();
+    }
+
+    // ---------- Client accounts ----------
+    match /workspaces/{wid} {
+      // a list query must ask for "memberEmails array-contains my email" (or come from a business admin)
+      allow list: if isBizAdmin() || (isMember() && me() in resource.data.memberEmails);
+      allow get: if isBizAdmin() || (isMember() && resource.data.get('roles', {}).get(me(), '') != '');
+      allow create, delete: if isBizAdmin();
+      // account admins: name, logo, tools and access. Everyone in the account: the overview numbers.
+      allow update: if isBizAdmin()
+        || (isMember() && resource.data.get('roles', {}).get(me(), '') == 'admin'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'sector', 'logo', 'color', 'modules', 'access', 'roles', 'memberEmails', 'stats', 'updatedAt'])
+            && request.resource.data.get('logo', '').size() <= 200000)
+        || (isMember() && resource.data.get('roles', {}).get(me(), '') != ''
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats']));
+
+      // ---------- Work data inside an account ----------
+      // projects (lists + brand lists), sections, tasks (incl. brief steps), events (calendar), meta (settings),
+      // accounts + campaigns (Campaign Tracker), notes (Notebook), briefs, trash (Recently deleted).
+      match /{col}/{id} {
+        allow read: if canRead(wid)
+          && col in ['projects', 'sections', 'tasks', 'events', 'meta', 'accounts', 'campaigns', 'notes', 'briefs', 'trash'];
+        allow write: if canEdit(wid)
+          && col in ['projects', 'sections', 'tasks', 'events', 'meta', 'accounts', 'campaigns', 'notes', 'briefs', 'trash'];
+      }
+
+      // Activity log: write-once, server-stamped, attributed to whoever is signed in.
+      // Only sample-data entries (demo: true) can be removed, and only by a business admin.
+      match /activity/{id} {
+        allow read: if canRead(wid);
+        allow create: if canRead(wid)
+          && request.resource.data.byEmail == me()
+          && request.resource.data.ts == request.time
+          && request.resource.data.at is number
+          && request.resource.data.action is string && request.resource.data.action.size() <= 40
+          && request.resource.data.size() <= 20;
+        allow update: if false;
+        allow delete: if isBizAdmin() && resource.data.get('demo', false) == true;
+      }
+
+      // In-app notifications: anyone in the account can notify a teammate; only the recipient reads them.
+      match /notifs/{id} {
+        allow read: if canRead(wid) && resource.data.to == me();
+        allow create: if canRead(wid)
+          && request.resource.data.to is string && request.resource.data.to.size() <= 254
+          && request.resource.data.fromEmail == me()
+          && request.resource.data.read == false
+          && request.resource.data.size() <= 17;
+        allow update: if canRead(wid) && resource.data.to == me()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+        allow delete: if canRead(wid) && resource.data.to == me();
+      }
+
+      // Security log for the account: write-once; business admins read it.
+      match /audit/{id} {
+        allow create: if canRead(wid) && request.resource.data.email == me() && request.resource.data.at == request.time;
+        allow read: if isBizAdmin();
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- Outgoing email (the "Trigger Email" extension sends these) ----------
+    // Write-only from the app, one recipient per message, and the recipient must be on the platform.
+    // The extension itself runs with admin rights, so it can read and update delivery status.
+    match /mail/{id} {
+      allow create: if isMember()
+        && request.resource.data.to is list && request.resource.data.to.size() == 1
+        && request.resource.data.to[0] is string && isMemberEmail(request.resource.data.to[0])
+        && request.resource.data.createdBy == me()
+        && request.resource.data.message.subject is string && request.resource.data.message.subject.size() <= 300
+        && request.resource.data.message.html is string && request.resource.data.message.html.size() <= 60000
+        && request.resource.data.keys().hasOnly(['to', 'message', 'createdAt', 'createdBy']);
+      allow read, update, delete: if false;
+    }
+
+    // ---------- Business security log (sign-ins, business changes): write-once; admins read it ----------
+    match /audit/{id} {
+      allow create: if isMember() && request.resource.data.email == me() && request.resource.data.at == request.time;
+      allow read: if isBizAdmin();
+      allow update, delete: if false;
+    }
+  }
+}
