@@ -10,7 +10,7 @@ if (window.top !== window.self) {
 /* ===================== utilities ===================== */
 const CFG_MISSING = !window.APP_CONFIG;   // config.js didn't load: stop with a clear message instead of guessing
 const CFG = window.APP_CONFIG || {};
-const BUILD = '2026-11-19-gm';   // shown in Settings, so you can confirm which version is live
+const BUILD = '2026-11-19-home';   // shown in Settings, so you can confirm which version is live
 // Firebase Web SDK, pinned to an exact version (updated from 10.12.2). If the CDN can't serve it,
 // the previous version is tried so the app still opens.
 const FB_VERSIONS = ['12.19.0', '10.12.2'];
@@ -723,7 +723,7 @@ function render(opts = {}) {
   const main = $('.main');
   document.body.classList.toggle('view-only', !!S.acc && S.accRole === 'viewer');
   if (r.view === 'home') {   // the homepage only repaints when you arrive on it (data changes don't restart its animations)
-    if (routeChanged || !$('#root .lp')) { $('#root').innerHTML = homeHTML(true); document.title = 'dentsu ' + (CFG.appName || 'Ads Workspace'); homeEnhance(); }
+    if (routeChanged || !$('#root .home')) { $('#root').innerHTML = homeHTML(true); document.title = 'dentsu ' + (CFG.appName || 'Ads Workspace'); homeEnhance(); }
     return;
   }
   if (opts.mainOnly && main && !routeChanged) main.innerHTML = renderMain(r);
@@ -2276,7 +2276,7 @@ document.addEventListener('keydown', e => {
     if (m && m.classList.contains('overlay') && m.querySelector('[data-ok]')) return;   // a confirm dialog is open
     e.preventDefault(); undoLast(); return;
   }
-  if (typing || e.metaKey || e.ctrlKey || e.altKey || topModal() || !S.ready || !store || e.shiftKey || document.querySelector('#root .lp')) return;
+  if (typing || e.metaKey || e.ctrlKey || e.altKey || topModal() || !S.ready || !store || e.shiftKey || document.querySelector('#root .home')) return;
   if (e.key === 'q') { e.preventDefault(); openTask(null, { projectId: curProjectId() }); }
   else if (e.key === '/') { e.preventDefault(); openSearch(); }
 });
@@ -7105,224 +7105,271 @@ function renderGuide() {
   </div></div>`;
 }
 
+/* ===================== doodles ===================== */
+// Doable's own line-art cast. Drawn once as SVG so they follow the theme (ink + paper colours) and animate in CSS.
+const DD_HAIR = {
+  curly: '<path class="hr" d="M37 52c-6-12 0-26 11-29 3-8 14-11 21-6 9-3 18 3 19 12 7 5 6 15 1 21-2-7-7-11-13-11-5 4-12 6-19 3-6 3-13 6-20 10z"/>',
+  bob: '<path class="hr" d="M35 74c-8-22-4-48 25-50 26-1 32 22 26 50-4-1-5-8-5-16-1-8-3-12-5-15-10 2-24-2-31-9-4 9-6 16-6 22 0 8 0 13-4 18z"/>',
+  beanie: '<path class="fk st" d="M37 46c0-15 10-24 23-24s23 9 23 24z"/><path class="ln" d="M35 47h50"/><circle class="fk st" cx="60" cy="18" r="5"/>',
+  buzz: '<path class="hr bz" d="M38.2 52C36.6 35 47 28 60 28s23.4 7 21.8 24c-2.6-7.2-9.6-11.4-21.8-11.4S40.8 44.8 38.2 52z"/>',
+  short: '<path class="hr" d="M38 48c-2-15 8-25 22-25 13 0 23 8 22 22-6-6-13-8-21-6-8 2-15 5-23 9z"/>',
+  bun: '<circle class="hr" cx="60" cy="19" r="8.5"/><path class="hr" d="M38 50c-1-15 9-24 22-24s23 9 22 24c-7-8-15-10-22-9-8 1-15 4-22 9z"/>',
+};
+const DD_PROP = {
+  gauge: '<path class="pp" d="M28 146a32 32 0 0 1 64 0z"/><path class="ln thin" d="M35 140l5 1M60 118v5M85 140l-5 1M43 125l4 4M77 125l-4 4"/>'
+    + '<g class="needle"><path class="ln" d="M60 146l0-22" style="stroke-width:3"/></g><circle class="ik" cx="60" cy="146" r="3.5"/>'
+    + '<circle class="pp" cx="28" cy="146" r="6.5"/><circle class="pp" cx="92" cy="146" r="6.5"/>',
+  clip: '<rect class="pp" x="33" y="106" width="54" height="56" rx="5"/><rect class="ik" x="50" y="101" width="20" height="8" rx="2.5"/>'
+    + [0, 1, 2].map(i => `<rect class="pp" x="40" y="${117 + i * 13}" width="8" height="8" rx="2" style="stroke-width:1.8"/><path class="ln thin" d="M54 ${121 + i * 13}h25"/><path class="ln tick t${i + 1}" pathLength="1" d="M41.5 ${121 + i * 13}l2.5 2.5 5-6" style="stroke:var(--sw-green);stroke-width:2.6"/>`).join('')
+    + '<circle class="pp" cx="33" cy="134" r="6.5"/><circle class="pp" cx="87" cy="134" r="6.5"/>',
+  mega: '<path class="fo st" d="M56 120l30-15v42l-30-15z"/><rect class="pp" x="44" y="118" width="14" height="16" rx="3"/><path class="ln" d="M50 134l-2 12"/>'
+    + '<path class="ln wave" d="M95 114q7 12 0 24"/><path class="ln wave w2" d="M103 108q10 18 0 36"/><circle class="pp" cx="47" cy="146" r="6.5"/>',
+  note: '<path class="pp" d="M28 118l32 6 32-6v36l-32 6-32-6z"/><path class="ln" d="M60 124v36"/><path class="ln thin" d="M35 129l18 3M35 137l18 3M35 145l12 2M67 132l18-3M67 140l14-2"/>'
+    + '<g class="pen"><path class="ln" d="M92 104l-12 26" style="stroke-width:3.2"/><path class="ik" d="M80 130l-1.5 5 4-3z"/><circle class="pp" cx="93" cy="104" r="6.5"/></g><circle class="pp" cx="30" cy="150" r="6.5"/>',
+  wave: '<g class="arm"><path class="ln" d="M88 112q10-18 12-40" style="stroke-width:9;stroke:var(--ink)"/><path class="ln" d="M88 112q10-18 12-40" style="stroke-width:5;stroke:var(--d-c)"/><circle class="pp" cx="100" cy="68" r="7"/></g>',
+  laptop: '<path class="pp" d="M34 122h52l6 26H28z"/><path class="ln" d="M24 150h72"/><circle class="ik" cx="60" cy="134" r="2.4"/><circle class="pp" cx="34" cy="148" r="6"/><circle class="pp" cx="86" cy="148" r="6"/>',
+};
+const DD_TINT = { navy: 'fn', black: 'fx', yellow: 'fy', blue: 'fb', pink: 'fk', green: 'fg', purple: 'fp', orange: 'fo' };
+
+// Joana: long dark-brown hair, beige cap, black over-ear headphones, thin round gold glasses, big smile, black tee.
+const JOANA_HEAD = `<path class="jh" d="M38.5 50c-3.5 22-4.5 44-8.5 70 5 2.4 10.5 1.8 14-.6.6-21 1.2-44 1.6-63zM81.5 50c3.5 22 4.5 44 8.5 70-5 2.4-10.5 1.8-14-.6-.6-21-1.2-44-1.6-63z"/>
+    <path class="ln thin" d="M36 72q-1 16-3 34M84 72q1 16 3 34" style="stroke-width:1.3"/>
+    <ellipse class="pp" cx="60" cy="55" rx="22" ry="25"/>
+    <path class="jh" d="M38.4 50c1.6 6 3 9.6 4.6 12 1.6-6.4 2.2-10 2.4-13zM81.6 50c-1.6 6-3 9.6-4.6 12-1.6-6.4-2.2-10-2.4-13z"/>
+    <path class="cap st" d="M37 47c0-15 10-24.5 23-24.5S83 32 83 47z"/><circle class="cap st" cx="60" cy="22.5" r="2.4"/>
+    <path class="ln thin" d="M60 25v21M49 27q-3 9-3 19M71 27q3 9 3 19" style="stroke-width:1.2"/>
+    <path class="cap st" d="M33.5 46.5c9 4.6 44 4.6 53 0l-1.4 5.4c-9.6 3.6-40.6 3.6-50.2 0z"/>
+    <path class="ln" d="M29 58c-2.4-25 11-38.5 31-38.5S93.4 33 91 58" style="stroke-width:4.4"/>
+    <rect class="hp st" x="24.5" y="49" width="11" height="19" rx="5"/><rect class="hp st" x="84.5" y="49" width="11" height="19" rx="5"/>
+    <path class="ln" d="M47.8 57.2q3.6-3.4 7.2 0M65 57.2q3.6-3.4 7.2 0" style="stroke-width:2.1"/>
+    <g class="wg"><circle cx="51.4" cy="57" r="6.6"/><circle cx="68.6" cy="57" r="6.6"/><path d="M58 56.2q2-1.4 4 0"/></g>
+    <circle cx="45" cy="64.5" r="3" class="blush"/><circle cx="75" cy="64.5" r="3" class="blush"/>
+    <path class="ln" d="M60 60.5l-2 4.4h3.4" style="stroke-width:1.6"/>
+    <path class="pp" d="M51.6 68.2c2.8 7.4 14 7.4 16.8 0z" style="stroke-width:2"/><path class="ln thin" d="M52.6 69.8h14.8" style="stroke-width:1.1"/>`;
+const joana = (kind = 'laptop', cls = '') => doodle(kind, { head: JOANA_HEAD, tint: 'black', cls: 'dd-joana ' + cls });
+// Drawn from Mario's photo: short dark crop, fuller face, thick brows, round tortoiseshell glasses,
+// moustache and a short boxed beard, navy tee.
+const MARIO_HEAD = `<path class="pp" d="M37.5 54c-6-1.5-7.5 10.5-.5 12"/><path class="pp" d="M82.5 54c6-1.5 7.5 10.5.5 12"/>
+    <ellipse class="pp" cx="60" cy="55" rx="23.5" ry="25.5"/>
+    <path class="brd" d="M37 57c.6 14.5 9.5 23.5 23 23.5s22.4-9 23-23.5c-1.6 6.5-4.5 10.8-8.6 13.2-3.2-3.6-8.3-5-14.4-5s-11.2 1.4-14.4 5C41.5 67.8 38.6 63.5 37 57z"/>
+    <path class="hr" d="M36.6 52.5C35 36.5 45 27 60 27s25 9.5 23.4 25.5c-1.4-4.6-2.4-7.6-3.6-9.6-6-3.4-12.4-4.6-19.8-4.6s-13.8 1.2-19.8 4.6c-1.2 2-2.2 5-3.6 9.6z"/>
+    <path class="ln thin" d="M46 33.5l1.5 2.5M54 31l1 2.6M62 30.6l.4 2.8M70 31.8l-.6 2.7" style="stroke:var(--paper);opacity:.35"/>
+    <path class="ln" d="M44.5 47.6q6.5-3.4 12.6-.6M62.9 47q6.1-2.8 12.6.6" style="stroke-width:3.2"/>
+    <g class="eyes"><circle class="ik" cx="51.5" cy="55.5" r="1.9"/><circle class="ik" cx="68.5" cy="55.5" r="1.9"/></g>
+    <g class="gl"><circle cx="51.5" cy="55.5" r="7.2"/><circle cx="68.5" cy="55.5" r="7.2"/><path d="M58.7 54.4q1.3-1.6 2.6 0M44.3 53.6l-6.3-1.4M75.7 53.6l6.3-1.4"/></g>
+    <path class="ln" d="M60 59l-2.6 6.2h4.4" style="stroke-width:1.8"/>
+    <path class="ms" d="M50.5 70.6c2.6-3 6-3.8 9.5-2.3 3.5-1.5 6.9-.7 9.5 2.3-3.3-.6-6.4-.4-9.5.6-3.1-1-6.2-1.2-9.5-.6z"/>
+    <path class="ln" d="M55.4 74.4q4.6 1.5 9.2 0" style="stroke-width:1.9"/>`;
+const mario = (kind = 'guide', cls = '') => doodle(kind, { head: MARIO_HEAD, tint: 'navy', cls: 'dd-me ' + cls, vb: kind === 'guide' ? '10 17 100 100' : '' });
+function doodle(kind, o = {}) {
+  if (kind === 'bot') return `<svg class="dd dd-bot ${o.cls || ''}" viewBox="0 0 120 120" aria-hidden="true"><g class="bob">
+    <path class="ln" d="M60 26V13"/><circle class="fy st bulb" cx="60" cy="10" r="5.5"/>
+    <rect class="fk st" x="14" y="46" width="10" height="24" rx="5"/><rect class="fk st" x="96" y="46" width="10" height="24" rx="5"/>
+    <rect class="pp" x="22" y="26" width="76" height="64" rx="28"/>
+    <rect class="ik" x="33" y="39" width="54" height="38" rx="17"/>
+    <g class="eyes"><rect x="46" y="49" width="7" height="12" rx="3.5" fill="var(--paper)"/><rect x="67" y="49" width="7" height="12" rx="3.5" fill="var(--paper)"/></g>
+    <path d="M53 67q7 5 14 0" fill="none" stroke="var(--paper)" stroke-width="2.4" stroke-linecap="round"/>
+    <path class="fb st" d="M42 90h36l7 22H35z"/></g></svg>`;
+  const shirt = DD_TINT[o.tint || 'yellow'];
+  return `<svg class="dd dd-${kind} ${o.cls || ''}" viewBox="${o.vb || '0 0 120 165'}" aria-hidden="true" style="--d-c:var(--d-${o.tint || 'yellow'})"><g class="bob">
+    <path class="${shirt} st" d="M20 165c0-44 17-76 40-76s40 32 40 76"/>
+    <path class="ln" d="M50 90q10 10 20 0"/>
+    <path class="pp" d="M53 78v10q7 5 14 0V78"/>
+    ${o.head || `<ellipse class="pp" cx="60" cy="54" rx="22" ry="25"/>
+    ${DD_HAIR[o.hair || 'short']}
+    <g class="eyes"><circle class="ik" cx="51.5" cy="57" r="2"/><circle class="ik" cx="68.5" cy="57" r="2"/></g>
+    <path class="ln" d="M60 60l-2.5 6h4" style="stroke-width:1.8"/><path class="ln" d="M53 70q7 5 14 0"/>
+    ${o.glasses ? '<circle class="ln" cx="51.5" cy="57" r="6" style="stroke-width:1.8"/><circle class="ln" cx="68.5" cy="57" r="6" style="stroke-width:1.8"/><path class="ln" d="M57.5 57h5" style="stroke-width:1.8"/>' : ''}`}
+    ${DD_PROP[kind] || ''}</g></svg>`;
+}
+
+
 /* =====================================================================
-   HOMEPAGE - what signed-out visitors see first (and #/home, or the logo, when signed in).
-   Laid out like Doable's homepage, in the dentsu brand. The product
+   HOMEPAGE - the same page as Doable's: the line-art team on the hero,
+   a product tour, feature cards that play on hover, media performance,
+   built-in help, FAQ. Content is about client accounts; the product
    pictures are drawn in HTML with example accounts, not live data.
    ===================================================================== */
 function homeHTML(signedIn) {
   const name = esc(CFG.appName || 'Ads Workspace');
   const dark = document.documentElement.dataset.theme === 'dark';
-  const arrow = ico('arrowRight', 'i-sm');
   const cta = signedIn
-    ? `<button class="lp-btn lp-primary" data-go="#/">Open my accounts ${arrow}</button><button class="lp-btn lp-soft" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>`
-    : `<button class="lp-btn lp-primary" data-home="in">Sign in ${arrow}</button><button class="lp-btn lp-soft" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>`;
-  const tile = (ini, color, cls = '') => `<span class="lpm-logo ${color === 'black' ? 'blk' : 'sw-' + color} ${cls}">${ini}</span>`;
-
-  // hero: the account switcher, open, with brands and dealers under General Motors
-  const swRow = (ini, color, nm, sub, d) => `<span class="lps-row" style="--d:${d}">${tile(ini, color)}<span><b>${nm}</b><small>${sub}</small></span></span>`;
-  const HERO = `<div class="lp-scene" aria-hidden="true">
-      <div class="lps-switch">
-        <div class="lps-btn">${tile('GM', 'blue')}<span><small>Account</small><b>General Motors</b></span>${ico('down', 'i-sm')}</div>
-        <div class="lps-menu"><span class="lps-hl"></span>
-          ${swRow('GM', 'blue', 'General Motors', 'Automotive · Admin', 0)}${swRow('GC', 'yellow', 'GM Chevrolet', 'Brand · Editor', 1)}${swRow('AC', 'blue', 'AGA Chevrolet', 'Dealer · Editor', 2)}
-          ${swRow('GG', 'red', 'GM GMC', 'Brand · Editor', 1)}${swRow('GC', 'grey', 'GM Cadillac', 'Brand · Editor', 1)}${swRow('AG', 'teal', 'Al Ghanim Cadillac', 'Dealer · Editor', 2)}
-          ${swRow('AJ', 'purple', 'Al Jomaih Cadillac', 'Dealer · Editor', 2)}${swRow('S', 'grey', 'Siddiqi', 'Luxury retail · Viewer', 0)}${swRow('F', 'red', 'Ferrero', 'FMCG · Viewer', 0)}
-        </div>
-      </div>
-      <span class="lp-chip c1"><span class="dot"></span>Year-End Sales Event · Live</span>
-      <span class="lp-chip c2">${ico('okcircle')}Weekly check done</span>
-      <span class="lp-chip c3">${ico('gauge')}Pacing 98%</span>
-      <span class="lp-chip c4">${ico('people')}GM team · Editor</span>
-      <span class="lp-chip c5">${ico('brief')}RB-0005 submitted</span>
-    </div>`;
-
-  // product tour: one window, five views
-  const card = (title, meta, cls = '') => `<div class="lpm-card"><i class="ring ${cls}"></i><div><b>${title}</b><span class="${cls}">${meta}</span></div></div>`;
-  const col = (nm, n, cards) => `<div class="lpm-col"><h5><span>${nm}</span><em>${n}</em></h5>${cards}</div>`;
-  const accRow = (ini, color, nm, sec, briefs, alerts, live, d = 0) => `<div class="lpm-row" style="--d:${d}">${tile(ini, color)}<div class="lpm-nm"><b>${nm}</b><i>${sec}</i></div>
-    <span class="lpm-num">${briefs}<small>briefs</small></span><span class="lpm-num ${alerts ? 'warn' : ''}">${alerts}<small>alerts</small></span><span class="lpm-num">${live}<small>live</small></span></div>`;
-  const step = (label, st) => `<span class="lpm-step ${st}"><i>${st === 'done' ? ico('check', 'i-sm') : ''}</i>${label}</span>`;
-  const camp = (nm, acc, st, tags, foot) => `<div class="lpm-camp"><div class="t"><b>${nm}</b><span class="lpm-st ${st === 'Live' ? 'live' : ''}">${st}</span></div><i>${acc}</i><div class="lpm-tags">${tags.map(t => `<span>${t}</span>`).join('')}</div><div class="lpm-foot">${foot}</div></div>`;
-  const TOUR = [
-    { icon: 'inbox', label: 'To-Do', side: 'todo', capt: 'One board per account, one section per brand. Drag cards between sections, repeat anything weekly or monthly.',
-      html: `<div class="lpm-h">To-Do <span class="mut">· General Motors</span></div><div class="lpm-board">
-        ${col('Chevrolet', 2, card('Weekly pacing check', 'Today · repeats', 'ok') + card('Year-End lead-form creatives', 'Saturday'))}
-        ${col('GMC', 2, card('Yukon search terms', 'Tomorrow') + card('Monthly performance deck', 'Monday'))}
-        ${col('Cadillac', 2, card('Pixel QA on landing pages', 'Overdue · 18 Nov', 'od') + card('Escalade IQ recap', 'Sunday'))}
-        ${col('OnStar', 1, card('Budget and keyword review', 'Tuesday'))}
-        ${col('ACDelco', 2, card('Parts search report', 'Wednesday') + card('Brand-safety exclusions', 'Monthly'))}</div>` },
-    { icon: 'grid', label: 'Accounts', side: 'acc', capt: 'Every client is its own account, with brands and dealers as sub-accounts. See them all side by side.',
-      html: `<div class="lpm-h">All accounts</div>
-        ${accRow('GM', 'blue', 'General Motors', 'Automotive · 6 sub-accounts', 6, 2, 3)}
-        ${accRow('GC', 'grey', 'GM Cadillac', 'Brand', 1, 1, 0, 1)}
-        ${accRow('AG', 'teal', 'Al Ghanim Cadillac', 'Dealer', 1, 0, 0, 2)}
-        ${accRow('S', 'grey', 'Siddiqi', 'Luxury retail', 3, 0, 1)}
-        ${accRow('F', 'red', 'Ferrero', 'FMCG', 3, 1, 1)}` },
-    { icon: 'brief', label: 'Briefs', side: 'brief', capt: 'Each brief runs through the same steps, with an owner and a deadline at every stage.',
-      html: `<div class="lpm-h">Chevrolet Year-End Sales Event</div><div class="lpm-meta"><span>Tactical / promotion</span><span>UAE, KSA</span><span>Search · Meta · Snap · TikTok</span></div>
-        <div class="lpm-flow">${step('Kick-off', 'done')}${step('Media plan', 'done')}${step('Client approval', 'done')}${step('Setup', 'done')}${step('QA', 'done')}${step('Live', 'now')}${step('Report', '')}</div>
-        <div class="lpm-grid2"><div class="lpm-box"><small>Objective</small><b>Leads</b><span>Test-drive leads and high-value behaviours</span></div>
-        <div class="lpm-box"><small>Current step</small><b>Live · optimise</b><span>Owner: Paid Search · on time</span></div></div>` },
-    { icon: 'campaign', label: 'Campaigns', side: 'camp', capt: 'Status, pacing and the weekly optimisation check for every live flight.',
-      html: `<div class="lpm-h">Campaign Tracker</div><div class="lpm-camps">
-        ${camp('CHEV_YearEnd_Leads', 'GM Chevrolet', 'Live', ['UAE', 'KSA', 'Search', 'Meta', 'Snap'], 'Pacing <b class="ok">On track</b> · Weekly check <b class="ok">Done</b>')}
-        ${camp('GMC Yukon - Search conquest', 'GM GMC', 'Live', ['UAE', 'KSA', 'Search'], 'Pacing <b class="warn">Under</b> · Weekly check <b class="warn">Due</b>')}
-        ${camp('Escalade IQ launch', 'GM Cadillac', 'Live', ['GCC', 'Meta', 'YouTube'], 'Creatives <b class="ok">Ready</b>')}
-        ${camp('Ramadan 2027 offers', 'General Motors', 'Pending', ['UAE', 'KSA', 'Meta', 'TikTok'], 'Brief submitted')}</div>` },
-    { icon: 'chart', label: 'Dashboard', side: 'dash', capt: 'Turnaround, SLAs and bottlenecks for any period, worked out from the account\'s own data.',
-      html: `<div class="lpm-h">Dashboard <span class="mut">· this quarter</span></div>
-        <div class="lpm-kpis"><div><b>6</b><span>Briefs received</span></div><div><b>2</b><span>Steps past SLA</span></div><div><b>3</b><span>Campaigns live</span></div></div>
-        <div class="lpm-bars">${[34, 52, 46, 70, 58, 82, 64, 76].map(h => `<i style="height:${h}%"></i>`).join('')}</div><div class="lpm-axis"><span>Week 1</span><span>Week 8</span></div>` },
-  ];
-  const sideRow = (k, icon, label, cnt = '') => `<p data-lp-side="${k}">${ico(icon)}${label}${cnt ? `<em>${cnt}</em>` : ''}</p>`;
-
-  // feature cards: still until hovered, then the little preview plays
-  const feat = (tint, icon, kicker, title, text, prev) => `<div class="lp-feat ${tint} rv" tabindex="0"><div class="lp-prev" aria-hidden="true">${prev}</div><span class="lp-fk">${ico(icon)}${kicker}</span><h3>${title}</h3><p>${text}</p></div>`;
-  const PV_SWITCH = `<div class="pv-sw"><div class="pv-swbtn">${tile('GM', 'blue', 'xs')}<i class="pv-line" style="width:46%"></i></div>
-      <div class="pv-swmenu"><span class="pv-swhl"></span><span class="pv-swr">${tile('GM', 'blue', 'xs')}General Motors</span><span class="pv-swr d1">${tile('GC', 'grey', 'xs')}GM Cadillac</span><span class="pv-swr d2">${tile('AG', 'teal', 'xs')}Al Ghanim Cadillac <em>Dealer</em></span></div></div>`;
-  const PV_ACCESS = `<div class="pv-acc"><span class="pv-ar"><b>GM team</b><em class="pv-role">Editor</em></span><span class="pv-ar"><b>Leadership</b><em class="pv-role v">Viewer</em></span>
-      <span class="pv-ar"><b>Retail &amp; FMCG team</b><em class="pv-role n">No access</em><em class="pv-role flip">Viewer</em></span><span class="pv-inh">${ico('flow', 'i-xs')} Covers 6 sub-accounts</span></div>`;
+    ? `<button class="h-btn h-primary" data-go="#/">Open my accounts ${ico('arrowRight', 'i-sm')}</button><button class="h-btn h-blue" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>`
+    : `<button class="h-btn h-primary" data-home="in">Sign in ${ico('arrowRight', 'i-sm')}</button><button class="h-btn h-blue" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>`;
+  // feature cards keep their little animated previews (they play on hover)
+  const feat = (cls, icon, kicker, title, text, prev) => `<div class="h-feat ${cls} rv" tabindex="0"><div class="h-prev" aria-hidden="true">${prev}</div><span class="h-fi">${ico(icon)}${kicker}</span><h3>${title}</h3><p>${text}</p></div>`;
   const pvCard = (w, cls = '') => `<span class="pv-card ${cls}"><i class="pv-ring"></i><i class="pv-line" style="width:${w}%"></i></span>`;
-  const PV_BOARD = `<div class="pv-board"><div class="pv-col"><b>Chevrolet</b>${pvCard(70)}${pvCard(52)}</div><div class="pv-col"><b>GMC</b>${pvCard(64)}<span class="pv-slot"></span></div>
-      <div class="pv-col"><b>Cadillac</b>${pvCard(58, 'done')}</div><span class="pv-card pv-fly"><i class="pv-ring">${ico('check')}</i><i class="pv-line" style="width:60%"></i></span></div>`;
-  const PV_FLOW = `<div class="pv-flow"><div class="pv-steps">${['Kick-off', 'Plan', 'Approval', 'Setup', 'Live'].map((l, i) => `<span class="pv-st s${i}"><i>${ico('check')}</i>${l}</span>`).join('')}</div>
-      <div class="pv-prog"><i></i></div><div class="pv-note"><span>Next: <b>Setup</b> · Paid Search</span><em>SLA 2 days</em></div></div>`;
-  const PV_CAMP = `<div class="pv-camp"><div class="pv-ct"><i class="pv-line" style="width:46%"></i><span class="pv-live">Live</span></div>
-      <div class="pv-chips"><span class="pv-chip">Meta · Leads</span><span class="pv-chip pv-snap"><i class="pv-bars"></i>Snap</span><span class="pv-chip">Search</span></div>
-      <div class="pv-pace"><span>Pacing</span><i class="pv-meter"><i></i></i><em>On track</em></div>
-      <div class="pv-wk"><span>Weekly check</span><em class="pv-due">Due</em><em class="pv-done">Done</em></div></div>`;
-  const PV_TOOLS = `<div class="pv-tools">${[['My work', 1], ['Briefs', 1], ['Campaign Tracker', 1], ['Team calendar', 0], ['Notebook', 0]].map(([l, on], i) => `<span class="pv-tool ${on ? 'on' : 't' + i}"><b>${l}</b><i class="pv-sw-t"></i></span>`).join('')}</div>`;
+  const PV_BOARD = `<div class="pv-board">
+      <div class="pv-col"><b>Chevrolet</b>${pvCard(70)}${pvCard(52)}</div>
+      <div class="pv-col"><b>GMC</b>${pvCard(64)}<span class="pv-slot"></span></div>
+      <div class="pv-col"><b>Cadillac</b>${pvCard(58, 'done')}</div>
+      <span class="pv-card pv-fly"><i class="pv-ring"><svg viewBox="0 0 24 24">${P.check}</svg></i><i class="pv-line" style="width:60%"></i></span>
+      <span class="pv-cursor"></span></div>`;
+  const PV_CAMP = `<div class="pv-camp"><div class="pv-ct"><i class="pv-line" style="width:46%"></i><span class="pv-live">● Live</span></div>
+      <div class="pv-chips"><span class="pv-chip">Meta · Lead Gen</span><span class="pv-chip pv-snap"><i class="pv-bars"></i>Snap</span><span class="pv-chip">Search</span></div>
+      <div class="pv-pace"><span>Pacing</span><i class="pv-meter"><i></i></i><em>Healthy</em></div>
+      <div class="pv-wk"><span>Weekly check</span><em class="pv-due">Due</em><em class="pv-done">✓ Done</em></div></div>`;
+  const PV_FLOW = `<div class="pv-flow"><div class="pv-steps">${['Kick-off', 'Plan', 'Approval', 'Setup', 'Live'].map((l, i) => `<span class="pv-st s${i}"><i><svg viewBox="0 0 24 24">${P.check}</svg></i>${l}</span>`).join('')}</div>
+      <div class="pv-prog"><i></i></div><div class="pv-fnote"><span>Next: <b>Setup</b> · Paid Search</span><em>SLA 2 days</em></div></div>`;
+  const PV_WS = `<div class="pv-ws"><div class="pv-wsbtn"><i class="pv-av a2">GM</i><i class="pv-line" style="width:48%"></i></div>
+      <div class="pv-menu"><span class="pv-hl"></span><span class="pv-row"><i class="pv-av a2">GM</i>General Motors</span><span class="pv-row sub"><i class="pv-av a4">GC</i>GM Cadillac</span>
+      <span class="pv-row sub2"><i class="pv-av a3">AG</i>Al Ghanim Cadillac <em>Dealer</em></span><span class="pv-inv">+ Add a sub-account</span></div></div>`;
+  const PV_ACC = `<div class="pv-acc"><span class="pv-ar"><b>GM team</b><em class="pv-role">Editor</em></span><span class="pv-ar"><b>Leadership</b><em class="pv-role v">Viewer</em></span>
+      <span class="pv-ar"><b>Retail &amp; FMCG team</b><em class="pv-role n">No access</em><em class="pv-role v flip">Viewer</em></span><span class="pv-inh">Covers General Motors and its 6 sub-accounts</span></div>`;
 
-  const media = (icon, tint, title, text) => `<div class="lp-mi rv"><span class="ic ${tint}">${ico(icon)}</span><b>${title}</b><span>${text}</span></div>`;
-  const role = (title, text, can) => `<div class="lp-role rv"><h3>${title}</h3><p>${text}</p><ul>${can.map(c => `<li>${ico('check', 'i-sm')}${c}</li>`).join('')}</ul></div>`;
+  // the product tour: one window, five views
+  const card = (title, meta, p, done, mc = '') => `<div class="hm-card ${done ? 'done' : ''}"><span class="hm-check p${p}">${done ? ico('check') : ''}</span><div><b>${title}</b><i class="${mc}">${meta}</i></div></div>`;
+  const camp = (t, acc, st, tags, stats) => `<div class="hm-camp"><div class="t">${t}<span class="st ${st === 'Live' ? 'st-live' : 'st-pend'}">● ${st}</span></div><div class="acc">${acc}</div><div class="hm-tags">${tags}</div><div class="hm-stat">${stats}</div></div>`;
+  const pgi = (icon, tint) => `<span class="pgi pi-${tint}" style="background:var(--pi-bg);color:var(--pi-fg)">${ico(icon)}</span>`;
+  const accRow = (ini, color, nm, sub, n, d = 0) => `<div class="hm-acc" style="--d:${d}"><span class="hm-tile sw-${color}">${ini}</span><div><b>${nm}</b><i>${sub}</i></div><em>${n}</em></div>`;
+  const step = (label, st) => `<span class="hm-step ${st}"><i>${st === 'done' ? ico('check') : ''}</i>${label}</span>`;
+  const TOUR = [
+    { id: 'todo', icon: 'inbox', label: 'To-Do', side: 1, capt: 'One board per account, one section per brand. Drag, repeat, assign and track sub-task progress.',
+      html: `<div class="hm-h">${pgi('inbox', 'red')}To-Do <span style="font-size:13px;font-weight:500;color:var(--muted)">· General Motors</span></div><div class="hm-board five">
+        <div class="hm-col"><h5><span>Chevrolet</span><em>2</em></h5>${card('Weekly pacing check', 'Today · repeats', 1)}${card('Year-End lead-form creatives', 'Saturday', 2, false, 'tm')}</div>
+        <div class="hm-col"><h5><span>GMC</span><em>2</em></h5>${card('Yukon search terms', 'Tomorrow', 3)}${card('Monthly performance deck', 'Monday', 4, true, 'mu')}</div>
+        <div class="hm-col"><h5><span>Cadillac</span><em>2</em></h5>${card('Pixel QA on landing pages', 'Overdue · 18 Nov', 1, false, 'od')}${card('Escalade IQ recap', 'Sunday', 3, false, 'mu')}</div>
+        <div class="hm-col"><h5><span>OnStar</span><em>1</em></h5>${card('Budget and keyword review', 'Tuesday', 3, false, 'mu')}</div>
+        <div class="hm-col"><h5><span>ACDelco</span><em>2</em></h5>${card('Parts search report', 'Wednesday', 3, false, 'mu')}${card('Brand-safety exclusions', 'Every month', 2, false, 'mu')}</div></div>` },
+    { id: 'acc', icon: 'grid', label: 'Accounts', side: 5, capt: 'Every client is its own account, with brands and dealers as sub-accounts. Each team sees only the ones it works on.',
+      html: `<div class="hm-h">${pgi('grid', 'purple')}All accounts</div><div class="hm-accs">
+        ${accRow('GM', 'blue', 'General Motors', 'Automotive · GM team, Leadership', '6 briefs')}
+        ${accRow('GC', 'yellow', 'GM Chevrolet', 'Brand', '2 briefs', 1)}${accRow('AC', 'teal', 'AGA Chevrolet', 'Dealer', '1 brief', 2)}
+        ${accRow('GC', 'grey', 'GM Cadillac', 'Brand', '1 brief', 1)}${accRow('AG', 'green', 'Al Ghanim Cadillac', 'Dealer', '1 brief', 2)}
+        ${accRow('S', 'grey', 'Siddiqi', 'Luxury retail · Retail & FMCG team', '3 briefs')}${accRow('F', 'red', 'Ferrero', 'FMCG · Retail & FMCG team', '3 briefs')}</div>` },
+    { id: 'brief', icon: 'brief', label: 'Briefs', side: 2, capt: 'Every request comes in as a brief. Each step has an owner and an SLA, and the next person is told when it\'s their turn.',
+      html: `<div class="hm-note"><div class="hm-h">${pgi('brief', 'purple')}Chevrolet Year-End Sales Event</div><div class="tags"><span class="hm-tag">Tactical / promotion</span><span class="hm-tag">UAE, KSA</span><span class="hm-tag pf">Search · Meta · Snap · TikTok</span></div>
+        <div class="hm-flow">${step('Kick-off', 'done')}${step('Media plan', 'done')}${step('Client approval', 'done')}${step('Setup', 'done')}${step('QA', 'done')}${step('Live', 'now')}${step('Report', '')}</div>
+        <h6>Steps</h6><div class="hm-todo"><i></i><span>First optimisation check (72h) · Paid Search · due Monday</span></div>
+        <div class="hm-todo done"><i>${ico('check')}</i><span>Pre-launch QA and go-live · Analytics · on time</span></div>
+        <div class="hm-todo done"><i>${ico('check')}</i><span>Client approval of plan · Account Lead · 1 day late</span></div></div>` },
+    { id: 'camp', icon: 'campaign', label: 'Campaigns', side: 3, capt: 'Status, pacing, creatives and weekly checks for every flight, with platform pauses and pacing sheets one click away.',
+      html: `<div class="hm-h">${pgi('campaign', 'orange')}Campaign Tracker</div><div class="hm-tabsrow"><span class="on">All ad accounts</span><span>Chevrolet</span><span>GMC</span><span>Cadillac</span></div><div class="hm-camps">
+        ${camp('Escalade - Always On', 'GM Cadillac', 'Live', '<span class="hm-tag">KSA</span><span class="hm-tag">UAE</span><span class="hm-tag pf">Meta · Leads</span><span class="hm-tag pz">❚❚ Snap</span>', '<span>Pacing <b class="ok">Healthy</b></span><span>Weekly <b class="ok">Done</b></span>')}
+        ${camp('Year-End Sales Event', 'GM Chevrolet', 'Live', '<span class="hm-tag">KSA</span><span class="hm-tag">UAE</span><span class="hm-tag pf">Search · Conv</span><span class="hm-tag pf">Snap · Leads</span>', '<span>Pacing <b class="warn">Under</b></span><span>Weekly <b class="bad">Due</b></span>')}
+        ${camp('Yukon - Search conquest', 'GM GMC', 'Live', '<span class="hm-tag">UAE</span><span class="hm-tag">KSA</span><span class="hm-tag pf">Search · Conv</span>', '<span>Creatives <b class="warn">Partly missing</b></span>')}
+        ${camp('Ramadan 2027 offers', 'General Motors', 'Pending', '<span class="hm-tag">KSA</span><span class="hm-tag">UAE</span><span class="hm-tag pf">Meta · Leads</span>', '<span>Starts in 12 days</span>')}</div>` },
+    { id: 'dash', icon: 'chart', label: 'Dashboard', side: 4, capt: 'Briefs received and live, steps on time, bottlenecks and campaigns. For any week, month or quarter.',
+      html: `<div class="hm-h">${pgi('chart', 'blue')}Dashboard <span style="font-size:13px;font-weight:500;color:var(--muted)">· This quarter</span></div>
+        <div class="hm-kpis"><div class="hm-kpi"><b>86%</b>Steps on time</div><div class="hm-kpi"><b>15d</b>Brief to live</div><div class="hm-kpi"><b>14</b>Campaigns live</div><div class="hm-kpi"><b>6</b>Platforms used</div></div>
+        <div class="hm-bars">${[38, 62, 48, 80, 66, 92, 74, 58].map(h => `<i style="height:${h}%"></i>`).join('')}</div><div class="hm-axis"><span>Week 1</span><span>Week 4</span><span>Week 8</span></div>` },
+  ];
+  const sideRow = (i, inner) => `<p data-tour-side="${i}">${inner}</p>`;
+  const media = (icon, tint, title, text, d) => `<div class="h-mi rv d${d}"><span class="ic pi-${tint}">${ico(icon)}</span><b>${title}</b><span>${text}</span></div>`;
   const faq = GUIDE_FAQ.map(id => GUIDE_BY[id]).filter(Boolean).map(g => `<details><summary>${esc(g.q)}${ico('plus')}</summary><div class="ans">${g.a}</div></details>`).join('');
-  return `<div class="lp">
-    <header class="lp-nav"><div class="lp-wrap">
-      <a class="lp-brand" href="#lp-top" data-scroll>${logoMark('lp-logo')}<span class="brand-sep"></span>${wordmark()}</a>
-      <nav class="lp-links"><a href="#lp-product" data-scroll>Product</a><a href="#lp-media" data-scroll>For media teams</a><a href="#lp-help" data-scroll>Help</a><a href="#lp-faq" data-scroll>FAQ</a></nav>
-      <div class="lp-actions">
-        <button class="lp-theme" data-home-theme title="${dark ? 'Light' : 'Dark'} mode">${ico(dark ? 'sun' : 'moon')}</button>
-        ${signedIn ? `<button class="lp-btn lp-primary sm" data-go="#/">Open app</button>` : `<button class="lp-btn lp-primary sm" data-home="in">Sign in</button>`}
+  const ground = `<svg class="h-ground" viewBox="0 0 800 10" preserveAspectRatio="none" aria-hidden="true"><path d="M2 6c120-3 240 2 380-1s280 3 416-1"/></svg>`;
+  return `<div class="home">
+    <header class="h-nav"><div class="h-wrap">
+      <a class="h-brand" href="#top" data-scroll>${logoMark('h-logo')}<span class="brand-sep"></span>${wordmark()}</a>
+      <nav class="h-links"><a href="#tour" data-scroll>Product</a><a href="#media" data-scroll>For media teams</a><a href="#guide" data-scroll>Help</a><a href="#faq" data-scroll>FAQ</a></nav>
+      <div class="h-actions">
+        <button class="h-theme" data-home-theme title="${dark ? 'Light' : 'Dark'} mode">${ico(dark ? 'sun' : 'moon')}</button>
+        ${signedIn ? `<button class="h-btn h-primary sm" data-go="#/">Open app</button>` : `<button class="h-btn h-primary sm" data-home="in">Sign in</button>`}
       </div></div>
     </header>
-    <div class="lp-wrap" id="lp-top">
-      <section class="lp-hero">
-        <a class="lp-pill" href="#lp-help" data-scroll><b>New</b> Sub-accounts for brands and dealers, plus built-in help ${arrow}</a>
-        <h1>The workspace for <em>every client account<svg viewBox="0 0 300 12" preserveAspectRatio="none"><path pathLength="1" d="M3 8 L297 5"/></svg></em>.</h1>
-        <p class="lp-sub">Briefs, campaigns, to-dos and dashboards for each client, in its own account. Switch between them like an ads manager. Built for teams running Meta, Snap, TikTok, Search and YouTube.</p>
-        <div class="lp-cta">${cta}</div>
-        <div class="lp-note">Each team sees only its own accounts · Syncs live · Works on any device</div>
-        ${HERO}
+    <div class="h-wrap" id="top">
+      <section class="h-hero">
+        <a class="h-pill" href="#guide" data-scroll><b>New</b> Sub-accounts for brands and dealers, plus built-in help ${ico('arrowRight', 'i-sm')}</a>
+        <h1>The workspace for <em>every client<svg viewBox="0 0 300 20" preserveAspectRatio="none"><path pathLength="1" d="M4 14C70 6 160 4 296 10"/></svg></em>.</h1>
+        <p class="h-sub">Briefs, campaign tracking, to-dos and dashboards for each client account, in one calm place. Built for agencies running Meta, Snap, TikTok, Search and YouTube.</p>
+        <div class="h-cta">${cta}</div>
+        <div class="h-note">Each team sees only its own accounts · Syncs live · Works on any device</div>
+        <div class="h-scene" aria-hidden="true">
+          ${doodle('gauge', { hair: 'curly', tint: 'yellow' })}${doodle('clip', { hair: 'bob', tint: 'blue', glasses: true })}${mario('wave', 'dd-mario')}${joana('laptop')}${doodle('mega', { hair: 'beanie', tint: 'green' })}${doodle('note', { hair: 'bun', tint: 'purple' })}
+          ${ground}
+          <span class="h-chip c1"><span class="dot"></span>Escalade · Live</span>
+          <span class="h-chip c2">${ico('okcircle')}Weekly check done</span>
+          <span class="h-chip c3">${ico('gauge')}Pacing 98%</span>
+        </div>
       </section>
-      <div class="lp-plats rv"><span class="lbl">Track campaigns across</span>${['Meta', 'Snapchat', 'TikTok', 'Google Search', 'PMax', 'YouTube', 'LinkedIn', 'X'].map(p => `<span class="lp-plat">${p}</span>`).join('')}</div>
+      <div class="h-plats rv"><span class="lbl">Track campaigns across</span>${['Meta', 'Snapchat', 'TikTok', 'Google Search', 'PMax', 'YouTube', 'LinkedIn', 'X'].map(p => `<span class="h-plat">${p}</span>`).join('')}</div>
 
-      <section class="lp-sec lp-center" id="lp-product">
-        <div class="lp-kicker rv">${ico('sidebar')}One workspace</div>
-        <h2 class="rv">Everything your team runs on, side by side.</h2>
-        <div class="lp-tabs rv" role="tablist">${TOUR.map((t, i) => `<button class="lp-tab ${i ? '' : 'on'}" role="tab" data-tour="${i}">${ico(t.icon)}${t.label}<i class="bar"></i></button>`).join('')}</div>
-        <div class="lp-window rv">
-          <div class="lpm-bar"><i></i><i></i><i></i><span>dentsu ${name}</span></div>
-          <div class="lpm-body">
-            <div class="lpm-side">${logoMark('lpm-mark')}
-              <div class="lpm-switch">${tile('GM', 'blue')}<div><small>Account</small><b>General Motors</b></div>${ico('down', 'i-sm')}</div>
-              ${sideRow('mw', 'inbox', 'My work', 4)}${sideRow('brief', 'brief', 'Briefs', 5)}${sideRow('camp', 'campaign', 'Campaign Tracker', 2)}${sideRow('dash', 'chart', 'Dashboard')}
-              <p class="hd">Lists</p>${sideRow('todo', 'inbox', 'To-Do', 10).replace(ico('inbox'), '<s>#</s>')}
-              <p class="hd">Business</p>${sideRow('acc', 'grid', 'All accounts', 10)}</div>
-            <div class="lpm-panes">${TOUR.map((t, i) => `<div class="lpm-pane ${i ? '' : 'on'}" data-side="${t.side}" data-capt="${esc(t.capt)}">${t.html}</div>`).join('')}</div>
+      <section class="h-sec h-center" id="tour">
+        <div class="h-eyebrow rv">${ico('sidebar')}One workspace</div>
+        <h2 class="h-h2 rv d1">Every client account, side by side.</h2>
+        <div class="h-tabs rv d2" role="tablist">${TOUR.map((t, i) => `<button class="h-tab ${i ? '' : 'on'}" role="tab" data-tour="${i}">${ico(t.icon)}${t.label}<i class="bar"></i></button>`).join('')}</div>
+        <div class="h-window rv d3">
+          <div class="hm-bar"><i></i><i></i><i></i><span>dentsu ${name}</span></div>
+          <div class="hm-body">
+            <div class="hm-side">${logoMark('hm-logo')}
+              <div class="hm-switch"><span class="hm-tile sw-blue">GM</span><span><small>Account</small><b>General Motors</b></span></div>
+              ${sideRow(0, `${ico('inbox')}My work <em>4</em>`)}${sideRow(2, `${ico('brief')}Briefs <em>5</em>`)}${sideRow(3, `${ico('campaign')}Campaign Tracker <em>2</em>`)}${sideRow(4, `${ico('chart')}Dashboard`)}
+              <p class="hd">Lists</p>${sideRow(1, `<s class="tx-red">#</s> To-Do <em>10</em>`)}
+              <p class="hd">Business</p>${sideRow(5, `${ico('grid')}All accounts <em>10</em>`)}</div>
+            <div class="hm-panes">${TOUR.map((t, i) => `<div class="hm-pane ${i ? '' : 'on'}" data-side="${t.side}" data-capt="${esc(t.capt)}">${t.html}</div>`).join('')}</div>
           </div>
         </div>
-        <p class="lp-capt" id="lp-capt">${esc(TOUR[0].capt)}</p>
+        <p class="h-capt" id="h-capt">${esc(TOUR[0].capt)}</p>
       </section>
 
-      <section class="lp-sec" id="lp-features">
-        <div class="lp-kicker rv">${ico('sparkle')}Features</div>
-        <h2 class="rv">Less chasing. More doing.</h2>
-        <p class="lp-lead rv">Hover a card to see it in action.</p>
-        <div class="lp-feats">
-          ${feat('t-pink', 'swap', 'Account switcher', 'Every client in one menu', 'Each client has its own account and logo. Brands and dealers sit underneath as sub-accounts.', PV_SWITCH)}
-          ${feat('t-purple', 'people', 'Access', 'Each team sees only its accounts', 'Admin, Editor or Viewer per team. Access to General Motors covers its brands and dealers too.', PV_ACCESS)}
-          ${feat('t-teal', 'inbox', 'Boards', 'A section per brand', 'Chevrolet, GMC, Cadillac, OnStar, ACDelco. Drag cards where they belong and repeat anything weekly or monthly.', PV_BOARD)}
-          ${feat('t-grey', 'brief', 'Briefs & workflow', 'Every request, every step', 'One template for every brief. Each step has an owner and an SLA, and the next person is told when it\'s their turn.', PV_FLOW)}
-          ${feat('t-blue', 'campaign', 'Campaign Tracker', 'Every flight at a glance', 'Status, pacing, creatives and weekly checks. Pause a platform mid-flight and keep the history.', PV_CAMP)}
-          ${feat('t-green', 'grid', 'Tools per account', 'Only what each client needs', 'Start with the essentials and switch on extras, like the notebook or team calendar, where they help.', PV_TOOLS)}
+      <section class="h-sec" id="features">
+        <div class="h-eyebrow rv">${ico('sparkle')}Features</div>
+        <h2 class="h-h2 rv d1">Less chasing. More doing.</h2>
+        <p class="h-lead rv d2">Hover a card to see it in action.</p>
+        <div class="h-feats">
+          ${feat('fc-red', 'inbox', 'Boards', 'A section per brand', 'Chevrolet, GMC, Cadillac, OnStar, ACDelco. Drag cards where they belong, and repeat anything daily, weekly or monthly.', PV_BOARD)}
+          ${feat('fc-orange', 'campaign', 'Campaign Tracker', 'Every flight at a glance', 'Status, pacing, creatives and weekly checks. Pause a platform mid-flight and keep the history.', PV_CAMP)}
+          ${feat('fc-yellow', 'brief', 'Briefs & workflow', 'Every request, every step', 'One template for every brief. Each step has an owner and an SLA, and the next person is told when it\'s their turn.', PV_FLOW)}
+          ${feat('fc-purple', 'swap', 'Accounts', 'Brands and dealers as sub-accounts', 'General Motors › GM Cadillac › Al Ghanim Cadillac. Switch between them like an ads manager.', PV_WS)}
+          ${feat('fc-blue', 'people', 'Access', 'Each team sees only its accounts', 'Admin, Editor or Viewer per team. Access to an account covers its sub-accounts, and owners can add other owners.', PV_ACC)}
         </div>
       </section>
 
-      <section class="lp-sec" id="lp-media">
-        <div class="lp-kicker rv">${ico('campaign')}Built for media performance</div>
-        <h2 class="rv">Made by a media team, for media teams.</h2>
-        <p class="lp-lead rv">Not a generic project tool with a marketing template. It knows what a flight, a pacing sheet and a weekly optimisation check are.</p>
-        <div class="lp-media">
-          ${media('gauge', 't-yellow', 'Pacing you can see', 'On track, under or over, flagged on every campaign, with the account\'s pacing sheet one click away.')}
-          ${media('okcircle', 't-green', 'Weekly checks that don\'t slip', 'Every live campaign asks for its optimisation check and keeps the history.')}
-          ${media('pause', 't-blue', 'Pause one platform, not the plan', 'Pause Snap while Meta keeps running. Every pause and resume is logged.')}
-          ${media('target', 't-purple', 'Objectives per platform', 'Only the objectives each platform really sells, from Reach to Leads to Conversions.')}
-          ${media('alert', 't-red', 'Needs attention, sorted', 'Late steps, missing creatives and checks due float to the top of Alerts.')}
-          ${media('chart', 't-pink', 'A dashboard for any period', 'Turnaround, SLAs, bottlenecks, campaigns live and platform mix.')}
+      <section class="h-sec" id="media">
+        <div class="h-eyebrow rv">${ico('campaign')}Built for media performance</div>
+        <h2 class="h-h2 rv d1">Made by a media team, for media teams.</h2>
+        <p class="h-lead rv d2">Not a generic project tool with a marketing template. It knows what a flight, a pacing sheet and a weekly optimisation check are.</p>
+        <div class="h-media">
+          ${media('gauge', 'yellow', 'Pacing you can see', 'Healthy, under, over or unstable, flagged on every card, with the account\'s pacing sheet one click away.', 1)}
+          ${media('okcircle', 'green', 'Weekly checks that don\'t slip', 'Every live campaign asks for its optimisation check and keeps the history.', 2)}
+          ${media('pause', 'blue', 'Pause one platform, not the plan', 'Pause Snap while Meta keeps running. Every pause and resume is logged.', 3)}
+          ${media('target', 'purple', 'Objectives per platform', 'Only the objectives each platform really sells, from Reach to Leads to Conversions.', 1)}
+          ${media('alert', 'red', 'Needs attention, sorted', 'Late steps, missing creatives and checks due float to the top.', 2)}
+          ${media('chart', 'pink', 'A dashboard for any period', 'Turnaround, SLAs, bottlenecks, campaigns live and platform mix.', 3)}
         </div>
-        <div class="lp-stats">
-          <div class="lp-stat rv"><b>${MARKETS.length}</b><span>markets across the GCC, Iraq and Egypt</span></div>
-          <div class="lp-stat rv"><b>${PLATFORMS.length}</b><span>platforms, each with its real objectives</span></div>
-          <div class="lp-stat rv"><b>${TOOLS.length}</b><span>tools you can switch on per account</span></div>
-          <div class="lp-stat rv"><b>30</b><span>days to restore anything you delete</span></div>
-        </div>
-      </section>
-
-      <section class="lp-sec" id="lp-how">
-        <div class="lp-kicker rv">${ico('flow')}How it works</div>
-        <h2 class="rv">Set up a client in three steps.</h2>
-        <ol class="lp-how">
-          <li class="rv"><span>01</span><h3>Create the account</h3><p>Name, logo and sector. Add brands, markets or dealers underneath as sub-accounts.</p></li>
-          <li class="rv"><span>02</span><h3>Give teams access</h3><p>Pick which teams can open it, as Admins, Editors or Viewers. Sub-accounts follow along.</p></li>
-          <li class="rv"><span>03</span><h3>Choose the tools</h3><p>Switch on what the account needs. The team starts briefing and tracking straight away.</p></li>
-        </ol>
-        <div class="lp-roles">
-          ${role('Owners & admins', 'Run the platform.', ['Add people, teams and accounts', 'See every account', 'Owners can add other owners'])}
-          ${role('Account admin', 'Runs one client account.', ['Sets who has access', 'Chooses the tools', 'Edits name and logo'])}
-          ${role('Editor', 'Does the client work.', ['Briefs and workflow steps', 'Tasks and campaigns', 'Notes and calendar'])}
-          ${role('Viewer', 'Keeps an eye on things.', ['Sees the whole account', 'Dashboards and alerts', 'Changes nothing'])}
+        <div class="h-stats">
+          <div class="h-stat rv d1"><b>${MARKETS.length}</b><span>markets across the GCC, Iraq and Egypt</span></div>
+          <div class="h-stat rv d2"><b>${PLATFORMS.length}</b><span>platforms, each with its real objectives</span></div>
+          <div class="h-stat rv d3"><b>${TOOLS.length}</b><span>tools you can switch on per account</span></div>
+          <div class="h-stat rv d4"><b>30</b><span>days to restore anything you delete</span></div>
         </div>
       </section>
 
-      <section class="lp-sec" id="lp-help">
-        <div class="lp-help rv">
-          <div><span class="lp-help-av">${ico('help')}</span><h2>Stuck? Ask.</h2>
-            <p class="lp-lead">Instant answers on using ${name}, access, and media maths like pacing and ROAS, with a button that takes you to the right page. It's built in and nothing you type leaves the browser. Press <kbd>?</kbd> anywhere.</p>
-            <div class="lp-cta left"><button class="lp-btn lp-accent" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>${signedIn ? '<button class="lp-btn lp-ghost" data-go="#/guide">Open the guide</button>' : ''}</div></div>
-          <div class="lp-chat" aria-hidden="true"><span class="q">How do I give my team access?</span>
-            <span class="a">Business settings → <b>People</b> to add them, then <b>Teams</b> to put them on the right team. Access to an account covers its sub-accounts.</span>
-            <span class="go">Open access ${arrow}</span>
-            <div class="chips"><span>What can Viewers do?</span><span>How do I calculate pacing?</span><span>What are sub-accounts?</span></div></div>
+      <section class="h-sec" id="guide">
+        <div class="h-guide rv">
+          <div>${doodle('note', { hair: 'bun', tint: 'purple', cls: 'h-guide-av' })}<h2 class="h-h2" style="font-size:clamp(28px,3.6vw,40px)">Stuck? Ask.</h2>
+            <p class="h-lead">Instant answers on using ${name}, access and sub-accounts, and media maths like pacing and ROAS, with a button that takes you to the right page. It's built in and works offline. Press <b>?</b> anywhere.</p>
+            <div class="h-cta" style="justify-content:flex-start"><button class="h-btn h-blue" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>${signedIn ? '<button class="h-btn h-ghost" data-go="#/guide">Open the guide</button>' : ''}</div></div>
+          <div class="h-chat rv d2" aria-hidden="true"><span class="q">How do I calculate pacing?</span>
+            <span class="a"><b>Pacing</b> = actual spend ÷ expected spend.<br>Expected spend = budget × days elapsed ÷ flight days. Around <code>95-105%</code> is on track.</span>
+            <div class="chips"><span>Under-pacing fixes</span><span>What are sub-accounts?</span><span>How do I add another owner?</span></div></div>
         </div>
       </section>
 
-      <section class="lp-sec" id="lp-faq">
-        <div class="lp-center"><div class="lp-kicker rv">${ico('help')}FAQ</div><h2 class="rv">Questions, answered.</h2></div>
-        <div class="lp-faq rv">${faq}</div>
-        <div class="lp-faq-more rv"><button class="lp-btn lp-ghost" data-guide-open>More answers ${arrow}</button></div>
+      <section class="h-sec" id="faq">
+        <div class="h-center"><div class="h-eyebrow rv">${ico('help')}FAQ</div><h2 class="h-h2 rv d1">Questions, answered.</h2></div>
+        <div class="h-faq rv d2">${faq}</div>
+        <div class="h-faq-more rv"><button class="h-btn h-ghost" data-guide-open>More answers ${ico('arrowRight', 'i-sm')}</button></div>
+      </section>
+
+      <section class="h-final" id="workspaces">
+        <div class="h-scene rv" aria-hidden="true">${mario('wave')}${joana('laptop')}${doodle('clip', { hair: 'bob', tint: 'blue', glasses: true })}${ground}</div>
+        <h2 class="rv d1">Bring your team in.</h2>
+        <p class="rv d2">${signedIn ? 'Add people in Business settings and give their team its accounts. Everything syncs live for everyone.' : 'Ask your business admin to add your work email, then sign in. Everything syncs live for your whole team.'}</p>
+        <div class="h-cta rv d3">${cta}</div>
       </section>
     </div>
-    <section class="lp-final">${heroArt()}<div class="lp-wrap">
-      <h2 class="rv">Bring every client into one place.</h2>
-      <p class="rv">${signedIn ? 'Your accounts are one click away.' : 'Ask your business admin to add your work email, then sign in.'}</p>
-      <div class="lp-cta rv">${signedIn ? `<button class="lp-btn lp-white" data-go="#/">Open my accounts ${arrow}</button>` : `<button class="lp-btn lp-white" data-home="in">Sign in ${arrow}</button><button class="lp-btn lp-outline" data-home="up">Create your login</button>`}</div>
-    </div></section>
-    <footer class="lp-foot"><div class="lp-wrap">
-      <div class="brandcol"><div class="lp-brand">${logoMark('lp-logo')}<span class="brand-sep"></span>${wordmark()}</div><span>Client work, one account at a time.</span><span class="mut">Build ${BUILD}</span></div>
-      <div><h6>Product</h6><a href="#lp-product" data-scroll>To-Do boards</a><a href="#lp-product" data-scroll>Accounts</a><a href="#lp-features" data-scroll>Features</a><a href="#lp-how" data-scroll>How it works</a></div>
-      <div><h6>Help</h6><button data-guide-open>Ask a question</button><button data-guide-open="m-pacing">Pacing formula</button><a href="#lp-faq" data-scroll>FAQ</a></div>
-      <div><h6>Account</h6>${signedIn ? '<button data-go="#/">Open my accounts</button>' : '<button data-home="in">Sign in</button><button data-home="up">Create your login</button>'}<button data-guide-open="s-who-sees">Privacy &amp; access</button></div>
+    <footer class="h-foot"><div class="h-wrap">
+      <div class="brandcol"><div class="h-brand">${logoMark('h-logo sm')}<span class="brand-sep"></span>${wordmark()}</div><span>The workspace for every client account.</span><span style="color:var(--faint);font-size:12.5px">Build ${BUILD}</span></div>
+      <div><h6>Product</h6><a href="#tour" data-scroll>To-Do boards</a><a href="#tour" data-scroll>Accounts</a><a href="#tour" data-scroll>Briefs</a><a href="#tour" data-scroll>Campaign Tracker</a></div>
+      <div><h6>Help</h6><button data-guide-open>Ask a question</button><a href="#faq" data-scroll>FAQ</a><button data-guide-open="m-pacing">Pacing formula</button></div>
+      <div><h6>Account</h6>${signedIn ? `<button data-go="#/">Open my accounts</button>` : `<button data-home="in">Sign in</button><button data-home="up">Create your login</button>`}<button data-guide-open="s-who-sees">Privacy &amp; access</button></div>
     </div></footer>
   </div>`;
 }
-const heroArt = () => `<svg class="lp-art" viewBox="0 0 1200 640" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
-  <line x1="1260" y1="-40" x2="720" y2="700" stroke="#F0BEBE" stroke-width="22"/><line x1="1300" y1="60" x2="860" y2="700" stroke="#646ED2" stroke-width="3"/>
-  <line x1="1130" y1="-40" x2="930" y2="700" stroke="#008287" stroke-width="2"/><line x1="990" y1="-40" x2="1240" y2="420" stroke="#FF5023" stroke-width="2"/>
-  <circle cx="1100" cy="70" r="30" class="dot"/><circle cx="930" cy="290" r="8" class="dot"/><circle cx="1040" cy="470" r="12" class="dot"/></svg>`;
-// The homepage comes alive once it's on the page: scroll reveal, the product tour and the theme switch.
+// The homepage comes alive after it's on the page: scroll reveal, the product tour and the theme switch.
 function homeEnhance() {
-  const home = $('.lp'); if (!home) return;
+  const home = $('.home'); if (!home) return;
   document.body.classList.add('on-home');
   const els = $$('.rv', home);
   if ('IntersectionObserver' in window) {
@@ -7330,18 +7377,18 @@ function homeEnhance() {
     els.forEach(el => io.observe(el));
   } else els.forEach(el => el.classList.add('in'));
   home.addEventListener('scroll', () => home.classList.toggle('scrolled', home.scrollTop > 8), { passive: true });
-  const tabs = $$('[data-tour]', home), panes = $$('.lpm-pane', home), capt = $('#lp-capt', home);
+  const tabs = $$('[data-tour]', home), panes = $$('.hm-pane', home), capt = $('#h-capt', home);
   let cur = 0, timer = null;
   const show = i => {
     cur = (i + tabs.length) % tabs.length;
     tabs.forEach((t, j) => { t.classList.toggle('on', j === cur); t.setAttribute('aria-selected', j === cur); const b = t.querySelector('.bar'); if (b) { b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; } });
     panes.forEach((p, j) => p.classList.toggle('on', j === cur));
-    $$('[data-lp-side]', home).forEach(p => p.classList.toggle('on', p.dataset.lpSide === panes[cur].dataset.side));
+    $$('[data-tour-side]', home).forEach(p => p.classList.toggle('on', p.dataset.tourSide === panes[cur].dataset.side));
     if (capt) capt.textContent = panes[cur].dataset.capt;
   };
-  const tick = () => { clearTimeout(timer); timer = setTimeout(() => { if (!document.body.contains(home)) return; if (!home.classList.contains('tour-paused')) show(cur + 1); tick(); }, 6500); };
+  const tick = () => { clearTimeout(timer); timer = setTimeout(() => { if (!document.body.contains(home)) return; if (!home.classList.contains('tour-paused')) show(cur + 1); tick(); }, 7000); };
   tabs.forEach((t, i) => t.addEventListener('click', () => { show(i); tick(); }));
-  const win = $('.lp-window', home);
+  const win = $('.h-window', home);
   if (win) { win.addEventListener('mouseenter', () => home.classList.add('tour-paused')); win.addEventListener('mouseleave', () => { home.classList.remove('tour-paused'); tick(); }); }
   show(0); tick();
   const th = $('[data-home-theme]', home);
@@ -7580,6 +7627,24 @@ async function bootLocal() {
   S.biz.ready = true;
   openBestAccount();
 }
+
+// A tab left open keeps running the version it loaded. Check now and then, and offer a reload when a newer one is live.
+let updLast = 0;
+function checkForUpdate() {
+  if (!/^https?:$/.test(location.protocol) || Date.now() - updLast < 4 * 60e3 || document.getElementById('upd-bar')) return;
+  updLast = Date.now();
+  fetch('app.js', { cache: 'no-cache' }).then(r => (r.ok ? r.text() : '')).then(t => {
+    const m = t.match(/const BUILD = '([^']+)'/); if (!m || m[1] === BUILD) return;
+    const bar = document.createElement('div'); bar.id = 'upd-bar'; bar.className = 'upd-bar';
+    bar.innerHTML = `<span>A new version of ${esc(CFG.appName || 'Ads Workspace')} is ready.</span><button class="btn btn-primary sm" data-upd>Reload</button><button class="icon-btn" data-upd-x title="Later">${ico('x')}</button>`;
+    bar.querySelector('[data-upd]').onclick = async () => { await Promise.all(['styles.css', 'index.html', 'config.js'].map(f => fetch(f, { cache: 'reload' }).catch(() => { }))); location.reload(); };
+    bar.querySelector('[data-upd-x]').onclick = () => bar.remove();
+    document.body.appendChild(bar);
+  }).catch(() => { });
+}
+setInterval(checkForUpdate, 15 * 60e3);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+setTimeout(checkForUpdate, 60e3);
 
 function boot() {
   console.info(`%c${CFG.appName || 'dentsu'} build ${BUILD}`, 'color:#646ED2;font-weight:700');
