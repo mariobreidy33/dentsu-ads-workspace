@@ -10,7 +10,7 @@ if (window.top !== window.self) {
 /* ===================== utilities ===================== */
 const CFG_MISSING = !window.APP_CONFIG;   // config.js didn't load: stop with a clear message instead of guessing
 const CFG = window.APP_CONFIG || {};
-const BUILD = '2026-11-19-clients';   // shown in Settings, so you can confirm which version is live
+const BUILD = '2026-11-19-gm';   // shown in Settings, so you can confirm which version is live
 // Firebase Web SDK, pinned to an exact version (updated from 10.12.2). If the CDN can't serve it,
 // the previous version is tried so the app still opens.
 const FB_VERSIONS = ['12.19.0', '10.12.2'];
@@ -654,7 +654,7 @@ window.addEventListener('resize', closeMenu);
 /* ===================== routing ===================== */
 function route() {
   const r = routeRaw();
-  if (r.view === 'accounts' || r.view === 'business') return r;
+  if (r.view === 'accounts' || r.view === 'business' || r.view === 'guide' || r.view === 'home') return r;
   if (!S.acc) return { view: 'accounts' };
   const tool = TOOL_OF_VIEW[r.view];
   if (tool && !toolOn(tool)) return { view: 'off', tool };
@@ -664,6 +664,8 @@ function routeRaw() {
   const h = location.hash.replace(/^#\/?/, '').split('/');
   if (h[0] === 'accounts') return { view: 'accounts' };
   if (h[0] === 'business') return { view: 'business' };
+  if (h[0] === 'guide') return { view: 'guide' };
+  if (h[0] === 'home') return { view: 'home' };
   if (h[0] === 'project' && S.data.projects[h[1]]) return S.data.projects[h[1]].kind === 'client' ? { view: 'client', id: h[1] } : { view: 'project', id: h[1] };
   if (h[0] === 'client' && S.data.projects[h[1]] && S.data.projects[h[1]].kind === 'client') return { view: 'client', id: h[1] };
   if (h[0] === 'clients') return { view: 'clients' };
@@ -720,6 +722,10 @@ function render(opts = {}) {
   // the sidebar and its counts don't change, so there's no reason to rebuild them.
   const main = $('.main');
   document.body.classList.toggle('view-only', !!S.acc && S.accRole === 'viewer');
+  if (r.view === 'home') {   // the homepage only repaints when you arrive on it (data changes don't restart its animations)
+    if (routeChanged || !$('#root .lp')) { $('#root').innerHTML = homeHTML(true); document.title = 'dentsu ' + (CFG.appName || 'Ads Workspace'); homeEnhance(); }
+    return;
+  }
   if (opts.mainOnly && main && !routeChanged) main.innerHTML = renderMain(r);
   else $('#root').innerHTML = `<div id="app">${renderSidebar(r)}<div class="scrim" data-action="close-nav"></div><main class="main">${renderMain(r)}</main></div>`;
 
@@ -739,9 +745,11 @@ function render(opts = {}) {
     const es = $('.nb-scroll'); if (es && !routeChanged) es.scrollTop = edScroll;
   }
   if (S.drawerPaint) S.drawerPaint();
+  document.body.classList.remove('on-home');
+  guideFab();
 
   document.title = (['project', 'client'].includes(r.view) ? S.data.projects[r.id]?.name + ' – ' : r.view === 'brief' ? `${S.data.briefs[r.id]?.ref || ''} ${S.data.briefs[r.id]?.title || 'Brief'} – ` : { today: 'Today – ', upcoming: 'Upcoming – ', campaigns: 'Campaign Tracker – ', archive: 'Archive – ', dashboard: 'Dashboard – ', notes: (r.id && S.data.notes[r.id] ? (S.data.notes[r.id].title || 'Untitled') + ' – ' : 'Notebook – '), trash: 'Recently deleted – ',
-    clients: 'Brands – ', briefs: 'Briefs – ', mywork: 'My work – ', tasks: 'All tasks – ', alerts: 'Alerts – ', activity: 'Activity log – ', accounts: 'All accounts – ', business: 'Business settings – ' }[r.view] || '') + (S.acc && !['accounts', 'business'].includes(r.view) ? S.acc.name + ' – ' : '') + 'dentsu ' + (CFG.appName || 'Ads Workspace');
+    clients: 'Brands – ', briefs: 'Briefs – ', mywork: 'My work – ', tasks: 'All tasks – ', alerts: 'Alerts – ', activity: 'Activity log – ', accounts: 'All accounts – ', business: 'Business settings – ', guide: 'Guide – ' }[r.view] || '') + (S.acc && !['accounts', 'business', 'guide'].includes(r.view) ? S.acc.name + ' – ' : '') + 'dentsu ' + (CFG.appName || 'Ads Workspace');
 }
 
 
@@ -780,43 +788,49 @@ function renderSidebar(r) {
   const foot = `<div class="side-foot">${S.mode === 'local'
       ? `<div class="mode-note"><b>Local mode</b> — saved in this browser only${userEmail() !== S.biz.owner ? ` · viewing as <b>${esc(u.name)}</b>` : ''}. Add your Firebase config (see SETUP) to share it with your team.</div>`
       : `<div class="mode-note">Synced · ${esc(S.user?.email || '')}</div>`}</div>`;
-  if (!S.acc) return `<aside class="sidebar">${top}${business}${foot}</aside>`;
+  if (!S.acc) return `<aside class="sidebar">${top}${business}<div class="side-group side-help">${nav('guide', '#/guide', 'help', 'Guide &amp; help')}</div>${foot}</aside>`;
   const today = todayKey();
   const todayCount = activeTasks().filter(t => t.due && t.due <= today).length;
   const counts = {}; activeTasks().forEach(t => counts[t.projectId] = (counts[t.projectId] || 0) + 1);
   const archN = archivedProjects().length + archivedSections().length + archivedTasks().length + Object.values(S.data.accounts).filter(a => a.archived).length + Object.values(S.data.campaigns).filter(c => c.archived).length;
   const trashN = trashGroups().length;
   const edit = canEditAcc();
-  const workItems = [
-    toolOn('briefs') ? nav(r.view === 'brief' ? 'brief' : 'briefs', '#/briefs', 'brief', 'Briefs', cnt(activeBriefs().length)).replace('nav-item ', `nav-item ${['briefs', 'brief'].includes(r.view) ? 'active ' : ''}`) : '',
-    toolOn('brands') ? nav('clients', '#/clients', 'client', 'Brands', cnt(clients().length)) + clients().filter(h => h.pinned).map(h => `<button class="nav-item sub ${r.view === 'client' && r.id === h.id ? 'active' : ''}" data-go="#/client/${h.id}"><span class="hash tx-${esc(h.color || 'teal')}">${ico('pin', 'i-sm')}</span><span class="lbl">${esc(h.name)}</span></button>`).join('') : '',
+  const brandItems = toolOn('brands') ? nav('clients', '#/clients', 'client', 'Brands', cnt(clients().length)) + clients().filter(h => h.pinned).map(h => `<button class="nav-item sub ${r.view === 'client' && r.id === h.id ? 'active' : ''}" data-go="#/client/${h.id}"><span class="hash tx-${esc(h.color || 'teal')}">${ico('pin', 'i-sm')}</span><span class="lbl">${esc(h.name)}</span></button>`).join('') : '';
+  // the daily tools stay in view; everything else folds into "More"
+  const more = [
+    toolOn('lists') ? nav('today', '#/today', 'today', 'Today', cnt(todayCount)) : '',
+    brandItems,
     toolOn('tasks') ? nav('tasks', '#/tasks', 'tag', 'All tasks &amp; labels') : '',
-    toolOn('campaigns') ? nav('campaigns', '#/campaigns', 'campaign', 'Campaign Tracker', (() => { const n = attentionCount(); return n ? `<span class="cnt" title="${n} campaign${n === 1 ? '' : 's'} need attention">${n}</span>` : ''; })()) : '',
+    toolOn('notes') ? nav('notes', '#/notes', 'notebook', 'Notebook', cnt(Object.keys(S.data.notes).length)) : '',
     toolOn('activity') ? nav('activity', '#/activity', 'history', 'Activity log') : '',
+    nav('archive', '#/archive', 'archive', 'Archive', cnt(archN)),
+    nav('trash', '#/trash', 'trash', 'Recently deleted', cnt(trashN)),
   ].join('');
+  const moreOpen = lsGet('tb:sideMore') === '1' || ['today', 'clients', 'client', 'tasks', 'notes', 'activity', 'archive', 'trash'].includes(r.view);
   return `<aside class="sidebar">
     ${top}
-    ${edit && (toolOn('lists') || toolOn('briefs')) ? `<div class="side-actions">${toolOn('lists') ? `<button class="add-task-btn" data-action="quick-add"><span class="plus">${ico('plus')}</span>Add task</button>` : ''}
-      ${toolOn('briefs') ? `<button class="add-task-btn brief-btn" data-action="br-new" title="New brief">${ico('brief')}Brief</button>` : ''}</div>` : `<div class="side-actions view-note">${S.accRole === 'viewer' ? `${ico('eye', 'i-sm')} View only` : ''}</div>`}
+    ${edit && (toolOn('lists') || toolOn('briefs')) ? `<div class="side-actions">${toolOn('briefs') ? `<button class="add-task-btn brief-btn" data-action="br-new" title="New brief">${ico('brief')}New brief</button>` : ''}
+      ${toolOn('lists') ? `<button class="add-task-btn" data-action="quick-add" title="Add task (Q)"><span class="plus">${ico('plus')}</span>Task</button>` : ''}</div>` : `<div class="side-actions view-note">${S.accRole === 'viewer' ? `${ico('eye', 'i-sm')} View only` : ''}</div>`}
     <button class="nav-item" data-action="search">${ico('search')}<span class="lbl">Search</span></button>
     ${toolOn('mywork') ? nav('mywork', '#/mywork', 'inbox', 'My work', cnt(myWorkCount())) : ''}
-    ${toolOn('lists') ? nav('today', '#/today', 'today', 'Today', cnt(todayCount)) + nav('upcoming', '#/upcoming', 'upcoming', 'Upcoming') : ''}
+    ${toolOn('briefs') ? nav(r.view === 'brief' ? 'brief' : 'briefs', '#/briefs', 'brief', 'Briefs', cnt(activeBriefs().length)).replace('nav-item ', `nav-item ${['briefs', 'brief'].includes(r.view) ? 'active ' : ''}`) : ''}
+    ${toolOn('campaigns') ? nav('campaigns', '#/campaigns', 'campaign', 'Campaign Tracker', (() => { const n = attentionCount(); return n ? `<span class="cnt" title="${n} campaign${n === 1 ? '' : 's'} need attention">${n}</span>` : ''; })()) : ''}
     ${toolOn('alerts') ? nav('alerts', '#/alerts', 'bell', 'Alerts', (() => { const a = alertCounts(); return a.n ? `<span class="cnt al-cnt ${a.crit ? 'crit' : ''}" title="${a.crit} critical · ${a.n - a.crit} warnings">${a.n}</span>` : ''; })()) : ''}
+    ${toolOn('lists') ? nav('upcoming', '#/upcoming', 'upcoming', 'Upcoming') : ''}
     ${toolOn('dashboard') ? nav('dashboard', '#/dashboard', 'chart', 'Dashboard') : ''}
-    ${workItems ? `<div class="side-group"><div class="side-group-head"><span>Client work</span></div>${workItems}</div>` : ''}
-    ${toolOn('lists') || toolOn('notes') ? `<div class="side-group">
-      ${toolOn('lists') ? `<div class="side-group-head"><span>Projects</span>${edit ? `<button class="icon-btn" data-action="add-project" title="Add list">${ico('plus')}</button>` : ''}</div>
+    ${toolOn('lists') ? `<div class="side-group">
+      <div class="side-group-head"><span>Lists</span>${edit ? `<button class="icon-btn" data-action="add-project" title="Add list">${ico('plus')}</button>` : ''}</div>
       ${projects().map(p => `<div class="proj-item" data-proj="${p.id}">
         <button class="nav-item ${r.view === 'project' && r.id === p.id ? 'active' : ''}" data-go="#/project/${p.id}"><span class="hash tx-${esc(p.color || 'grey')}">#</span><span class="lbl">${esc(p.name)}</span><span class="cnt">${counts[p.id] || ''}</span></button>
         ${edit ? `<button class="icon-btn more" data-action="project-menu" data-id="${p.id}" title="More">${ico('dots')}</button>` : ''}
-      </div>`).join('') || '<div class="mode-note" style="border:0">No lists yet.</div>'}` : '<div class="side-group-head"><span>Projects</span></div>'}
-      ${toolOn('notes') ? nav('notes', '#/notes', 'notebook', 'Notebook', cnt(Object.keys(S.data.notes).length)) : ''}
+      </div>`).join('') || '<div class="mode-note" style="border:0">No lists yet.</div>'}
     </div>` : ''}
-    ${business}
-    <div class="side-group side-tools">
-      <button class="nav-item ${r.view === 'archive' ? 'active' : ''}" data-go="#/archive">${ico('archive')}<span class="lbl">Archive</span><span class="cnt">${archN || ''}</span></button>
-      <button class="nav-item ${r.view === 'trash' ? 'active' : ''}" data-go="#/trash">${ico('trash')}<span class="lbl">Recently deleted</span><span class="cnt">${trashN || ''}</span></button>
+    <div class="side-group side-more ${moreOpen ? 'open' : ''}">
+      <button class="side-group-head side-more-btn" data-action="side-more" aria-expanded="${moreOpen}"><span>More</span>${ico('down', 'i-sm')}</button>
+      <div class="side-more-body">${more}</div>
     </div>
+    ${business}
+    <div class="side-group side-help">${nav('guide', '#/guide', 'help', 'Guide &amp; help')}</div>
     ${foot}
   </aside>`;
 }
@@ -824,13 +838,14 @@ function renderSidebar(r) {
 function renderMain(r) {
   if (r.view === 'accounts') return renderAccounts();
   if (r.view === 'business') return renderBusiness();
+  if (r.view === 'guide') return renderGuide();
   if (r.view === 'off') return topbar('') + `<div class="content"><div class="page-head"><h1>${esc(toolName(r.tool))}</h1></div><div class="ct-empty">${ico('block')}<br><b>${esc(toolName(r.tool))}</b> is switched off for ${esc(S.acc ? S.acc.name : 'this account')}.<br>${canAdminAcc() ? '<br><button class="btn btn-primary" data-action="acc-tools">Choose tools for this account</button>' : 'An account admin can switch it on in Account settings → Tools.'}</div></div>`;
   if (r.view === 'project') return renderProject(S.data.projects[r.id]);
   if (r.view === 'client') return renderClient(S.data.projects[r.id]);
   if (r.view === 'clients') return renderClients();
   if (r.view === 'briefs') return renderBriefs();
   if (r.view === 'brief') return renderBrief(S.data.briefs[r.id]);
-  if (r.view === 'mywork') return renderMyWork();
+  if (r.view === 'mywork') { lsSet('tb:seenMyWork', '1'); return renderMyWork(); }
   if (r.view === 'tasks') return renderAllTasks();
   if (r.view === 'alerts') return renderAlerts();
   if (r.view === 'activity') return renderActivity();
@@ -2085,12 +2100,15 @@ const ACTIONS = {
   'close-nav': () => document.body.classList.remove('nav-open'),
   'quick-add': a => openTask(null, { due: a.dataset.due, projectId: curProjectId() }),
   'search': () => openSearch(),
+  'side-more': () => { const g = document.querySelector('.side-more'); const open = !g.classList.contains('open'); g.classList.toggle('open', open); g.querySelector('.side-more-btn').setAttribute('aria-expanded', open); lsSet('tb:sideMore', open ? '1' : '0'); },
   'open-settings': () => openSettings(),
   'user-menu': a => openMenu(a, [
     { title: `${(S.user && S.user.name) || 'Me'}${S.user && S.user.email && S.mode === 'cloud' ? ' · ' + S.user.email : ''}` },
     ...(S.acc ? [{ label: 'Account settings', icon: 'gear', onClick: openSettings }] : []),
     ...(isBizAdmin() ? [{ label: 'Business settings', icon: 'people', onClick: () => go('#/business') }] : []),
     { label: document.documentElement.dataset.theme === 'dark' ? 'Light theme' : 'Dark theme', icon: 'moon', onClick: toggleTheme },
+    { label: 'Guide & help', icon: 'help', onClick: () => go('#/guide') },
+    { label: 'Home page', icon: 'sidebar', onClick: () => go('#/home') },
     { label: 'Export backup', icon: 'download', onClick: exportData },
     ...(S.mode === 'cloud' ? ['-', { label: 'Sign out', icon: 'out', onClick: () => S.signOut && S.signOut() }] : []),
   ]),
@@ -2196,7 +2214,8 @@ const ACTIONS = {
   'join-team': async () => { const em = userEmail(); if (!em || personByEmail(em)) return; const m = S.biz.members[em] || {};
     await saveSettings({ people: [...people(), { id: uid(), name: m.name || (S.user && S.user.name) || em.split('@')[0], email: em, role: rolesList().includes(m.jobRole) ? m.jobRole : '', color: m.color || 'red' }] }); toast('You’re on the team'); },
   'bz-tab': a => { S.bz.tab = a.dataset.t; render({ mainOnly: true }); },
-  'bz-sample-load': () => loadSampleBusiness(),
+  'gd-biz': a => { S.bz.tab = a.dataset.t; go('#/business'); },
+  'bz-sample-load': () => openSampleDialog(),
   'bz-sample-clear': () => clearSampleBusiness(),
   'db-view': a => { S.db.view = a.dataset.v; lsSet('tb:db', JSON.stringify(S.db)); render({ mainOnly: true }); },
   'db-acc': a => { S.ct.account = a.dataset.id; lsSet('tb:ctAccount', a.dataset.id); go('#/campaigns'); },
@@ -2873,7 +2892,7 @@ function accountSettingsHTML() {
       ${admin ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn sm" data-accedit>${ico('pencil', 'i-sm')} Name, logo &amp; colour</button><button class="btn sm" data-accaccess>${ico('people', 'i-sm')} Access · ${plural((a.memberEmails || []).length, 'person', 'people')}</button></div>` : ''}</div></div>
     <div class="set-h" data-sec="tools">${ico('grid')} Tools</div>
     <p class="set-p">${admin ? 'Switch tools on or off for everyone in this account. Nothing is deleted when a tool is off — switch it back on and everything is still there.' : 'The tools an account admin has switched on here.'}</p>
-    ${admin ? toolsGrid(a.modules || {}) : `<div class="chips">${TOOLS.filter(t => toolOn(t[0])).map(t => `<span class="tag">${esc(t[1])}</span>`).join('')}</div>`}`;
+    ${admin ? toolPresets() + toolsGrid(a.modules || {}) : `<div class="chips">${TOOLS.filter(t => toolOn(t[0])).map(t => `<span class="tag">${esc(t[1])}</span>`).join('')}</div>`}`;
 }
 function openSettings(focus) {
   const w = openModal(`<div class="modal-head"><h2>Account settings${S.acc ? ` · ${esc(S.acc.name)}` : ''}</h2><button class="icon-btn" data-x>${ico('x')}</button></div><div class="modal-body" data-body style="max-height:70vh;overflow:auto"></div>
@@ -2932,6 +2951,13 @@ function openSettings(focus) {
   });
   body.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.preset && S.acc && canAdminAcc()) {
+      const modules = presetModules(b.dataset.preset === 'all');
+      await bizApi.patchAccount(S.acc.id, { modules, updatedAt: Date.now() });
+      audit('tools_changed', b.dataset.preset === 'all' ? 'All tools on' : 'Essentials only');
+      $$('[data-tool]', body).forEach(c => { c.checked = modules[c.dataset.tool] !== false; c.closest('.tool-tile').classList.toggle('on', c.checked); });
+      return;
+    }
     if ('accedit' in b.dataset) { w.close(); openAccountForm(S.acc.id); }
     if ('accaccess' in b.dataset) { w.close(); openAccessModal(S.acc.id); }
     if ('addall' in b.dataset) {
@@ -5585,120 +5611,84 @@ function clientSettingsWire(body, draw) {
    each account. Everything is tagged demo:true and comes out with one click
    (Business settings → Sample data).
    ===================================================================== */
-const DEMO_PEOPLE = [   // name, job role, colour, business role
-  ['Sara Haddad', 'Account Lead', 'red', 'admin'], ['Omar Khalil', 'Media Planner', 'blue', 'member'], ['Karim Aziz', 'Paid Search', 'orange', 'member'],
-  ['Lina Farah', 'Paid Social', 'purple', 'member'], ['Nour Saad', 'Account Lead', 'pink', 'member'], ['Ziad Mansour', 'Account Lead', 'teal', 'member'],
-  ['Dana Khoury', 'Media Planner', 'yellow', 'member'], ['Maya Saleh', 'Creative', 'pink', 'member'], ['Rami Nassar', 'Analytics', 'green', 'member'],
-  ['Hala Youssef', 'Head of Performance', 'grey', 'member'],
+const DEMO_PEOPLE = [   // name, job role, colour, business role, seat on the GM team (the loader can put real names in these seats)
+  ['Sara Haddad', 'Account Lead', 'red', 'admin', 'lead'],
+  ['Karim Aziz', 'Paid Search', 'orange', 'member', 'gm1'], ['Lina Farah', 'Paid Social', 'purple', 'member', 'gm2'], ['Omar Khalil', 'Media Planner', 'blue', 'member', 'gm3'],
+  ['Rami Nassar', 'Analytics', 'green', 'member', 'gm4'], ['Maya Saleh', 'Creative', 'pink', 'member', 'gm5'],
+  ['Nour Saad', 'Account Lead', 'teal', 'member', ''], ['Dana Khoury', 'Media Planner', 'yellow', 'member', ''], ['Ziad Mansour', 'Paid Social', 'orange', 'member', ''],
+  ['Hala Youssef', 'Head of Performance', 'grey', 'member', ''],
 ];
-const DEMO_TEAMS = [   // id, name, colour, first names
-  ['demo-tm-auto', 'Automotive team', 'red', ['Sara', 'Omar', 'Karim', 'Lina']],
-  ['demo-tm-retail', 'Retail & lifestyle team', 'purple', ['Nour', 'Lina', 'Dana']],
-  ['demo-tm-prop', 'Property & finance team', 'teal', ['Ziad', 'Karim', 'Dana']],
-  ['demo-tm-creative', 'Creative studio', 'pink', ['Maya']],
-  ['demo-tm-data', 'Data & analytics', 'green', ['Rami']],
+const DEMO_GM_SEATS = ['gm1', 'gm2', 'gm3', 'gm4', 'gm5'];
+const DEMO_TEAMS = [   // id, name, colour, seats or first names
+  ['demo-tm-gm', 'GM team', 'blue', ['lead', 'gm1', 'gm2', 'gm3', 'gm4', 'gm5']],
+  ['demo-tm-retail', 'Retail & FMCG team', 'purple', ['Nour', 'Dana', 'Ziad']],
   ['demo-tm-lead', 'Leadership', 'grey', ['Hala']],
 ];
-// Simple invented marks for the invented clients (SVG, stored on each account like an uploaded logo).
+// Only the agency's own account gets a drawn mark; client accounts show their initials until a real logo is uploaded.
 function demoLogo(kind, bg, fg) {
-  const g = {
-    chevron: `<path d="M30 86V34l30 30 30-30v52" fill="none" stroke="${fg}" stroke-width="12" stroke-linejoin="miter"/>`,
-    peak: `<path d="M24 88 60 28l36 60Z" fill="${fg}"/><path d="M48 88 60 66l12 22Z" fill="${bg}"/>`,
-    arches: `<path d="M26 90V58a14 14 0 0 1 28 0v32M66 90V58a14 14 0 0 1 28 0v32" fill="none" stroke="${fg}" stroke-width="9"/><path d="M20 90h80" stroke="${fg}" stroke-width="6"/>`,
-    sun: `<circle cx="60" cy="60" r="20" fill="${fg}"/>${[0, 45, 90, 135, 180, 225, 270, 315].map(a => `<rect x="57" y="18" width="6" height="14" fill="${fg}" transform="rotate(${a} 60 60)"/>`).join('')}`,
-    waves: `<path d="M22 50q9.5-10 19 0t19 0 19 0 19 0M22 68q9.5-10 19 0t19 0 19 0 19 0M22 86q9.5-10 19 0t19 0 19 0 19 0" fill="none" stroke="${fg}" stroke-width="6"/><circle cx="60" cy="30" r="7" fill="${fg}"/>`,
-    path: `<path d="M30 92c10-30 40-26 46-50 3-12-4-18-12-18" fill="none" stroke="${fg}" stroke-width="10" stroke-linecap="round"/><circle cx="84" cy="30" r="9" fill="${fg}"/>`,
-    dentsu: `<g transform="translate(14 50) scale(1.15)"><path fill="${fg}" d="${DENTSU_D}"/></g>`,
-  }[kind];
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${bg}"/>${g}</svg>`);
+  if (kind !== 'dentsu') return '';
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${bg}"/><g transform="translate(14 50) scale(1.15)"><path fill="${fg}" d="${DENTSU_D}"/></g></svg>`);
 }
 // One entry per account: who can get in, which tools are on, and what's inside.
 // briefs: [title, type, brand indexes, days ago submitted, steps done, time used vs SLA per step, status, working days to go-live, extra fields]
 const DEMO_ACCOUNTS = [
-  { key: 'nwm', name: 'Northwind Motors', sector: 'Automotive', color: 'red', logo: ['chevron', '#323232', '#FFFFFF'],
-    teams: { 'demo-tm-auto': 'editor', 'demo-tm-creative': 'editor', 'demo-tm-data': 'editor', 'demo-tm-lead': 'viewer' }, people: { 'sara': 'admin' },
-    brands: [['Northwind SUVs', 'Northwind Group', 'Automotive', 'UAE, KSA', 'Brand manager'], ['Northwind Pickups', 'Northwind Group', 'Automotive', 'UAE, KSA, Qatar', ''], ['Northwind Service', 'Northwind Group', 'Automotive', 'UAE', 'Aftersales lead']],
+  { key: 'gm', name: 'General Motors', sector: 'Automotive', color: 'blue', logo: ['', '', ''],
+    teams: { 'demo-tm-gm': 'editor', 'demo-tm-lead': 'viewer' }, people: { lead: 'admin' },
+    brands: [['Chevrolet', 'General Motors', 'Automotive', 'UAE, KSA, Kuwait', 'Brand manager'], ['GMC', 'General Motors', 'Automotive', 'UAE, KSA, Kuwait, Qatar', 'Brand manager'], ['Cadillac', 'General Motors', 'Automotive', 'GCC', 'Brand manager']],
     briefs: [
-      ['Summer Service Campaign', 'Tactical / promotion', [2], 62, 10, [0.8, 0.9, 2.4, 0.7, 1.3, 0.8, 0.9, 0.8, 0.9, 1], 'Completed', 21],
-      ['New SUV Range Launch', 'Launch', [0], 47, 9, [0.7, 1, 2.2, 0.8, 1.2, 0.7, 1, 0.8, 0.9], 'Live', 20],
-      ['Year-End Sales Event — 0% finance', 'Tactical / promotion', [0, 1], 27, 9, [0.8, 0.9, 1.6, 0.8, 1.2, 0.9, 1, 0.8, 1], 'Live', 19, {
-        objective: 'Leads', kpis: '900 test-drive leads · CPL ≤ AED 250 · 3% lead-to-sale', budget: 60000, markets: ['UAE', 'KSA'], platforms: ['Search', 'Meta', 'TikTok'],
-        audience: 'In-market buyers researching SUVs and pickups, plus people who enquired in the last 90 days.',
-        offer: '0% finance for 36 months and 3 years free service on selected models. Valid until 31 December; subject to bank approval.',
+      ['Chevrolet Summer Service Campaign', 'Tactical / promotion', [0], 62, 10, [0.8, 0.9, 2.4, 0.7, 1.3, 0.8, 0.9, 0.8, 0.9, 1], 'Completed', 21],
+      ['Cadillac Escalade IQ launch', 'Launch', [2], 47, 9, [0.7, 1, 2.2, 0.8, 1.2, 0.7, 1, 0.8, 0.9], 'Live', 20],
+      ['Chevrolet Year-End Sales Event', 'Tactical / promotion', [0], 27, 9, [0.8, 0.9, 1.6, 0.8, 1.2, 0.9, 1, 0.8, 1], 'Live', 19, {
+        objective: 'Leads', kpis: 'Test-drive leads and HVBs · CPL and cost per HVB vs Q3', markets: ['UAE', 'KSA'], platforms: ['Search', 'Meta', 'Snap', 'TikTok'],
+        audience: 'In-market SUV and pickup buyers, plus people who enquired in the last 90 days.',
+        offer: 'Year-end finance offer and free service package on selected models. Terms from the client brief.',
         promo: '', cta: 'Book a test drive', message: 'The best deal of the year ends 31 December.', landingUrl: 'https://www.example.com/year-end-offer',
-        creative: 'Search RSAs in English and Arabic with model sitelinks; Meta 1:1 and 9:16 lead-form ads; TikTok 9:16 15s video.',
-        notes: 'Campaign names follow the client naming convention. Lead forms post to the client CRM — QA the hand-off before launch.', campaignName: 'NWM_YearEnd_Leads',
-        objectives: { Search: ['Lead Generation'], Meta: ['Lead Generation'], TikTok: ['Lead Generation'] } }],
-      ['Pickup Fleet Sales — Always-on', 'Always-on', [1], 24, 6, [0.8, 0.9, 2.6, 0.8, 1.5, 0.9], 'In progress', 21],
-      ['Ramadan 2027 Offers', 'Seasonal', [0, 1, 2], 1, 0, [], 'Submitted', 20],
-      ['Brand Awareness — Q1 2027', 'Brand awareness', [0], 0, 0, [], 'Draft', 22],
+        creative: 'Search RSAs in English and Arabic; Meta and Snap lead-form ads 1:1 and 9:16; TikTok 9:16 15s.',
+        notes: 'Leads are counted in the client CRM — platform numbers are indicative. Frequency cap 3 above 3.5 on social.', campaignName: 'CHEV_YearEnd_Leads',
+        objectives: { Search: ['Lead Generation'], Meta: ['Lead Generation'], Snap: ['Lead Generation'], TikTok: ['Traffic'] } }],
+      ['GMC Yukon — Search conquest', 'Always-on', [1], 24, 6, [0.8, 0.9, 2.6, 0.8, 1.5, 0.9], 'In progress', 21],
+      ['Ramadan 2027 offers — all brands', 'Seasonal', [0, 1, 2], 1, 0, [], 'Submitted', 20],
+      ['2027 platform recommendations', 'Reporting / analysis', [0, 1], 0, 0, [], 'Draft', 22],
     ],
-    tasks: [[0, 'Upload new model photos to the asset library', 'lb-creative', -3, 'Creative'], [0, 'Confirm year-end offer terms with the client', 'lb-client', 2, 'Account Lead'],
-      [1, 'Fix lead-form tracking on the fleet page', 'lb-tracking', -1, 'Analytics'], [2, 'Monthly service report — October', 'lb-report', 4, 'Analytics'], [1, 'Add new model sitelinks to brand search', 'lb-setup', 1, 'Paid Search']],
-    todos: [['Send the Q4 performance deck to the client', 'lb-report', 2, 'Account Lead'], ['Weekly pacing check — all live campaigns', 'lb-setup', 0, 'Media Planner', { type: 'weekly', every: 1 }],
-      ['Update the UTM naming sheet with the year-end campaigns', 'lb-tracking', 0, 'Analytics'], ['Draft the Q1 2027 media plan for review', 'lb-plan', 12, 'Media Planner']],
-    notes: [['Year-End Sales Event — channel plan', true, `<h2>Objective</h2><p>Drive test-drive leads for the year-end 0% finance offer.</p>
-      <h2>Channels</h2><ul><li><b>Search:</b> model + "offer" terms per market, sitelinks per model</li><li><b>Meta:</b> lead-form ads to in-market audiences; retargeting site visitors 30 days</li><li><b>TikTok:</b> 15s 9:16 video to 25–44 in-market audiences</li></ul>
-      <h2>Budget split</h2><p>Search 45% · Meta 35% · TikTok 20%</p><h2>Open questions</h2><ul class="nb-check"><li>Which models are excluded from the finance offer?</li><li>Lead hand-off time agreed with the client call centre</li></ul>`]] },
-  { key: 'alt', name: 'Altavia Cars', sector: 'Automotive', color: 'purple', logo: ['peak', '#FFFFFF', '#646ED2'],
-    teams: { 'demo-tm-auto': 'editor', 'demo-tm-creative': 'editor', 'demo-tm-data': 'editor', 'demo-tm-lead': 'viewer' },
-    brands: [['Altavia Sedans', '', 'Automotive', 'UAE', 'Brand manager'], ['Altavia Certified Pre-owned', '', 'Automotive', 'UAE', '']],
+    tasks: [[0, 'Refresh Chevrolet RSAs (EN/AR)', 'lb-creative', 2, 'Paid Search'], [0, 'Weekly dealer search report', 'lb-report', 0, 'Paid Search'],
+      [1, 'Pixel QA on the brand landing pages', 'lb-tracking', -1, 'Analytics'], [2, 'Monthly Cadillac brand & retail report', 'lb-report', 4, 'Analytics'], [1, 'Frequency check on paid social', 'lb-setup', 1, 'Paid Social']],
+    todos: [['Monthly performance deck for the client', 'lb-report', 3, 'Account Lead'], ['Weekly pacing check — all live campaigns', 'lb-setup', 0, 'Media Planner', { type: 'weekly', every: 1 }],
+      ['Search pacing sheet update', 'lb-tracking', 1, 'Paid Search'], ['Draft the Q1 2027 media plans', 'lb-plan', 12, 'Media Planner']],
+    notes: [['Year-End Sales Event — channel plan', true, `<h2>Objective</h2><p>Drive test-drive leads and high-value behaviours for the year-end offer.</p>
+      <h2>Channels</h2><ul><li><b>Search:</b> model and offer terms per market; conquest kept separate per brand</li><li><b>Meta & Snap:</b> lead-form ads to in-market audiences</li><li><b>TikTok:</b> 15s 9:16 to drive site visits</li></ul>
+      <h2>Reporting</h2><ul class="nb-check"><li data-done="1">Leads from the client CRM, not platform counts</li><li>HVBs and cost per HVB next to leads and CPL</li></ul>`]] },
+  { key: 'sid', name: 'Siddiqi', sector: 'Luxury retail', color: 'grey', logo: ['', '', ''],
+    teams: { 'demo-tm-retail': 'editor', 'demo-tm-lead': 'viewer' }, modules: { calendar: false, tasks: false },
+    brands: [['Boutiques', 'Siddiqi', 'Luxury retail', 'UAE', 'Marketing manager'], ['Online store', 'Siddiqi', 'Luxury retail', 'UAE, GCC', 'E-commerce manager']],
     briefs: [
-      ['Test Drive Weekend', 'Event', [0], 40, 9, [0.9, 0.9, 3.2, 0.9, 1.9, 0.8, 1, 0.9, 1], 'Live', 17],
-      ['Certified Pre-owned Push', 'Lead generation', [1], 17, 4, [0.9, 1, 2.1, 0.8], 'In progress', 18],
+      ['Watch week — boutique events', 'Event', [0], 36, 9, [0.9, 0.9, 2.8, 0.9, 1.7, 0.8, 1, 0.9, 1], 'Live', 17],
+      ['Ramadan gifting', 'Seasonal', [0, 1], 11, 2, [0.7, 1.2], 'In progress', 12],
+      ['New boutique opening', 'Launch', [0], 1, 0, [], 'Submitted', 18],
     ],
-    tasks: [[0, 'Arabic copy for the test-drive weekend', 'lb-creative', 1, 'Creative'], [1, 'Refresh the pre-owned inventory feed', 'lb-setup', -2, 'Paid Search']],
-    todos: [['Quarterly review deck for the client', 'lb-report', 7, 'Account Lead']], notes: [] },
-  { key: 'cor', name: 'Corniche Living', sector: 'Real estate', color: 'teal', logo: ['arches', '#008287', '#FFFFFF'],
-    teams: { 'demo-tm-prop': 'editor', 'demo-tm-creative': 'editor', 'demo-tm-data': 'editor', 'demo-tm-lead': 'viewer' }, people: { 'ziad': 'admin' },
-    brands: [['Tower A', '', 'Real estate', 'UAE', ''], ['Tower B', '', 'Real estate', 'UAE, KSA', 'Sales & marketing director'], ['Corniche Villas', '', 'Real estate', 'UAE', '']],
+    tasks: [[1, 'Online store conversion tag check', 'lb-tracking', 0, 'Media Planner'], [0, 'Boutique event creative (EN/AR)', 'lb-creative', 3, 'Paid Social']],
+    todos: [['Share the monthly sales-to-media recap', 'lb-report', 4, 'Account Lead']], notes: [] },
+  { key: 'fer', name: 'Ferrero', sector: 'FMCG', color: 'red', logo: ['', '', ''],
+    teams: { 'demo-tm-retail': 'editor', 'demo-tm-lead': 'viewer' }, modules: { calendar: false },
+    brands: [['Nutella', 'Ferrero', 'FMCG', 'GCC', 'Brand manager'], ['Kinder', 'Ferrero', 'FMCG', 'GCC', ''], ['Ferrero Rocher', 'Ferrero', 'FMCG', 'GCC', '']],
     briefs: [
-      ['Tower B Off-plan Launch', 'Lead generation', [1], 33, 8, [0.8, 1.1, 1.7, 0.7, 1.4, 0.9, 0.8, 0.8], 'Live', 20],
-      ['Villas Open House', 'Event', [2], 11, 2, [0.7, 1.2], 'In progress', 12],
-      ['Investor Roadshow — KSA', 'Event', [0, 1], 1, 0, [], 'Submitted', 18],
+      ['Ferrero Rocher — Ramadan gifting', 'Seasonal', [2], 55, 10, [0.6, 0.8, 1.9, 0.8, 1.5, 0.6, 0.8, 0.7, 1, 0.9], 'Completed', 20],
+      ['Kinder — back to school', 'Tactical / promotion', [1], 7, 1, [0.9], 'In progress', 9],
+      ['Nutella — always-on reach', 'Always-on', [0], 3, 0, [], 'In progress', 9, { kickLate: true }],
     ],
-    tasks: [[1, 'Get the Tower B price list from sales', 'lb-client', -2, 'Account Lead'], [2, 'Drone footage for the villas', 'lb-creative', 5, 'Creative'], [1, 'Check the lead form after the site update', 'lb-tracking', 0, 'Analytics']],
-    todos: [['Send the weekly lead report', 'lb-report', 1, 'Analytics', { type: 'weekly', every: 1 }]], notes: [] },
-  { key: 'lum', name: 'Lumen Mall', sector: 'Retail', color: 'pink', logo: ['sun', '#F0BEBE', '#323232'],
-    teams: { 'demo-tm-retail': 'editor', 'demo-tm-creative': 'editor', 'demo-tm-data': 'editor', 'demo-tm-lead': 'viewer' }, people: { 'nour': 'admin' },
-    brands: [['Lumen Mall', 'Lumen Retail', 'Retail', 'UAE', 'Marketing manager'], ['Lumen Food Hall', 'Lumen Retail', 'Retail', 'UAE', ''], ['Lumen Kids', 'Lumen Retail', 'Retail', 'UAE', '']],
-    briefs: [
-      ['Ramadan 2026 Nights', 'Seasonal', [0], 55, 10, [0.6, 0.8, 1.9, 0.8, 1.5, 0.6, 0.8, 0.7, 1, 0.9], 'Completed', 20],
-      ['Food Hall Grand Opening', 'Event', [1], 36, 9, [0.9, 0.9, 2.8, 0.9, 1.7, 0.8, 1, 0.9, 1], 'Live', 17],
-      ['National Day Offers', 'Tactical / promotion', [0, 1, 2], 3, 0, [], 'In progress', 9, { kickLate: true }],
-      ['New Year Sale', 'Seasonal', [0], 1, 0, [], 'Submitted', 20],
-    ],
-    tasks: [[1, 'Influencer brief for the food hall opening', 'lb-creative', 3, 'Paid Social'], [0, 'Urgent: pause sold-out event dates on Meta', 'lb-urgent', 0, 'Paid Social'], [2, 'Holiday gift-set creative', 'lb-creative', 6, 'Creative']],
-    todos: [['Collect Arabic copy approvals for the National Day offers', 'lb-creative', -1, 'Creative'], ['Share the monthly footfall recap', 'lb-client', 4, 'Account Lead']], notes: [] },
-  { key: 'hbk', name: 'Harbor Bank', sector: 'Banking & finance', color: 'blue', logo: ['waves', '#323232', '#00D2E6'],
-    teams: { 'demo-tm-prop': 'editor', 'demo-tm-data': 'editor', 'demo-tm-lead': 'viewer' }, modules: { calendar: false, notes: false },
-    brands: [['Cards', '', 'Banking & finance', 'UAE, Kuwait', 'Digital marketing manager'], ['Mortgages', '', 'Banking & finance', 'UAE', '']],
-    briefs: [
-      ['Mortgage Rates — Always-on', 'Always-on', [1], 50, 10, [0.8, 0.9, 2.2, 0.8, 1.2, 0.9, 0.8, 0.9, 1, 1], 'Completed', 18],
-      ['Cashback Credit Card Offer', 'Tactical / promotion', [0], 7, 1, [0.9], 'In progress', 9],
-    ],
-    tasks: [[0, 'Compliance review of the cashback ad copy', 'lb-client', 3, 'Account Lead'], [1, 'Add new rate sitelinks to brand search', 'lb-setup', -1, 'Paid Search']],
-    todos: [], notes: [] },
-  { key: 'bpa', name: 'Brightpath Academy', sector: 'Education', color: 'green', logo: ['path', '#AAFF6E', '#323232'],
-    teams: { 'demo-tm-retail': 'editor', 'demo-tm-creative': 'editor', 'demo-tm-lead': 'viewer' }, modules: { brands: false },
-    brands: [['Brightpath Academy', '', 'Education', 'UAE, Bahrain', 'Admissions lead']],
-    briefs: [
-      ['2027 Enrolment Drive', 'Lead generation', [0], 17, 4, [0.9, 1, 2.1, 0.8], 'In progress', 18],
-      ['Open Day — March', 'Event', [0], 0, 0, [], 'Draft', 15],
-    ],
-    tasks: [[0, 'Refresh parent audience lists for enrolment', 'lb-setup', 5, 'Paid Social']],
-    todos: [['Collect parent testimonials (with consent)', 'lb-client', 6, 'Account Lead']], notes: [] },
+    tasks: [[0, 'Retailer listing links for Nutella ads', 'lb-client', 2, 'Media Planner'], [1, 'Pause sold-out pack sizes on Meta', 'lb-urgent', 0, 'Paid Social']],
+    todos: [['Collect Arabic copy approvals', 'lb-creative', -1, 'Account Lead']], notes: [] },
   { key: 'int', name: 'Agency internal', sector: 'Internal', color: 'grey', logo: ['dentsu', '#FFFFFF', '#323232'],
     teams: { '*': 'editor' }, modules: { briefs: false, brands: false, campaigns: false, alerts: false, tasks: false },
     brands: [], briefs: [], tasks: [],
     todos: [['Q4 performance reviews — book the slots', 'lb-plan', 5, 'Account Lead'], ['Update the platform rate cards', 'lb-report', 9, 'Media Planner'],
-      ['Renew Meta Business verification for the agency business manager', 'lb-setup', 3, 'Paid Social'], ['Plan the team offsite', 'lb-plan', 20, 'Account Lead']],
+      ['Renew Meta Business verification', 'lb-setup', 3, 'Paid Social'], ['Plan the team offsite', 'lb-plan', 20, 'Account Lead']],
     notes: [['Ways of working', true, `<h2>Briefs</h2><ul><li>Every request comes in as a brief in its client account — no email-only requests</li><li>We kick off within 1 working day of a complete brief</li><li>Client approval of media plans within 2 working days</li></ul>
       <h2>Reporting</h2><ul><li>Weekly pacing check every Monday</li><li>First optimisation check 72 hours after launch</li><li>Post-campaign report within 5 working days of the flight ending</li></ul>
-      <h2>Access</h2><ul class="nb-check"><li data-done="1">Each client team has its own account</li><li>Creative and analytics have access to every client account</li><li>Leadership has view-only access to every account</li></ul>`]] },
+      <h2>Access</h2><ul class="nb-check"><li data-done="1">Each client team has its own account</li><li>Leadership has view-only access to every client account</li></ul>`]] },
 ];
-const DEMO_EVENTS = [['Lina', 'ooo', 'Annual leave', 3, 7], ['Karim', 'remote', '', 1, 1], ['Rami', 'other', 'Google Ads certification day', 9, 9], ['Maya', 'ooo', 'Sick leave', -2, -1],
-  ['Omar', 'office', 'Client office visit', 6, 6], ['Sara', 'remote', '', 8, 8], ['Nour', 'ooo', 'Annual leave', 12, 16], ['Ziad', 'remote', '', 2, 2], ['Dana', 'other', 'Meta Blueprint training', 5, 5]];
+// team calendar entries: [team-list position, type, title, from (days from today), to]
+const DEMO_EVENTS = [[1, 'ooo', 'Annual leave', 3, 7], [2, 'remote', '', 1, 1], [4, 'other', 'Google Ads certification day', 9, 9], [5, 'ooo', 'Sick leave', -2, -1],
+  [3, 'office', 'Client office visit', 6, 6], [0, 'remote', '', 8, 8]];
 const DEMO_COPY = {
   'Tactical / promotion': ['In-market shoppers in the markets below, plus people who engaged with the brand in the last 90 days.', 'Limited-time offer running for the flight; terms and conditions apply.', 'The offer of the season — for a limited time.', 'Static 1:1 and 9:16, 15s video cut-down, offer badge; English and Arabic copy.'],
   'Seasonal': ['Residents in the markets below planning purchases around the season.', 'Seasonal offer and content across the flight.', 'Made for the season.', 'Hero video 15s/6s, stills and carousel; English and Arabic copy.'],
@@ -5813,7 +5803,7 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
     put('projects', { id: listId, name: P.key === 'int' ? 'Agency to-dos' : 'To-Do', color: 'red', description: '', order: 1000, createdAt: now, demo: true });
     (P.todos || []).forEach(([title, lb, dd, role, recur], i) => put('tasks', newTask({ id: `demo-${P.key}-tl${i}`, projectId: listId, sectionId: null, title, labels: [lb], due: addDays(today, dd), recur: recur || null, assignee: byRole(role), priority: dd < 0 ? 2 : 4, order: (i + 1) * 1000, createdAt: now - (3 + i) * D, createdBy: lead.name, demo: true })));
     // team calendar
-    if ((P.modules || {}).calendar !== false) DEMO_EVENTS.forEach(([first, type, title, a, b2], i) => { const p = roster.find(x => x.name.startsWith(first)); if (!p) return;
+    if ((P.modules || {}).calendar !== false) DEMO_EVENTS.forEach(([at, type, title, a, b2], i) => { const p = roster[at % Math.max(1, roster.length)]; if (!p) return;
       put('events', { id: `demo-${P.key}-ev${i}`, person: p.id, type, title, start: addDays(today, a), end: addDays(today, b2), time: '', timeEnd: '', note: '', repeat: { type: 'none', every: 1, until: '' }, skip: [], createdAt: now, createdBy: lead.name, demo: true }); });
     // notebook
     (P.notes || []).forEach(([title, pinned, html], i) => put('notes', { id: `demo-${P.key}-n${i}`, accountId: ctId, campaignId: null, title, html, text: htmlText(html), tags: [], pinned, createdAt: now - (30 - i * 10) * D, createdBy: lead.name, updatedAt: now - (8 - i * 3) * D, updatedBy: lead.name, demo: true }));
@@ -5834,31 +5824,39 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
   } finally { S.data = saved; S.acc = savedAcc; S.dataVer = (S.dataVer || 0) + 1; }
 }
 
-async function loadSampleBusiness({ silent = false } = {}) {
+// Loads the sample. `team` (optional, from the dialog below) puts real names into the GM team's seats — they're stored
+// in this platform's database like any other people, never in the code.
+async function loadSampleBusiness({ silent = false, team = null } = {}) {
   if (!isBizAdmin()) return toast('Only business admins can load the sample business');
   if (allAccounts(true).some(a => a.demo)) return silent ? null : toast('The sample business is already loaded');
-  if (!silent && !await confirmBox(`Add a sample business: ${DEMO_ACCOUNTS.length} fictional client accounts with logos, ${DEMO_TEAMS.length} teams and ${DEMO_PEOPLE.length} people with different access — plus briefs with workflow history, tasks, campaigns, calendar and notes inside each account. Remove it any time from Business settings.`, 'Load sample business', 'Load sample business')) return;
   const now = Date.now();
   const seatEmail = S.mode === 'cloud' ? userEmail() : 'sara@example.com';
-  const emailOf = full => (full.startsWith('Sara') ? seatEmail : full.split(' ')[0].toLowerCase() + '@example.com');
+  const slug = n => String(n).toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '') || 'person';
+  const people = DEMO_PEOPLE.map(([name, job, color, role, seat]) => ({ name, job, color, role, seat }));
+  (team || []).forEach((t, i) => { const p = people.find(x => x.seat === DEMO_GM_SEATS[i]); if (p && t && t.name && t.name.trim()) { p.name = t.name.trim().slice(0, 60); if (t.role) p.job = t.role; } });
+  const used = new Set([seatEmail]);
+  people.forEach(p => { if (p.seat === 'lead') { p.email = seatEmail; return; } let e = slug(p.name) + '@example.com', k = 2; while (used.has(e)) e = `${slug(p.name)}${k++}@example.com`; used.add(e); p.email = e; });
+  const who = key => people.find(p => p.seat === key) || people.find(p => p.name.toLowerCase().startsWith(String(key).toLowerCase()));
   const members = {};
-  DEMO_PEOPLE.forEach(([name, job, color, role]) => {
-    const em = emailOf(name), mine = em === seatEmail && S.mode === 'cloud';
+  people.forEach(p => {
+    const em = p.email, mine = p.seat === 'lead' && S.mode === 'cloud';
     const ex = S.biz.members[em];
-    members[em] = ex ? { ...ex, jobRole: ex.jobRole || job } : { id: em, name: mine ? (S.user.name || name) : name, jobRole: job, color, bizRole: role, addedAt: now, addedBy: userEmail(), ...(mine ? {} : { demo: true }) };
+    members[em] = ex ? { ...ex, jobRole: ex.jobRole || p.job } : { id: em, name: mine ? (S.user.name || p.name) : p.name, jobRole: p.job, color: p.color, bizRole: p.role, addedAt: now, addedBy: userEmail(), ...(mine ? {} : { demo: true }) };
   });
+  // never two things with the same name: if you already have a real "GM team" or "General Motors", the sample's copy says so
+  const nameFree = (list, nm) => (list.some(x => !x.demo && String(x.name || '').trim().toLowerCase() === nm.toLowerCase()) ? `${nm} (sample)` : nm);
   const teams = {};
-  DEMO_TEAMS.forEach(([id, name, color, firsts]) => { teams[id] = { id, name, color, memberEmails: firsts.map(f => emailOf(DEMO_PEOPLE.find(p => p[0].startsWith(f))[0])), createdAt: now, demo: true }; });
+  DEMO_TEAMS.forEach(([id, nm, color, keys]) => { const name = nameFree(bizTeams(), nm); teams[id] = { id, name, color, memberEmails: keys.map(k => who(k)).filter(Boolean).map(p => p.email), createdAt: now, demo: true }; });
   const allMembers = { ...S.biz.members, ...members };
   // build every account first (pure), then write
   const built = DEMO_ACCOUNTS.map(P => {
-    const a = { id: 'demo-acc-' + P.key, name: P.name, sector: P.sector, color: P.color, logo: demoLogo(...P.logo), modules: P.modules || {},
-      access: { teams: { ...P.teams }, people: Object.fromEntries(Object.entries(P.people || {}).map(([f, r]) => [emailOf(DEMO_PEOPLE.find(p => p[0].toLowerCase().startsWith(f))[0]), r])) },
+    const a = { id: 'demo-acc-' + P.key, name: nameFree(allAccounts(true), P.name), sector: P.sector, color: P.color, logo: demoLogo(...P.logo), modules: P.modules || {},
+      access: { teams: { ...P.teams }, people: Object.fromEntries(Object.entries(P.people || {}).map(([k, r]) => [who(k).email, r])) },
       archived: false, createdAt: now, createdBy: userEmail(), demo: true };
     Object.assign(a, computeAccess(a, allMembers, teams));
     const roster = a.memberEmails.filter(em => roleRank(a.roles[em]) >= 2 && allMembers[em]).map(em => {
-      const m = allMembers[em], first = String(m.name || em).split(' ')[0].toLowerCase();
-      return { id: 'demo-' + first.replace(/[^a-z0-9]/g, ''), name: m.name || em, email: em, role: DEFAULT_ROLES.includes(m.jobRole) ? m.jobRole : 'Account Lead', color: m.color || 'grey', demo: true };
+      const m = allMembers[em];
+      return { id: 'demo-' + slug(em.split('@')[0]).replace(/\./g, '-'), name: m.name || em, email: em, role: DEFAULT_ROLES.includes(m.jobRole) ? m.jobRole : 'Account Lead', color: m.color || 'grey', demo: true };
     }).sort((x, y) => DEFAULT_ROLES.indexOf(x.role) - DEFAULT_ROLES.indexOf(y.role));
     const settingsDoc = { id: 'settings', people: roster, types: DEFAULT_TYPES, labels: DEFAULT_LABELS, roles: DEFAULT_ROLES, sectors: DEFAULT_SECTORS, clientSections: DEFAULT_CLIENT_SECTIONS,
       workflows: DEFAULT_WORKFLOWS, alerts: { dueSoonDays: 1, stallFactor: 1.5, unopenedHours: 24, kickoffHours: 24 }, createdAt: now };
@@ -5866,7 +5864,7 @@ async function loadSampleBusiness({ silent = false } = {}) {
     a.stats = out.stats;
     return { a, out };
   });
-  toast('Loading the sample business…');
+  if (!silent) toast('Loading the sample business…');
   for (const m of Object.values(members)) await bizApi.putMember(m);
   for (const t of Object.values(teams)) await bizApi.putTeam(t);
   if (S.mode === 'local' && (!S.biz.owner || S.biz.owner === LOCAL_ME)) {
@@ -5881,6 +5879,25 @@ async function loadSampleBusiness({ silent = false } = {}) {
   const first = built[0].a;
   lsSet(accKey(), first.id);
   if (S.biz.accounts[first.id]) openAccount(S.biz.accounts[first.id], '#/dashboard');
+}
+// The sample's GM team can carry your real team's names (optional).
+function openSampleDialog() {
+  if (allAccounts(true).some(a => a.demo)) return toast('The sample business is already loaded');
+  const seats = DEMO_GM_SEATS.map(k => DEMO_PEOPLE.find(p => p[4] === k));
+  const roles = DEFAULT_ROLES.filter(r => r !== 'Client');
+  const w = openModal(`<div class="modal-head"><h2>Load sample business</h2><button class="icon-btn" data-x>${ico('x')}</button></div>
+    <div class="modal-body">
+      <p class="set-p">Adds ${DEMO_ACCOUNTS.length} accounts — <b>${esc(DEMO_ACCOUNTS.map(a => a.name).join(', '))}</b> — with teams, people with different access, and briefs, tasks and campaigns inside each. You take the Account Lead seat on General Motors. Everything comes out again with one click.</p>
+      <div class="set-h">${ico('people')} Your GM team (optional)</div>
+      <p class="set-p">Type your teammates' names to put them on the General Motors account. Leave a row empty to use the example name. Names are saved in this platform only.</p>
+      <div class="sd-team">${seats.map((p, i) => `<div class="sd-row"><input class="inp" data-sdn="${i}" maxlength="60" placeholder="${esc(p[0])}"><select class="sel" data-sdr="${i}">${roles.map(r => `<option ${r === p[1] ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></div>`).join('')}</div>
+    </div>
+    <div class="modal-foot"><span class="spacer"></span><button class="btn" data-x>Cancel</button><button class="btn btn-primary" data-ok>Load sample business</button></div>`, 'wide');
+  $$('[data-x]', w).forEach(b => b.onclick = () => w.close());
+  w.querySelector('[data-ok]').onclick = async () => {
+    const team = seats.map((_, i) => ({ name: w.querySelector(`[data-sdn="${i}"]`).value, role: w.querySelector(`[data-sdr="${i}"]`).value }));
+    w.close(); await loadSampleBusiness({ team });
+  };
 }
 async function clearSampleBusiness() {
   if (!isBizAdmin()) return toast('Only business admins can remove the sample business');
@@ -6071,6 +6088,9 @@ const TOOLS = [
 const TOOL_OF_VIEW = { mywork: 'mywork', today: 'lists', upcoming: 'lists', project: 'lists', alerts: 'alerts', dashboard: 'dashboard', briefs: 'briefs', brief: 'briefs',
   clients: 'brands', client: 'brands', tasks: 'tasks', campaigns: 'campaigns', activity: 'activity', notes: 'notes' };
 const toolOn = k => !k || !S.acc || !S.acc.modules || S.acc.modules[k] !== false;
+// New accounts start with the essentials; the rest are one switch away.
+const TOOL_ESSENTIALS = ['mywork', 'lists', 'briefs', 'campaigns', 'alerts', 'dashboard'];
+const presetModules = all => Object.fromEntries(TOOLS.map(t => [t[0], all || TOOL_ESSENTIALS.includes(t[0])]));
 const toolName = k => (TOOLS.find(t => t[0] === k) || [k, k])[1];
 
 /* ---------- business state ---------- */
@@ -6384,7 +6404,7 @@ async function readLogo(file) {
 function openAccountForm(id) {
   if (!isBizAdmin() && !(id && accRoleOf(S.biz.accounts[id]) === 'admin')) return toast('Only admins can do this');
   const ex = id ? S.biz.accounts[id] : null;
-  const d = ex ? clone(ex) : { id: uid(), name: '', sector: '', color: COLORS[allAccounts(true).length % 8], logo: '', modules: {}, access: { teams: {}, people: {} }, createdAt: Date.now(), createdBy: userEmail() };
+  const d = ex ? clone(ex) : { id: uid(), name: '', sector: '', color: COLORS[allAccounts(true).length % 8], logo: '', modules: presetModules(false), access: { teams: {}, people: {} }, createdAt: Date.now(), createdBy: userEmail() };
   d.modules = d.modules || {}; d.access = d.access || { teams: {}, people: {} };
   const w = openModal(`<div class="modal-head"><h2>${ex ? 'Edit account' : 'Create account'}</h2><button class="icon-btn" data-x>${ico('x')}</button></div>
     <form class="modal-body acc-form">
@@ -6397,7 +6417,7 @@ function openAccountForm(id) {
         <div class="af-acc-row"><span>Everyone in the business</span>${roleSelect('*', d.access.teams['*'])}</div>
         ${bizTeams().map(t => `<div class="af-acc-row"><span>${esc(t.name)} <small class="mut">${plural((t.memberEmails || []).length, 'person', 'people')}</small></span>${roleSelect(t.id, d.access.teams[t.id])}</div>`).join('')}
         <p class="set-p" style="margin:6px 0 0">You can add people one by one, and change all of this later, under Access.</p></div></div>` : ''}
-      <div class="field"><label>Tools in this account</label>${toolsGrid(d.modules)}</div>
+      <div class="field"><label>Tools in this account</label>${toolPresets()}${toolsGrid(d.modules)}</div>
     </form>
     <div class="modal-foot"><span class="spacer"></span><button class="btn" data-x>Cancel</button><button class="btn btn-primary" data-ok>${ex ? 'Save' : 'Create account'}</button></div>`, 'wide');
   const paintLogo = () => { w.querySelector('[data-logo]').innerHTML = accLogo({ ...d, name: w.querySelector('[name=name]').value || d.name || '?' }, 'xl'); };
@@ -6407,6 +6427,8 @@ function openAccountForm(id) {
   $$('.swatch', w).forEach(b => b.onclick = () => { d.color = b.dataset.c; $$('.swatch', w).forEach(x => x.classList.toggle('on', x === b)); paintLogo(); });
   w.querySelector('[data-logofile]').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { d.logo = await readLogo(f); paintLogo(); } catch { toast('Couldn’t use that image — try a PNG or JPG under 2 MB'); } };
   w.querySelector('[data-logoclear]').onclick = () => { d.logo = ''; paintLogo(); };
+  w.addEventListener('click', e => { const b = e.target.closest('[data-preset]'); if (!b) return; d.modules = presetModules(b.dataset.preset === 'all');
+    $$('[data-tool]', w).forEach(c => { c.checked = d.modules[c.dataset.tool] !== false; c.closest('.tool-tile').classList.toggle('on', c.checked); }); });
   w.addEventListener('change', e => { const t = e.target; if (t.dataset.tool) d.modules[t.dataset.tool] = t.checked; if (t.dataset.role != null) { if (t.value) d.access.teams[t.dataset.role] = t.value; else delete d.access.teams[t.dataset.role]; } });
   w.querySelector('form').onsubmit = e => e.preventDefault();
   w.querySelector('[data-ok]').onclick = async () => {
@@ -6424,6 +6446,7 @@ function openAccountForm(id) {
   };
 }
 const roleSelect = (key, v) => `<select class="sel sm" data-role="${esc(key)}"><option value="">No access</option>${ACC_ROLES.map(r => `<option value="${r}" ${v === r ? 'selected' : ''}>${ACC_ROLE_LABEL[r]}</option>`).join('')}</select>`;
+const toolPresets = () => `<div class="tool-presets"><button type="button" class="btn sm" data-preset="simple">Essentials only</button><button type="button" class="btn sm" data-preset="all">All tools</button><span class="mut">Essentials: My work, Task lists, Briefs, Campaign Tracker, Alerts and Dashboard.</span></div>`;
 const toolsGrid = mods => `<div class="tools-grid">${TOOLS.map(([k, l, i, d]) => `<label class="tool-tile ${mods[k] === false ? '' : 'on'}"><input type="checkbox" data-tool="${k}" ${mods[k] === false ? '' : 'checked'}>
   <span class="tt-ico">${ico(i)}</span><span class="tt-txt"><b>${esc(l)}</b><small>${esc(d)}</small></span><span class="tt-sw"></span></label>`).join('')}</div>`;
 
@@ -6499,7 +6522,7 @@ function bizAccountsHTML() {
       <td style="white-space:nowrap;text-align:right"><button class="btn sm" data-action="acc-access" data-id="${esc(a.id)}">Access</button> <button class="btn sm" data-action="acc-edit" data-id="${esc(a.id)}">Edit</button> <button class="icon-btn" data-action="acc-row-menu" data-id="${esc(a.id)}">${ico('dots')}</button></td></tr>`; }).join('') || '<tr><td colspan="6" class="mut">No accounts yet.</td></tr>'}
     </tbody></table></div>
     <div class="set-h" style="margin-top:22px">${ico('sparkle')} Sample business (for demos)</div>
-    <p class="set-p">Fictional client accounts with logos, teams and people with different access, and briefs, tasks, campaigns, calendar and notes inside each account. ${CFG.sampleData ? 'A brand-new platform starts with it loaded (<code>sampleData</code> in config.js). ' : ''}Everything it adds is tagged and comes out again with one click; your own accounts, teams and people aren't touched.</p>
+    <p class="set-p">Example accounts — ${esc(DEMO_ACCOUNTS.map(a => a.name).join(', '))} — with teams, people with different access, and briefs, tasks and campaigns inside each. Put your own team's names on the GM account when you load it. ${CFG.sampleData ? 'A brand-new platform starts with it loaded (<code>sampleData</code> in config.js). ' : ''}Everything it adds is tagged and comes out again with one click; your own accounts, teams and people aren't touched.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-action="bz-sample-load">${ico('sparkle', 'i-sm')} Load sample business</button><button class="btn btn-danger" data-action="bz-sample-clear">${ico('trash', 'i-sm')} Remove sample business</button></div>`;
 }
 function bizPeopleHTML() {
@@ -6589,6 +6612,572 @@ document.addEventListener('submit', async e => {
 // older name kept for the few places that ask "is this mine to manage?"
 const wsMine = () => canAdminAcc();
 
+/* =====================================================================
+   GUIDE & HELP — a getting-started page plus a built-in chatbot.
+   The chatbot answers from the preset questions below: no AI service,
+   no network calls, nothing typed into it leaves the browser.
+   ===================================================================== */
+const GUIDE_CATS = [['start', 'Getting started', 'Start'], ['app', 'Using the platform', 'How to'], ['media', 'Media maths', 'Media maths'], ['sec', 'Access & security', 'Access']];
+// c: category · q: question · k: extra words people might type · a: answer (static HTML written here) · go/gl: optional "take me there" button · rel: related ids
+const GUIDE = [
+  // ---------- getting started ----------
+  { id: 'what', c: 'start', q: 'What is the Ads Workspace?', k: 'about platform overview ads manager accounts clients explain',
+    a: '<p>One platform for all client work, set up like an ads manager. Each client is an <b>account</b> with its own logo, team, tools and data.</p><p>Switch accounts from the top of the sidebar. You only see the accounts you\'ve been given access to.</p>',
+    go: '#/accounts', gl: 'Open All accounts', rel: ['switch', 'first-day', 'roles'] },
+  { id: 'first-day', c: 'start', q: 'I\'m new. Where do I start?', k: 'new start begin first day onboarding help lost',
+    a: '<ol><li>Pick your account at the top of the sidebar.</li><li>Open <b>My work</b>: the briefs, steps and tasks waiting on you.</li><li>Check <b>Alerts</b> for anything late or stuck.</li><li>Follow the checklist on the <b>Guide</b> page.</li></ol>',
+    go: '#/guide', gl: 'Open the Guide', rel: ['switch', 'mywork', 'brief-new'] },
+  { id: 'switch', c: 'start', q: 'How do I switch accounts?', k: 'switch change account client dropdown switcher logo another',
+    a: '<p>Click the account name and logo at the top of the sidebar, then pick another account or type to search.</p><p><b>All accounts</b> lists every account you can open, with its open briefs, alerts and live campaigns.</p>',
+    go: 'switcher', gl: 'Open the account switcher', rel: ['what', 's-noaccess'] },
+  { id: 'setup', c: 'start', q: 'How do I set up a new client account?', k: 'create account new client setup add logo onboard',
+    a: '<ol><li><b>Business settings → People</b>: add everyone by work email.</li><li><b>Teams</b>: group them, for example "GM team".</li><li><b>Accounts → Create account</b>: name, logo and sector.</li><li>Give teams access as Admin, Editor or Viewer.</li><li>Choose the tools the account needs.</li></ol><p>Only business admins can create accounts.</p>',
+    go: 'new-account', gl: 'Create an account', rel: ['roles', 'tools', 's-access'] },
+  { id: 'roles', c: 'start', q: 'What can Admins, Editors and Viewers do?', k: 'role roles admin editor viewer permission rights can cannot',
+    a: '<ul><li><b>Business admin</b>: adds people and teams, creates accounts, sees every account.</li><li><b>Account admin</b>: changes the account\'s name, logo, access and tools.</li><li><b>Editor</b>: does the work — briefs, tasks, campaigns, notes.</li><li><b>Viewer</b>: sees everything in the account but can\'t change anything.</li></ul>',
+    rel: ['s-access', 's-viewer', 'setup'] },
+  { id: 'tools', c: 'start', q: 'How do I switch tools on or off?', k: 'tools modules features turn on off enable disable hide simplify',
+    a: '<p>Open <b>Account settings</b> (the gear at the top of the sidebar) → <b>Tools</b>. Account admins can switch each tool on or off for everyone in that account.</p><p>New accounts start with the essentials: My work, Task lists, Briefs, Campaign Tracker, Alerts and Dashboard. Turning a tool off only hides it — nothing is deleted.</p>',
+    go: 'tools', gl: 'Open Tools', rel: ['setup', 'roles'] },
+
+  // ---------- using the platform ----------
+  { id: 'brief-new', c: 'app', q: 'How do I submit a brief?', k: 'brief new submit request client ask template',
+    a: '<p>Click <b>New brief</b> at the top of the sidebar and fill in the template: objective, KPIs, markets, platforms, budget, dates and creative. Save it as a draft or submit it.</p><p>Submitting notifies the team and starts the workflow.</p>',
+    go: 'new-brief', gl: 'Start a brief', rel: ['workflow', 'alerts'] },
+  { id: 'workflow', c: 'app', q: 'How does the brief workflow work?', k: 'workflow steps sla owner kick off approval go live stage process',
+    a: '<p>Each brief moves through steps, such as kick-off, media plan, client approval, setup, QA and go-live. Every step has an owner and a time limit (SLA) in working days.</p><p>Mark a step done on the brief page and the next owner is notified. Late or stuck steps show up in <b>Alerts</b>.</p>',
+    go: '#/briefs', gl: 'Open Briefs', rel: ['alerts', 'brief-new', 'mywork'] },
+  { id: 'mywork', c: 'app', q: 'What\'s in My work?', k: 'my work inbox assigned me today due mine',
+    a: '<p>Everything in this account that\'s waiting on you: brief steps you own, tasks assigned to you and items due soon. Start your day here.</p>',
+    go: '#/mywork', gl: 'Open My work', rel: ['alerts', 'task'] },
+  { id: 'alerts', c: 'app', q: 'What do Alerts mean?', k: 'alerts late stuck risk overdue warning critical red amber',
+    a: '<p>Alerts flag work that needs attention: steps past their SLA, briefs not picked up, work that has stalled, and briefs at risk of missing their go-live date.</p><p><b>Critical</b> needs action now; <b>warnings</b> need a look. An alert clears itself once the cause is fixed.</p>',
+    go: '#/alerts', gl: 'Open Alerts', rel: ['workflow', 'dashboard'] },
+  { id: 'campaign-add', c: 'app', q: 'How do I add a campaign to the tracker?', k: 'campaign tracker new add launch flight',
+    a: '<p>Open <b>Campaign Tracker</b> and click <b>Add campaign</b>. Pick the ad account, flight dates, markets, and the platforms with their objectives.</p><p>Status follows the dates. Set pacing, creatives and results as it runs; anything off shows under <b>Needs attention</b>.</p>',
+    go: '#/campaigns', gl: 'Open Campaign Tracker', rel: ['weekly', 'm-pacing'] },
+  { id: 'weekly', c: 'app', q: 'What is the weekly check?', k: 'weekly check optimisation optimization due done review',
+    a: '<p>Each live campaign asks for one optimisation check a week. Mark the week done on the campaign once you\'ve reviewed it. Campaigns with a check still due are flagged at the top of the tracker.</p>',
+    go: '#/campaigns', gl: 'Open Campaign Tracker', rel: ['m-weekly', 'campaign-add'] },
+  { id: 'task', c: 'app', q: 'How do I add a task?', k: 'task add new todo to-do quick q',
+    a: '<p>Press <kbd>Q</kbd> anywhere, or click <b>Task</b> at the top of the sidebar. Give it a date, owner, priority and repeat if needed. Tasks live in the account\'s lists.</p>',
+    go: 'new-task', gl: 'Add a task', rel: ['mywork', 'shortcuts'] },
+  { id: 'dashboard', c: 'app', q: 'What does the Dashboard show?', k: 'dashboard report numbers turnaround sla performance metrics',
+    a: '<p>For the period you pick: brief turnaround and SLA performance, where work gets stuck, brands, campaigns and tasks. It\'s worked out from the account\'s own data.</p><p>Business admins also see every account\'s headline numbers on <b>All accounts</b>.</p>',
+    go: '#/dashboard', gl: 'Open Dashboard', rel: ['alerts', 'what'] },
+  { id: 'calendar', c: 'app', q: 'How do I mark leave or remote days?', k: 'calendar leave ooo out of office remote holiday vacation',
+    a: '<p>Turn on <b>Team calendar</b> in the account\'s Tools, then open <b>Upcoming</b> and click a day to add leave, remote or office days. They show next to what\'s due, so you can see who\'s off before handing work over.</p>',
+    go: '#/upcoming', gl: 'Open Upcoming', rel: ['tools'] },
+  { id: 'notify', c: 'app', q: 'How do notifications work?', k: 'notification bell email alert notify inbox message',
+    a: '<p>The bell at the top of the sidebar shows what\'s new for you in this account: steps handed to you, briefs submitted, comments and alerts. When email is set up, the same updates arrive by email with a link to the right account.</p>',
+    rel: ['alerts', 'mywork'] },
+  { id: 'search', c: 'app', q: 'How do I find something quickly?', k: 'search find look up lost where',
+    a: '<p>Press <kbd>/</kbd> or click <b>Search</b> in the sidebar. It searches tasks, briefs, campaigns and notes in the current account.</p>',
+    go: 'search', gl: 'Open search', rel: ['shortcuts'] },
+  { id: 'undo', c: 'app', q: 'I deleted something by mistake', k: 'undo mistake restore deleted recover oops back',
+    a: '<p>Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Z</kbd> straight away, or click <b>Undo</b> on the message. Later on, open <b>More → Recently deleted</b>: things stay there for 30 days.</p>',
+    go: '#/trash', gl: 'Open Recently deleted', rel: ['archive'] },
+  { id: 'archive', c: 'app', q: 'What\'s the difference between Archive and delete?', k: 'archive hide put away restore old',
+    a: '<p><b>Archive</b> puts things away without deleting them; restore them any time from <b>More → Archive</b>. <b>Delete</b> moves them to Recently deleted for 30 days.</p>',
+    go: '#/archive', gl: 'Open Archive', rel: ['undo'] },
+  { id: 'shortcuts', c: 'app', q: 'What keyboard shortcuts are there?', k: 'keys hotkeys keyboard shortcut',
+    a: '<ul><li><kbd>Q</kbd> new task</li><li><kbd>/</kbd> search</li><li><kbd>?</kbd> open this help</li><li><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Z</kbd> undo the last delete, completion or archive</li><li><kbd>Esc</kbd> close a window or menu</li></ul>',
+    rel: ['search', 'task'] },
+  { id: 'theme', c: 'app', q: 'How do I switch between light and dark mode?', k: 'dark mode light theme appearance night',
+    a: '<p>Click your initials at the top of the sidebar and choose the theme. Each browser remembers its own choice.</p>', go: 'theme', gl: 'Switch theme now' },
+
+  // ---------- media maths ----------
+  { id: 'm-pacing', c: 'media', q: 'How do I calculate pacing?', k: 'pacing formula expected spend budget flight on track percentage',
+    a: '<p><b>Expected spend to date</b> = budget × (days elapsed ÷ flight days)</p><p><b>Pacing</b> = actual spend ÷ expected spend</p><p>Example: 30,000 over 30 days, on day 12, should have spent 12,000. Spent 10,800 = 90% pacing. Around 95–105% is usually on track; agree the tolerance per client.</p>',
+    rel: ['m-under', 'm-over'] },
+  { id: 'm-under', c: 'media', q: 'A campaign is under-pacing. What should I check?', k: 'under pacing underspend not spending delivery low spend',
+    a: '<ul><li><b>Delivery limits:</b> bid or cost caps too low, or a narrow audience.</li><li><b>Ads:</b> disapproved, limited or ended creatives.</li><li><b>Learning:</b> recent big edits reset it.</li><li><b>Budget setup:</b> daily budget lower than the plan needs.</li></ul><p>Then broaden targeting, raise caps, add creatives or move budget to what\'s delivering.</p>',
+    rel: ['m-pacing', 'm-learning'] },
+  { id: 'm-over', c: 'media', q: 'A campaign is over-pacing. What should I do?', k: 'over pacing overspend spending too fast',
+    a: '<ul><li>Lower the daily budget, or switch to a lifetime budget with an end date.</li><li>Check for budget changes, automated rules or auto-applied recommendations nobody planned.</li><li>Set the new daily cap to remaining budget ÷ remaining days.</li></ul>',
+    rel: ['m-pacing'] },
+  { id: 'm-formulas', c: 'media', q: 'What are the formulas for CPM, CPC, CTR, CPA and ROAS?', k: 'cpm cpc ctr cpa roas cvr cpl frequency formula metrics calculate kpi',
+    a: '<ul><li><b>CPM</b> = cost ÷ impressions × 1,000</li><li><b>CPC</b> = cost ÷ clicks</li><li><b>CTR</b> = clicks ÷ impressions</li><li><b>CVR</b> = conversions ÷ clicks</li><li><b>CPA / CPL</b> = cost ÷ conversions (or leads)</li><li><b>ROAS</b> = revenue ÷ cost</li><li><b>Frequency</b> = impressions ÷ reach</li></ul>',
+    rel: ['m-bench', 'm-fatigue'] },
+  { id: 'm-bench', c: 'media', q: 'What\'s a good CTR or CPM?', k: 'benchmark good average ctr cpm cpc normal compare',
+    a: '<p>It varies a lot by platform, format, objective, market and season. Compare like with like — same platform, objective, market and time of year — and use the account\'s own past campaigns as the main benchmark.</p>',
+    rel: ['m-formulas', 'm-season'] },
+  { id: 'm-learning', c: 'media', q: 'What is the learning phase?', k: 'learning phase limited reset edits algorithm meta tiktok google',
+    a: '<p>After launch or a big change, the platform is still learning who converts, so results swing. On Meta an ad set generally needs about 50 optimisation events in a week to exit learning.</p><p>Avoid frequent big edits to targeting, creative, optimisation event, bidding or budget — they can restart it.</p>',
+    rel: ['m-under', 'm-objective'] },
+  { id: 'm-fatigue', c: 'media', q: 'How do I spot creative fatigue?', k: 'creative fatigue frequency refresh ad tired ctr dropping',
+    a: '<p>Over a week or two: frequency climbing, CTR falling, CPM and CPA rising. Rotate in new creatives before performance drops, and test new hooks rather than small tweaks.</p>',
+    rel: ['m-freq', 'm-weekly'] },
+  { id: 'm-qa', c: 'media', q: 'What should I check before launching?', k: 'launch checklist qa pre-launch go live setup check',
+    a: '<ol><li>Naming and the right ad account</li><li>Flight dates, time zone and budget type</li><li>Markets, language, audiences and exclusions</li><li>Objective, optimisation event and bidding</li><li>Tracking: pixel or tag firing, conversion events, UTMs</li><li>Creatives, copy, approvals and landing pages</li><li>Placements and brand-safety settings</li></ol>',
+    rel: ['m-naming', 'campaign-add'] },
+  { id: 'm-weekly', c: 'media', q: 'What should a weekly optimisation check cover?', k: 'weekly optimisation optimization review routine checklist',
+    a: '<ul><li>Pacing against plan</li><li>KPIs against target</li><li>Frequency and creative fatigue</li><li>Best and worst ads, ad sets and placements</li><li>Search terms and negatives (Search)</li><li>Learning and limited delivery</li><li>Moving budget to what\'s working</li></ul>',
+    rel: ['weekly', 'm-fatigue'] },
+  { id: 'm-objective', c: 'media', q: 'Which objective should I choose?', k: 'objective awareness reach traffic leads conversion choose funnel',
+    a: '<ul><li><b>Awareness:</b> Reach, Awareness, Video views</li><li><b>Consideration:</b> Traffic, Engagement</li><li><b>Action:</b> Leads, Conversions or Sales</li></ul><p>Optimise for the event closest to the business result that still gets enough volume to learn from.</p>',
+    rel: ['m-learning'] },
+  { id: 'm-attrib', c: 'media', q: 'Why don\'t platform numbers match GA4 or the CRM?', k: 'attribution window mismatch ga4 analytics discrepancy conversions different crm',
+    a: '<p>Each tool counts differently. Platforms use their own attribution windows and count view-through conversions; GA4 uses its own model; the CRM only sees leads that arrive. Agree one source of truth per KPI with the client and compare trends, not exact totals.</p>',
+    rel: ['m-formulas'] },
+  { id: 'm-naming', c: 'media', q: 'What naming convention should we use?', k: 'naming convention structure name campaigns taxonomy',
+    a: '<p>Use the client\'s taxonomy when it has one. Otherwise keep the same pieces in the same order on every platform, for example <code>Market_Brand_Platform_Objective_Audience_Flight</code>, so reports can be filtered.</p>',
+    rel: ['m-qa'] },
+  { id: 'm-season', c: 'media', q: 'How should we plan around Ramadan and peak season?', k: 'ramadan eid seasonality peak q4 white friday holiday plan',
+    a: '<ul><li>Expect higher CPMs and more competition.</li><li>Lock budgets and creatives early.</li><li>In Ramadan, activity shifts late into the evening.</li><li>Compare with the same period last year, not the month before.</li></ul>',
+    rel: ['m-bench'] },
+  { id: 'm-freq', c: 'media', q: 'What frequency is too high?', k: 'frequency cap too high reach overexposure',
+    a: '<p>It depends on objective, format and audience size. Watch the trend: when frequency rises while CTR falls and CPA climbs, widen the audience, refresh creative or cap frequency.</p>',
+    rel: ['m-fatigue'] },
+
+  // ---------- access & security ----------
+  { id: 's-access', c: 'sec', q: 'How do I give or remove someone\'s access?', k: 'access give remove revoke add member invite leaver team',
+    a: '<p>Business admins: <b>Business settings → People</b> to add someone by work email, then <b>Teams</b> to put them on the right team. Account admins can also change who has access from the account\'s <b>Access</b>.</p><p>Removing someone takes effect immediately.</p>',
+    go: 'access', gl: 'Open access', rel: ['roles', 's-who-sees'] },
+  { id: 's-who-sees', c: 'sec', q: 'Who can see an account?', k: 'privacy who can see access private visible data shared',
+    a: '<p>Only people with access to it — through a team or one by one — and business admins. The database rules enforce this on Google\'s servers, so it holds even if someone tampers with the page.</p>',
+    rel: ['s-access', 'roles'] },
+  { id: 's-viewer', c: 'sec', q: 'Why can\'t I edit anything?', k: 'cant edit read only view only viewer locked greyed',
+    a: '<p>You have <b>Viewer</b> access to this account, so you can see everything but not change it. Ask the account admin or a business admin to make you an Editor.</p>', rel: ['roles'] },
+  { id: 's-noaccess', c: 'sec', q: 'I can\'t see an account I need', k: 'missing account cant see no access not listed',
+    a: '<p>Ask a business admin to add you to the team that has access to that account, or to give you access directly. It appears in your switcher straight away.</p>', rel: ['s-access', 'switch'] },
+  { id: 's-signup', c: 'sec', q: 'How do I sign up?', k: 'sign up register create account login first time',
+    a: '<p>A business admin adds your work email first. Then choose <b>Create an account</b> on the sign-in page with that same email, set a password and verify your email.</p>', rel: ['s-reset'] },
+  { id: 's-reset', c: 'sec', q: 'I forgot my password', k: 'forgot password reset login cant sign in locked',
+    a: '<p>On the sign-in page, click <b>Forgot password?</b> and enter your email. A reset link arrives within a few minutes (check spam). It works once and expires.</p>', rel: ['s-signup'] },
+  { id: 's-data', c: 'sec', q: 'Where is the data stored?', k: 'stored where data firebase google cloud server',
+    a: '<p>In Google Cloud Firestore, protected by sign-in and server-side rules, with a copy cached in your browser so pages open fast. Each account\'s data is kept separately.</p>', rel: ['s-who-sees'] },
+  { id: 's-signout', c: 'sec', q: 'How do I sign out?', k: 'sign out log out logout leave',
+    a: '<p>Click your initials at the top of the sidebar, then <b>Sign out</b>.</p>' },
+];
+const GUIDE_BY = Object.fromEntries(GUIDE.map(g => [g.id, g]));
+const GUIDE_START = { start: ['first-day', 'switch', 'setup', 'roles', 'tools'], app: ['brief-new', 'workflow', 'mywork', 'alerts', 'campaign-add', 'undo'],
+  media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['s-access', 's-who-sees', 's-viewer', 's-noaccess', 's-reset'] };
+const GUIDE_FAQ = ['what', 'switch', 'roles', 'tools', 'workflow', 's-who-sees', 's-signup'];
+
+// tiny keyword matcher: words in the question count most, then the extra keywords
+const G_STOP = new Set('a an and are as at be can do does for from how i in is it me my of on or our should the to we what when where which who why with you your there this that'.split(' '));
+const gWords = s => String(s).toLowerCase().replace(/[^a-z0-9+/ ]+/g, ' ').split(/\s+/).filter(w => w.length > 1 && !G_STOP.has(w));
+const gStem = w => w.replace(/(ing|ed|es|s)$/, '');
+function guideSearch(text) {
+  const ws = gWords(text).map(gStem); if (!ws.length) return [];
+  return GUIDE.map(g => {
+    const qw = gWords(g.q).map(gStem), kw = gWords(g.k).map(gStem);
+    let sc = 0;
+    ws.forEach(w => {
+      if (qw.includes(w)) sc += 3; else if (qw.some(x => x.startsWith(w) || (w.length > 3 && w.startsWith(x)))) sc += 2;
+      if (kw.includes(w)) sc += 2; else if (kw.some(x => x.startsWith(w) || (w.length > 3 && w.startsWith(x)))) sc += 1;
+    });
+    const hitQ = qw.filter(x => ws.includes(x)).length;
+    return { g, sc: sc / Math.sqrt(ws.length) + (sc ? hitQ / Math.max(qw.length, 1) : 0) };
+  }).filter(x => x.sc > 0).sort((a, b) => b.sc - a.sc);
+}
+
+// Can this person use a "take me there" button right now?
+function guideCan(t) {
+  if (!t) return false;
+  if (t === 'theme') return true;
+  if (!S.ready) return false;
+  if (t === '#/accounts' || t === '#/guide') return true;
+  if (t === 'switcher') return myAccounts().length > 0;
+  if (t === 'new-account') return isBizAdmin();
+  if (!S.acc) return t === 'access' && isBizAdmin();
+  if (t === 'tools' || t === 'settings') return true;
+  if (t === 'access') return canAdminAcc() || isBizAdmin();
+  if (t === 'new-brief') return canEditAcc() && toolOn('briefs');
+  if (t === 'new-task') return canEditAcc() && toolOn('lists');
+  if (t === 'search') return true;
+  if (t.startsWith('#/')) { const v = t.slice(2).split('/')[0]; return !TOOL_OF_VIEW[v] || toolOn(TOOL_OF_VIEW[v]); }
+  return false;
+}
+function guideGo(t) {
+  if (t === 'theme') { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); if (S.ready) render(); return; }
+  if (!guideCan(t)) return;
+  closeGuide();
+  if (t.startsWith('#/')) return go(t);
+  if (/^#\/home/.test(location.hash)) go('#/');
+  setTimeout(() => {
+    if (t === 'switcher') { const b = document.querySelector('.acc-switch'); if (b) openAccMenu(b); else go('#/accounts'); }
+    else if (t === 'new-account') openAccountForm();
+    else if (t === 'tools') openSettings('tools');
+    else if (t === 'settings') openSettings();
+    else if (t === 'access') { if (S.acc && canAdminAcc()) openAccessModal(S.acc.id); else { S.bz.tab = 'people'; go('#/business'); } }
+    else if (t === 'new-brief') ACTIONS['br-new']({ dataset: {} });
+    else if (t === 'new-task') ACTIONS['quick-add']({ dataset: {} });
+    else if (t === 'search') openSearch();
+  }, 80);
+}
+
+/* ---------- the chatbot ---------- */
+const GB = { open: false, cat: 'start', log: [], auto: -1, helped: {} };
+function guideFab() {
+  let f = document.getElementById('gb-fab');
+  if (!f) {
+    f = document.createElement('button'); f.id = 'gb-fab'; f.className = 'gb-fab'; f.type = 'button';
+    f.setAttribute('aria-label', 'Help — ask a question'); f.title = 'Help  ( ? )';
+    f.innerHTML = `${ico('help')}<span class="lb">Help</span>`;
+    f.addEventListener('click', () => openGuide());
+    document.body.appendChild(f);
+  }
+  f.classList.toggle('hide', GB.open);
+}
+function openGuide(qid) {
+  GB.open = true; guideFab();
+  let el = document.getElementById('gb');
+  if (!el) {
+    el = document.createElement('section'); el.id = 'gb'; el.className = 'gb'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Help');
+    document.body.appendChild(el);
+    if (!GB.log.length) {
+      const first = S.user && S.user.name && S.user.name !== 'Me' ? ' ' + esc(String(S.user.name).split(' ')[0]) : '';
+      GB.log.push({ who: 'bot', html: `<p>Hi${first}. Ask me how to do something here, or pick a topic. I'll answer and take you to the right page.</p>`, sugg: GUIDE_START[GB.cat] });
+    }
+    gbPaint();
+  }
+  if (qid && GUIDE_BY[qid]) gbAsk(qid);
+  setTimeout(() => { const i = el.querySelector('input'); if (i && matchMedia('(hover:hover)').matches) i.focus(); }, 60);
+}
+function closeGuide() {
+  const el = document.getElementById('gb'); GB.open = false;
+  if (el) { el.classList.add('out'); setTimeout(() => el.remove(), 160); }
+  guideFab();
+}
+function gbMsgHTML(m, i) {
+  if (m.who === 'me') return `<div class="gb-msg me">${esc(m.text)}</div>`;
+  if (m.who === 'typing') return `<div class="gb-msg bot gb-typing" aria-label="typing"><i></i><i></i><i></i></div>`;
+  const g = m.id && GUIDE_BY[m.id];
+  const act = g && g.go && guideCan(g.go) ? `<div class="gb-acts"><button class="gb-act" data-gb-go="${g.go}">${esc(g.gl)} ${ico('arrowRight', 'i-sm')}</button></div>` : '';
+  const help = g ? `<div class="gb-help">Helpful? <button data-gb-help="${i}:y" class="${GB.helped[i] === 'y' ? 'on' : ''}">Yes</button><button data-gb-help="${i}:n" class="${GB.helped[i] === 'n' ? 'on' : ''}">No</button></div>` : '';
+  const body = `<div class="gb-msg bot">${g ? `<span class="gb-q">${esc(g.q)}</span>${g.a}` : m.html}${act}${help}</div>`;
+  const sugg = (m.sugg || []).filter(id => GUIDE_BY[id]);
+  return body + (sugg.length ? `<div class="gb-sugg">${m.suggT ? `<span class="t">${m.suggT}</span>` : ''}${sugg.map(id => `<button class="gb-chip" data-gb-q="${id}">${esc(GUIDE_BY[id].q)}</button>`).join('')}</div>` : '');
+}
+function gbPaint() {
+  const el = document.getElementById('gb'); if (!el) return;
+  el.innerHTML = `<header class="gb-head"><span class="gb-av">${ico('help')}</span><div><b>Help</b><small>Answers and shortcuts for ${esc(CFG.appName || 'Ads Workspace')}</small></div><span class="sp"></span>
+      <button class="icon-btn" data-gb-reset title="Start over">${ico('repeat')}</button><button class="icon-btn" data-gb-close title="Close (Esc)">${ico('x')}</button></header>
+    <nav class="gb-cats">${GUIDE_CATS.map(([id, label, short]) => `<button class="gb-cat ${GB.cat === id ? 'on' : ''}" data-gb-cat="${id}" title="${label}">${short}</button>`).join('')}</nav>
+    <div class="gb-log" aria-live="polite">${GB.log.map(gbMsgHTML).join('')}</div>
+    <div class="gb-auto" role="listbox"></div>
+    <form class="gb-form" data-gb-form autocomplete="off"><input name="q" maxlength="200" placeholder="Ask, e.g. how do I give my team access?" aria-label="Your question"><button title="Ask">${ico('send')}</button></form>
+    <div class="gb-foot">Built-in answers · nothing you type leaves this browser</div>`;
+  const log = el.querySelector('.gb-log'); log.scrollTop = log.scrollHeight;
+}
+function gbPush(m) { GB.log.push(m); if (GB.log.length > 80) GB.log.splice(1, GB.log.length - 80); }
+function gbReply(m, delay = 320) {
+  gbPush({ who: 'typing' }); gbPaint();
+  setTimeout(() => { const i = GB.log.findIndex(x => x.who === 'typing'); if (i >= 0) GB.log.splice(i, 1); gbPush(m); gbPaint(); }, delay);
+}
+function gbAsk(id) {
+  const g = GUIDE_BY[id]; if (!g) return;
+  gbPush({ who: 'me', text: g.q });
+  gbReply({ who: 'bot', id, sugg: g.rel || [], suggT: g.rel && g.rel.length ? 'Related' : '' });
+}
+function gbType(text) {
+  text = String(text).trim().slice(0, 200); if (!text) return;
+  gbPush({ who: 'me', text });
+  const hits = guideSearch(text);
+  if (hits.length && hits[0].sc >= 2.2) {
+    const g = hits[0].g;
+    const more = hits.slice(1, 4).filter(h => h.sc >= 1.5).map(h => h.g.id);
+    gbReply({ who: 'bot', id: g.id, sugg: more.length ? more : (g.rel || []), suggT: more.length ? 'You might also mean' : 'Related' }, 420);
+  } else {
+    gbReply({ who: 'bot', html: `<p>I don't have an answer for that yet. ${hits.length ? 'These are the closest I know:' : 'Try one of these, or pick a topic above:'}</p>`, sugg: hits.length ? hits.slice(0, 4).map(h => h.g.id) : GUIDE_START[GB.cat] }, 420);
+  }
+}
+function gbAuto(input) {
+  const box = input.closest('.gb').querySelector('.gb-auto');
+  const v = input.value.trim(); GB.auto = -1;
+  if (v.length < 2) { box.innerHTML = ''; return; }
+  const words = gWords(v);
+  const mark = q => { let h = esc(q); words.forEach(w => { if (w.length > 1) h = h.replace(new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')})`, 'ig'), '<mark>$1</mark>'); }); return h; };
+  box.innerHTML = guideSearch(v).slice(0, 5).map(h => `<button type="button" data-gb-q="${h.g.id}" role="option">${ico('help')}<span>${mark(h.g.q)}</span></button>`).join('');
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('[data-gb-q],[data-gb-cat],[data-gb-close],[data-gb-reset],[data-gb-go],[data-gb-help],[data-guide-open],[data-guide-go]');
+  if (!t) return;
+  if (t.dataset.guideGo) { e.preventDefault(); return guideGo(t.dataset.guideGo); }
+  if (t.dataset.guideOpen !== undefined) { e.preventDefault(); return openGuide(t.dataset.guideOpen || undefined); }
+  if (t.dataset.gbQ) { const inp = document.querySelector('.gb-form input'); if (inp) inp.value = ''; const b = document.querySelector('.gb-auto'); if (b) b.innerHTML = ''; return gbAsk(t.dataset.gbQ); }
+  if (t.dataset.gbCat) { GB.cat = t.dataset.gbCat; const c = GUIDE_CATS.find(x => x[0] === GB.cat); gbPush({ who: 'bot', html: `<p><b>${c[1]}</b> — popular questions:</p>`, sugg: GUIDE_START[GB.cat] }); return gbPaint(); }
+  if (t.dataset.gbClose !== undefined) return closeGuide();
+  if (t.dataset.gbReset !== undefined) { GB.log.length = 0; GB.helped = {}; GB.cat = 'start'; document.getElementById('gb')?.remove(); return openGuide(); }
+  if (t.dataset.gbHelp) {
+    const [i, v] = t.dataset.gbHelp.split(':'); GB.helped[i] = v;
+    if (v === 'n') { const g = GB.log[+i] && GUIDE_BY[GB.log[+i].id]; gbReply({ who: 'bot', html: '<p>Sorry about that. Try rephrasing, or one of these:</p>', sugg: (g && g.rel && g.rel.length ? g.rel : GUIDE_START[GB.cat]) }, 250); }
+    else gbPaint();
+    return;
+  }
+  if (t.dataset.gbGo) guideGo(t.dataset.gbGo);
+});
+document.addEventListener('submit', e => {
+  const f = e.target.closest && e.target.closest('[data-gb-form]'); if (!f) return;
+  e.preventDefault();
+  const box = f.closest('.gb').querySelector('.gb-auto .on'), text = f.q.value;
+  f.q.value = ''; f.closest('.gb').querySelector('.gb-auto').innerHTML = '';
+  if (box) gbAsk(box.dataset.gbQ); else gbType(text);
+});
+document.addEventListener('input', e => { if (e.target.closest && e.target.closest('[data-gb-form]')) gbAuto(e.target); });
+document.addEventListener('keydown', e => {
+  const inGuide = e.target.closest && e.target.closest('#gb');
+  if (inGuide && e.target.matches('.gb-form input') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const items = [...document.querySelectorAll('.gb-auto button')]; if (!items.length) return;
+    e.preventDefault(); GB.auto = (GB.auto + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items.forEach((b, i) => b.classList.toggle('on', i === GB.auto));
+    return;
+  }
+  if (e.key === 'Escape' && GB.open && (inGuide || !document.querySelector('.overlay,.drawer,.menu'))) { e.stopImmediatePropagation(); closeGuide(); return; }
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+  if (e.key === '?' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.overlay,.drawer,.auth')) { e.preventDefault(); GB.open ? closeGuide() : openGuide(); }
+}, true);
+
+/* ---------- the Guide page ---------- */
+function guideSteps() {
+  const accs = allAccounts(true), mine = myAccounts();
+  const realAcc = accs.filter(a => !a.demo);
+  const hasTeamAccess = accs.some(a => Object.keys((a.access || {}).teams || {}).length);
+  const steps = [];
+  if (isBizAdmin()) {
+    steps.push(
+      { t: 'Add your people', d: 'Business settings → People. Add everyone by work email and give them a job role.', done: bizMembers().length > 1, go: 'people', gl: 'Add people' },
+      { t: 'Group them into teams', d: 'One team per client group works well, for example the GM team.', done: bizTeams().length > 0, go: 'teams', gl: 'Make a team' },
+      { t: 'Create a client account', d: 'Name, logo and sector. It shows in everyone\'s account switcher once they have access.', done: (realAcc.length || accs.length) > 0, go: 'new-account', gl: 'Create an account' },
+      { t: 'Give teams access', d: 'Admin, Editor or Viewer per team, or per person.', done: hasTeamAccess, go: 'access', gl: 'Set access' });
+  }
+  steps.push(
+    { t: 'Open your account', d: 'Use the switcher at the top of the sidebar. All accounts shows everything you can open.', done: !!S.acc, go: 'switcher', gl: 'Switch account' },
+    { t: 'Choose the tools', d: 'Account settings → Tools. Start with the essentials; switch on extras when they\'re needed.', done: !!(S.acc && S.acc.modules && Object.keys(S.acc.modules).length), go: 'tools', gl: 'Open Tools', admin: true },
+    { t: 'Submit or pick up a brief', d: 'Every request starts as a brief, so the workflow, owners and deadlines are tracked.', done: !!S.acc && Object.keys(S.data.briefs || {}).length > 0, go: 'new-brief', gl: 'New brief' },
+    { t: 'Check My work and Alerts each morning', d: 'My work shows what\'s waiting on you; Alerts shows what\'s late or at risk.', done: lsGet('tb:seenMyWork') === '1', go: '#/mywork', gl: 'Open My work' });
+  return steps.filter(s => !s.admin || (S.acc && canAdminAcc()));
+}
+function renderGuide() {
+  const steps = guideSteps(), done = steps.filter(s => s.done).length;
+  const roleRows = [['Business admin', 'Adds people and teams, creates accounts, sees every account', true, true, true, true],
+    ['Account admin', 'Runs one account: name, logo, access and tools', false, true, true, true], ['Editor', 'Does the work: briefs, tasks, campaigns, notes', false, false, true, true],
+    ['Viewer', 'Sees the account, changes nothing', false, false, false, true]];
+  const yes = v => v ? `<span class="gd-yes">${ico('check', 'i-sm')}<span class="sr">Yes</span></span>` : '<span class="mut">—</span>';
+  const biz = go => go === 'people' || go === 'teams';
+  const btn = (go, label) => (biz(go) ? isBizAdmin() : guideCan(go))
+    ? `<button class="btn sm" ${biz(go) ? `data-action="gd-biz" data-t="${go}"` : `data-guide-go="${go}"`}>${esc(label)} ${ico('arrowRight', 'i-sm')}</button>` : '';
+  return topbar('Help /') + `<div class="content"><div class="gd">
+    <div class="page-head"><h1>Guide</h1><div class="page-desc empty" style="cursor:default">How the platform fits together, and what to do first. Press <kbd>?</kbd> any time to ask a question.</div></div>
+    <section class="gd-sec">
+      <div class="gd-h"><h2>Get started</h2><span class="mut">${done} of ${steps.length} done</span></div>
+      <div class="gd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${done}"><i style="width:${Math.round(done / Math.max(steps.length, 1) * 100)}%"></i></div>
+      <ol class="gd-steps">${steps.map((s, i) => `<li class="${s.done ? 'done' : ''}"><span class="gd-n">${s.done ? ico('check', 'i-sm') : i + 1}</span><div><b>${esc(s.t)}</b><p>${esc(s.d)}</p></div>${s.done ? '' : btn(s.go, s.gl)}</li>`).join('')}</ol>
+    </section>
+    <section class="gd-sec">
+      <div class="gd-h"><h2>How it fits together</h2></div>
+      <div class="gd-flow">
+        <div class="gd-node"><small>1</small><b>Business</b><span>People and teams, managed by business admins</span></div><span class="gd-arr">${ico('arrowRight')}</span>
+        <div class="gd-node"><small>2</small><b>Accounts</b><span>One per client, with its own logo and data</span></div><span class="gd-arr">${ico('arrowRight')}</span>
+        <div class="gd-node"><small>3</small><b>Access</b><span>Teams or people get Admin, Editor or Viewer</span></div><span class="gd-arr">${ico('arrowRight')}</span>
+        <div class="gd-node"><small>4</small><b>Tools</b><span>Each account switches on only what it needs</span></div>
+      </div>
+    </section>
+    <section class="gd-sec">
+      <div class="gd-h"><h2>Who can do what</h2>${S.acc ? `<span class="mut">Your access to ${esc(S.acc.name)}: ${roleTag(S.accRole)}</span>` : ''}</div>
+      <div class="tbl-wrap"><table class="tbl gd-roles"><thead><tr><th>Role</th><th>In short</th><th>People, teams &amp; accounts</th><th>Account access &amp; tools</th><th>Do the work</th><th>See the account</th></tr></thead>
+        <tbody>${roleRows.map(([r, d, ...c]) => `<tr><td><b>${r}</b></td><td class="mut">${d}</td>${c.map(v => `<td>${yes(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    </section>
+    ${S.acc ? `<section class="gd-sec">
+      <div class="gd-h"><h2>Tools in ${esc(S.acc.name)}</h2>${canAdminAcc() ? `<button class="btn sm" data-guide-go="tools">Change tools ${ico('arrowRight', 'i-sm')}</button>` : ''}</div>
+      <div class="gd-tools">${TOOLS.map(([k, l, i, d]) => `<div class="gd-tool ${toolOn(k) ? 'on' : ''}">${ico(i)}<div><b>${esc(l)}</b><span>${esc(d)}</span></div><em>${toolOn(k) ? 'On' : 'Off'}</em></div>`).join('')}</div>
+    </section>` : ''}
+    <section class="gd-sec">
+      <div class="gd-h"><h2>Common questions</h2><button class="btn sm" data-guide-open>${ico('help', 'i-sm')} Ask a question</button></div>
+      <div class="gd-faq">${GUIDE_CATS.map(([c, label]) => `<div><h3>${label}</h3>${GUIDE_START[c].slice(0, 5).map(id => `<button class="gd-q" data-guide-open="${id}">${esc(GUIDE_BY[id].q)}</button>`).join('')}</div>`).join('')}</div>
+    </section>
+  </div></div>`;
+}
+
+/* =====================================================================
+   HOMEPAGE — what signed-out visitors see first (and #/home when signed in).
+   The product window is a static preview drawn in HTML: example accounts,
+   not live data.
+   ===================================================================== */
+function homeHTML(signedIn) {
+  const name = esc(CFG.appName || 'Ads Workspace');
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const cta = signedIn
+    ? `<button class="lp-btn lp-primary" data-go="#/">Open my accounts ${ico('arrowRight', 'i-sm')}</button><button class="lp-btn lp-ghost" data-go="#/guide">Open the guide</button>`
+    : `<button class="lp-btn lp-primary" data-home="in">Sign in ${ico('arrowRight', 'i-sm')}</button><a class="lp-btn lp-ghost" href="#lp-how" data-scroll>See how it works</a>`;
+  const tile = (initials, color) => `<span class="lpm-logo ${color === 'black' ? 'blk' : 'sw-' + color}">${initials}</span>`;
+  const accRow = (ini, color, nm, sec, briefs, alerts, live, teams) => `<div class="lpm-row">${tile(ini, color)}<div class="lpm-nm"><b>${nm}</b><i>${sec}</i></div>
+    <span class="lpm-num">${briefs}<small>briefs</small></span><span class="lpm-num ${alerts ? 'warn' : ''}">${alerts}<small>alerts</small></span><span class="lpm-num">${live}<small>live</small></span><span class="lpm-teams">${teams}</span></div>`;
+  const step = (label, st) => `<span class="lpm-step ${st}"><i>${st === 'done' ? ico('check', 'i-sm') : ''}</i>${label}</span>`;
+  const camp = (nm, acc, st, tags, foot) => `<div class="lpm-camp"><div class="t"><b>${nm}</b><span class="lpm-st ${st === 'Live' ? 'live' : ''}">${st}</span></div><i>${acc}</i><div class="lpm-tags">${tags.map(t => `<span>${t}</span>`).join('')}</div><div class="lpm-foot">${foot}</div></div>`;
+  const TOUR = [
+    { id: 'acc', icon: 'grid', label: 'Accounts', side: 'acc', capt: 'Every client is its own account. Switch from the top of the sidebar, or see them all side by side.',
+      html: `<div class="lpm-h">All accounts</div>
+        ${accRow('GM', 'blue', 'General Motors', 'Automotive · Chevrolet, GMC, Cadillac', 6, 2, 3, 'GM team')}
+        ${accRow('S', 'grey', 'Siddiqi', 'Luxury retail', 3, 0, 1, 'Retail & FMCG team')}
+        ${accRow('F', 'red', 'Ferrero', 'FMCG · Nutella, Kinder, Ferrero Rocher', 3, 1, 1, 'Retail & FMCG team')}
+        ${accRow('d', 'black', 'Agency internal', 'Internal', 0, 0, 0, 'Everyone')}` },
+    { id: 'brief', icon: 'brief', label: 'Briefs', side: 'brief', capt: 'Each brief runs through the same steps, with an owner and a deadline at every stage.',
+      html: `<div class="lpm-h">Chevrolet Year-End Sales Event</div><div class="lpm-meta"><span>Tactical / promotion</span><span>UAE, KSA</span><span>Search · Meta · Snap · TikTok</span></div>
+        <div class="lpm-flow">${step('Kick-off', 'done')}${step('Media plan', 'done')}${step('Client approval', 'done')}${step('Setup', 'done')}${step('QA', 'done')}${step('Live', 'now')}${step('Report', '')}</div>
+        <div class="lpm-grid2"><div class="lpm-box"><small>Objective</small><b>Leads</b><span>Test-drive leads and high-value behaviours</span></div>
+        <div class="lpm-box"><small>Current step</small><b>Live · optimise</b><span>Owner: Paid Search · on time</span></div></div>` },
+    { id: 'camp', icon: 'campaign', label: 'Campaigns', side: 'camp', capt: 'Status, pacing and the weekly optimisation check for every live flight.',
+      html: `<div class="lpm-h">Campaign Tracker</div><div class="lpm-camps">
+        ${camp('CHEV_YearEnd_Leads', 'Chevrolet', 'Live', ['UAE', 'KSA', 'Search', 'Meta', 'Snap'], 'Pacing <b class="ok">On track</b> · Weekly check <b class="ok">Done</b>')}
+        ${camp('GMC Yukon — Search conquest', 'GMC', 'Live', ['UAE', 'KSA', 'Search'], 'Pacing <b class="warn">Under</b> · Weekly check <b class="warn">Due</b>')}
+        ${camp('Escalade IQ launch', 'Cadillac', 'Live', ['GCC', 'Meta', 'YouTube'], 'Creatives <b class="ok">Ready</b>')}
+        ${camp('Ramadan 2027 offers', 'All brands', 'Pending', ['UAE', 'KSA', 'Meta', 'TikTok'], 'Brief submitted')}</div>` },
+    { id: 'access', icon: 'people', label: 'Access', side: 'acc', capt: 'Give each team Admin, Editor or Viewer access to the accounts they work on — and nothing else.',
+      html: `<div class="lpm-h">Access · General Motors</div>
+        <div class="lpm-acc"><span>${ico('people', 'i-sm')} GM team</span><em>Editor</em></div>
+        <div class="lpm-acc"><span>${ico('people', 'i-sm')} Leadership</span><em class="v">Viewer</em></div>
+        <div class="lpm-acc"><span>${ico('star', 'i-sm')} Account lead</span><em class="a">Admin</em></div>
+        <div class="lpm-acc mut"><span>${ico('people', 'i-sm')} Retail &amp; FMCG team</span><em class="n">No access</em></div>
+        <p class="lpm-note">Tools in this account: My work · Briefs · Campaign Tracker · Alerts · Dashboard</p>` },
+    { id: 'dash', icon: 'chart', label: 'Dashboard', side: 'dash', capt: 'Turnaround, SLAs and bottlenecks for any period — worked out from the account\'s own data.',
+      html: `<div class="lpm-h">Dashboard <span class="mut">· this quarter</span></div>
+        <div class="lpm-kpis"><div><b>6</b><span>Briefs this quarter</span></div><div><b>2</b><span>Steps past SLA</span></div><div><b>3</b><span>Campaigns live</span></div></div>
+        <div class="lpm-bars">${[34, 52, 46, 70, 58, 82, 64, 76].map(h => `<i style="height:${h}%"></i>`).join('')}</div><div class="lpm-axis"><span>Week 1</span><span>Week 8</span></div>` },
+  ];
+  const sideRow = (k, icon, label) => `<p data-lp-side="${k}">${ico(icon)}${label}</p>`;
+  const feat = (icon, title, text) => `<div class="lp-feat rv">${ico(icon)}<h3>${title}</h3><p>${text}</p></div>`;
+  const role = (title, text, can) => `<div class="lp-role rv"><h3>${title}</h3><p>${text}</p><ul>${can.map(c => `<li>${ico('check', 'i-sm')}${c}</li>`).join('')}</ul></div>`;
+  const faq = GUIDE_FAQ.map(id => GUIDE_BY[id]).filter(Boolean).map(g => `<details><summary>${esc(g.q)}${ico('plus')}</summary><div class="ans">${g.a}</div></details>`).join('');
+  return `<div class="lp">
+    <header class="lp-nav"><div class="lp-wrap">
+      <a class="lp-brand" href="#lp-top" data-scroll>${logoMark('lp-logo')}<span class="brand-sep"></span>${wordmark()}</a>
+      <nav class="lp-links"><a href="#lp-product" data-scroll>Product</a><a href="#lp-how" data-scroll>How it works</a><a href="#lp-roles" data-scroll>Roles</a><a href="#lp-help" data-scroll>Help</a><a href="#lp-faq" data-scroll>FAQ</a></nav>
+      <div class="lp-actions">
+        <button class="lp-theme" data-home-theme title="${dark ? 'Light' : 'Dark'} mode">${ico(dark ? 'sun' : 'moon')}</button>
+        ${signedIn ? `<button class="lp-btn lp-primary sm" data-go="#/">Open app</button>` : `<button class="lp-btn lp-primary sm" data-home="in">Sign in</button>`}
+      </div></div>
+    </header>
+    <section class="lp-hero" id="lp-top">
+      ${heroArt()}
+      <div class="lp-wrap">
+        <div class="lp-eyebrow">dentsu · ${name}</div>
+        <h1>Every client account.<br>One workspace.</h1>
+        <p class="lp-sub">Briefs, campaigns, tasks and reporting for each client in its own account. Switch between them like an ads manager, and give each team access only to the accounts it works on.</p>
+        <div class="lp-cta">${cta}</div>
+        <p class="lp-note">For dentsu teams. Your business admin sets up who can open which account.</p>
+      </div>
+    </section>
+    <div class="lp-plats"><div class="lp-wrap"><span class="lbl">Plan and track work across</span>${['Meta', 'Snapchat', 'TikTok', 'Google Ads', 'YouTube', 'LinkedIn', 'X'].map(p => `<span>${p}</span>`).join('')}</div></div>
+
+    <section class="lp-sec" id="lp-product"><div class="lp-wrap">
+      <div class="lp-kicker rv">Product</div>
+      <h2 class="rv">Built like an ads manager, for the work around the ads.</h2>
+      <div class="lp-tabs rv" role="tablist">${TOUR.map((t, i) => `<button class="lp-tab ${i ? '' : 'on'}" role="tab" data-tour="${i}">${ico(t.icon)}${t.label}<i class="bar"></i></button>`).join('')}</div>
+      <div class="lp-window rv" aria-hidden="true">
+        <div class="lpm-side">${logoMark('lpm-mark')}
+          <div class="lpm-switch">${tile('GM', 'blue')}<div><small>Account</small><b>General Motors</b></div>${ico('down', 'i-sm')}</div>
+          ${sideRow('mw', 'inbox', 'My work')}${sideRow('brief', 'brief', 'Briefs')}${sideRow('camp', 'campaign', 'Campaign Tracker')}${sideRow('al', 'bell', 'Alerts')}${sideRow('dash', 'chart', 'Dashboard')}
+          <p class="hd">Business</p>${sideRow('acc', 'grid', 'All accounts')}</div>
+        <div class="lpm-panes">${TOUR.map((t, i) => `<div class="lpm-pane ${i ? '' : 'on'}" data-side="${t.side}" data-capt="${esc(t.capt)}">${t.html}</div>`).join('')}</div>
+      </div>
+      <p class="lp-capt" id="lp-capt">${esc(TOUR[0].capt)}</p>
+      <p class="lp-small">Preview with example accounts.</p>
+    </div></section>
+
+    <section class="lp-sec lp-alt" id="lp-features"><div class="lp-wrap">
+      <div class="lp-kicker rv">What's inside</div>
+      <h2 class="rv">Everything a client team needs. Nothing it doesn't.</h2>
+      <div class="lp-feats">
+        ${feat('swap', 'Account switcher', 'Each client has its own account, logo and data. Jump between them from the top of the sidebar.')}
+        ${feat('people', 'Access by team', 'Teams and people get Admin, Editor or Viewer access to specific accounts. Everyone else never sees them.')}
+        ${feat('grid', 'Tools per account', 'Start with the essentials and switch on extras — brands, notebook, team calendar — only where they help.')}
+        ${feat('brief', 'Briefs with a workflow', 'One template for every request. Each step has an owner and an SLA, and the next person is notified.')}
+        ${feat('campaign', 'Campaign Tracker', 'Flights, markets, platforms and objectives, with pacing and a weekly optimisation check.')}
+        ${feat('bell', 'Alerts and dashboards', 'Late, stuck and at-risk work is flagged. Dashboards and All accounts show where things stand.')}
+      </div>
+    </div></section>
+
+    <section class="lp-sec" id="lp-how"><div class="lp-wrap">
+      <div class="lp-kicker rv">How it works</div>
+      <h2 class="rv">Set up a client in three steps.</h2>
+      <ol class="lp-how">
+        <li class="rv"><span>01</span><h3>Create the account</h3><p>Name, logo and sector. A business admin creates one account per client.</p></li>
+        <li class="rv"><span>02</span><h3>Give teams access</h3><p>Pick which teams can open it, and whether they're Admins, Editors or Viewers.</p></li>
+        <li class="rv"><span>03</span><h3>Choose the tools</h3><p>Switch on what the account needs. The team starts briefing and tracking straight away.</p></li>
+      </ol>
+    </div></section>
+
+    <section class="lp-sec lp-alt" id="lp-roles"><div class="lp-wrap">
+      <div class="lp-kicker rv">Roles</div>
+      <h2 class="rv">Everyone sees what they need.</h2>
+      <div class="lp-roles">
+        ${role('Business admin', 'Runs the platform.', ['Adds people and teams', 'Creates client accounts', 'Sees every account'])}
+        ${role('Account admin', 'Runs one client account.', ['Sets who has access', 'Chooses the tools', 'Edits name and logo'])}
+        ${role('Editor', 'Does the client work.', ['Briefs and workflow steps', 'Tasks and campaigns', 'Notes and calendar'])}
+        ${role('Viewer', 'Keeps an eye on things.', ['Sees the whole account', 'Dashboards and alerts', 'Changes nothing'])}
+      </div>
+    </div></section>
+
+    <section class="lp-sec" id="lp-help"><div class="lp-wrap lp-help">
+      <div class="rv"><div class="lp-kicker">Help built in</div><h2>Stuck? Ask.</h2>
+        <p class="lp-lead">A guide with a getting-started checklist, and a help chat that answers questions about the platform, access and media maths — then takes you to the right page. Press <kbd>?</kbd> anywhere.</p>
+        <div class="lp-cta"><button class="lp-btn lp-primary" data-guide-open>${ico('help', 'i-sm')} Ask a question</button>${signedIn ? '<button class="lp-btn lp-ghost" data-go="#/guide">Open the guide</button>' : ''}</div></div>
+      <div class="lp-chat rv" aria-hidden="true"><span class="q">How do I give my team access?</span>
+        <span class="a">Business settings → <b>People</b> to add them, then <b>Teams</b> to put them on the right team. Account admins can also change access from the account.</span>
+        <span class="go">Open access ${ico('arrowRight', 'i-sm')}</span>
+        <div class="chips"><span>What can Viewers do?</span><span>How do I calculate pacing?</span><span>How do I switch tools on?</span></div></div>
+    </div></section>
+
+    <section class="lp-sec lp-alt" id="lp-faq"><div class="lp-wrap">
+      <div class="lp-kicker rv">FAQ</div><h2 class="rv">Questions, answered.</h2>
+      <div class="lp-faq rv">${faq}</div>
+    </div></section>
+
+    <section class="lp-final"><div class="lp-wrap">
+      <h2 class="rv">Bring every client into one place.</h2>
+      <p class="rv">${signedIn ? 'Your accounts are one click away.' : 'Ask your business admin to add your work email, then sign in.'}</p>
+      <div class="lp-cta rv">${signedIn ? `<button class="lp-btn lp-white" data-go="#/">Open my accounts ${ico('arrowRight', 'i-sm')}</button>` : `<button class="lp-btn lp-white" data-home="in">Sign in ${ico('arrowRight', 'i-sm')}</button><button class="lp-btn lp-outline" data-home="up">Create your login</button>`}</div>
+    </div></section>
+    <footer class="lp-foot"><div class="lp-wrap">
+      <div class="brandcol"><div class="lp-brand">${logoMark('lp-logo')}<span class="brand-sep"></span>${wordmark()}</div><span>Client work, one account at a time.</span><span class="mut">Build ${BUILD}</span></div>
+      <div><h6>Product</h6><a href="#lp-product" data-scroll>Accounts</a><a href="#lp-features" data-scroll>Features</a><a href="#lp-how" data-scroll>How it works</a><a href="#lp-roles" data-scroll>Roles</a></div>
+      <div><h6>Help</h6><button data-guide-open>Ask a question</button><button data-guide-open="m-pacing">Pacing formula</button><a href="#lp-faq" data-scroll>FAQ</a></div>
+      <div><h6>Account</h6>${signedIn ? '<button data-go="#/">Open my accounts</button>' : '<button data-home="in">Sign in</button><button data-home="up">Create your login</button>'}<button data-guide-open="s-who-sees">Privacy &amp; access</button></div>
+    </div></footer>
+  </div>`;
+}
+const heroArt = () => `<svg class="lp-art" viewBox="0 0 1200 640" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+  <line x1="1260" y1="-40" x2="720" y2="700" stroke="#F0BEBE" stroke-width="22"/><line x1="1300" y1="60" x2="860" y2="700" stroke="#646ED2" stroke-width="3"/>
+  <line x1="1130" y1="-40" x2="930" y2="700" stroke="#008287" stroke-width="2"/><line x1="990" y1="-40" x2="1240" y2="420" stroke="#FF5023" stroke-width="2"/>
+  <circle cx="1100" cy="70" r="30" class="dot"/><circle cx="930" cy="290" r="8" class="dot"/><circle cx="1040" cy="470" r="12" class="dot"/></svg>`;
+// The homepage comes alive once it's on the page: scroll reveal, the product tour and the theme switch.
+function homeEnhance() {
+  const home = $('.lp'); if (!home) return;
+  document.body.classList.add('on-home');
+  const els = $$('.rv', home);
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: home, rootMargin: '0px 0px -30px 0px', threshold: 0.05 });
+    els.forEach(el => io.observe(el));
+  } else els.forEach(el => el.classList.add('in'));
+  home.addEventListener('scroll', () => home.classList.toggle('scrolled', home.scrollTop > 8), { passive: true });
+  const tabs = $$('[data-tour]', home), panes = $$('.lpm-pane', home), capt = $('#lp-capt', home);
+  let cur = 0, timer = null;
+  const show = i => {
+    cur = (i + tabs.length) % tabs.length;
+    tabs.forEach((t, j) => { t.classList.toggle('on', j === cur); t.setAttribute('aria-selected', j === cur); const b = t.querySelector('.bar'); if (b) { b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; } });
+    panes.forEach((p, j) => p.classList.toggle('on', j === cur));
+    $$('[data-lp-side]', home).forEach(p => p.classList.toggle('on', p.dataset.lpSide === panes[cur].dataset.side));
+    if (capt) capt.textContent = panes[cur].dataset.capt;
+  };
+  const tick = () => { clearTimeout(timer); timer = setTimeout(() => { if (!document.body.contains(home)) return; if (!home.classList.contains('tour-paused')) show(cur + 1); tick(); }, 6500); };
+  tabs.forEach((t, i) => t.addEventListener('click', () => { show(i); tick(); }));
+  const win = $('.lp-window', home);
+  if (win) { win.addEventListener('mouseenter', () => home.classList.add('tour-paused')); win.addEventListener('mouseleave', () => { home.classList.remove('tour-paused'); tick(); }); }
+  show(0); tick();
+  const th = $('[data-home-theme]', home);
+  if (th) th.addEventListener('click', () => { const d = document.documentElement.dataset.theme === 'dark'; setTheme(d ? 'light' : 'dark'); th.innerHTML = ico(d ? 'moon' : 'sun'); th.title = (d ? 'Dark' : 'Light') + ' mode'; });
+  guideFab();
+}
+// smooth-scroll the homepage's own anchor links without touching the app's #/ routes
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('a[data-scroll]'); if (!a) return;
+  e.preventDefault();
+  const t = document.querySelector(a.getAttribute('href')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
 const brand = () => `<div class="brand">${logoMark('brand-logo')}<span class="brand-sep"></span>${wordmark()}</div>`;
 // The sign-in card sits on the dentsu line-and-dot motif (drawn here, no images).
 const authArt = () => `<svg class="auth-art" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -6597,7 +7186,7 @@ const authArt = () => `<svg class="auth-art" viewBox="0 0 1200 800" preserveAspe
   <line x1="-40" y1="610" x2="520" y2="420" stroke="#008287" stroke-width="10"/><line x1="-40" y1="700" x2="420" y2="300" stroke="#AAFF6E" stroke-width="2"/>
   <circle cx="1100" cy="60" r="34" fill="#323232"/><circle cx="905" cy="300" r="9" fill="#323232"/><circle cx="1010" cy="520" r="14" fill="#323232"/>
   <circle cx="300" cy="490" r="11" fill="#323232"/><circle cx="120" cy="650" r="7" fill="#323232"/></svg>`;
-function authScreen(html) { $('#modals').innerHTML = ''; $('#root').innerHTML = `<div class="auth">${authArt()}<div class="auth-card">${brand()}${html}</div></div>`; }
+function authScreen(html) { $('#modals').innerHTML = ''; document.body.classList.remove('on-home'); document.getElementById('gb-fab')?.remove(); document.getElementById('gb')?.remove(); GB.open = false; $('#root').innerHTML = `<div class="auth">${authArt()}<div class="auth-card">${brand()}${html}</div></div>`; }
 const authErr = e => {
   const c = (e && e.code) || '';
   // Same message whether the email exists or the password is wrong, so the form can't be used to find accounts.
@@ -6685,6 +7274,16 @@ async function bootCloud() {
     bizUnsubs.push(F.onSnapshot(accQ, once(snap => { const m = {}; snap.forEach(d => { m[d.id] = { ...d.data(), id: d.id }; }); S.biz.accounts = m; }), fail('accounts')));
   });
 
+  // Signed-out visitors land on the homepage; links into the app go straight to sign-in.
+  const showHome = () => {
+    const h = location.hash.replace(/^#\/?/, '');
+    if (h && h !== 'home') return showSignIn();
+    $('#modals').innerHTML = '';
+    $('#root').innerHTML = homeHTML(false);
+    homeEnhance();
+    document.title = 'dentsu ' + (CFG.appName || 'Ads Workspace');
+    $$('[data-home]').forEach(b => b.onclick = () => showSignIn(b.dataset.home));
+  };
   const showSignIn = (mode = 'in', msg = '', isErr = false) => {
     authScreen(`<div class="auth-title">${mode === 'up' ? 'Create your account' : mode === 'reset' ? 'Reset your password' : 'Sign in'}</div>
       ${mode === 'up' ? '<div class="auth-msg">Use the work email a business admin added to the platform.</div>' : ''}
@@ -6698,13 +7297,16 @@ async function bootCloud() {
       <div class="auth-links">
         ${mode === 'in' ? '<button data-to="up">Create an account</button><button data-to="reset">Forgot password?</button>' : '<button data-to="in">Back to sign in</button>'}
       </div>
+      <div class="auth-back"><button data-to="home">${ico('left', 'i-sm')} Back to home</button></div>
 `);
     $$('[data-to]').forEach(b => b.onclick = () => {
+      if (b.dataset.to === 'home') { history.replaceState(null, '', location.pathname + location.search); return showHome(); }
       showSignIn(b.dataset.to);
     });
     const f = $('[data-auth]');
     f.onsubmit = async e => {
       e.preventDefault(); const btn = f.querySelector('button'); btn.disabled = true;
+      if (/home/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
       const email = f.email.value.trim(), pw = f.pw && f.pw.value;
       if (/home/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
       if (mode === 'up' && !(pw.length >= 8 && /[A-Za-z]/.test(pw) && /\d/.test(pw))) {
@@ -6748,7 +7350,7 @@ async function bootCloud() {
   };
 
   const enter = async user => {
-    if (!user) { stopAll(); return showSignIn(); }
+    if (!user) { stopAll(); return showHome(); }
     if (!user.emailVerified) return showVerify(user);
     const email = user.email.toLowerCase();
     const isOwner = !!owner && email === owner;
