@@ -10,7 +10,7 @@ if (window.top !== window.self) {
 /* ===================== utilities ===================== */
 const CFG_MISSING = !window.APP_CONFIG;   // config.js didn't load: stop with a clear message instead of guessing
 const CFG = window.APP_CONFIG || {};
-const BUILD = '2026-11-22-phases';   // shown in Settings, so you can confirm which version is live
+const BUILD = '2026-11-22-phases2';   // shown in Settings, so you can confirm which version is live
 // Firebase Web SDK, pinned to an exact version (updated from 10.12.2). If the CDN can't serve it,
 // the previous version is tried so the app still opens.
 const FB_VERSIONS = ['12.19.0', '10.12.2'];
@@ -5286,7 +5286,7 @@ function assetsTabHTML(b, ph) {
     <div class="as-drive">${ico('folder')}<span><b>Assets folder</b><small>${drive ? esc(hostOf(drive)) : client ? 'The team will add the link' : 'Add the Drive link with the final assets'}</small></span>
       ${drive ? `<a class="btn sm" data-ext href="${esc(drive)}" target="_blank" rel="noopener noreferrer">${ico('ext', 'i-sm')} Open folder</a>` : ''}${edit ? `<button class="btn sm" data-action="as-drive" data-id="${b.id}">${drive ? 'Change link' : 'Add link'}</button>` : ''}</div>
     ${client && ph.inReview ? `<div class="ph-ask"><span class="ph-ask-i">${ico('image')}</span><div><b>${plural(ph.inReview, 'asset')} waiting for your review</b><span>Open the Drive folder, then approve each asset or ask for changes.</span></div></div>` : ''}
-    ${!client && ph.assetsDone ? `<div class="ph-ask ok"><span class="ph-ask-i">${ico('okcircle')}</span><div><b>All assets approved</b><span>Next: campaign build and go-live.</span></div></div>` : ''}
+    ${!client && ph.assetsDone && !ph.live ? `<div class="ph-ask ok"><span class="ph-ask-i">${ico('okcircle')}</span><div><b>All assets approved</b><span>Next: campaign build and go-live.</span></div></div>` : ''}
     ${counts.length ? `<div class="as-counts">${counts.map(([s, c]) => `${pill(s, ASSET_TONE[s])}<b>${c}</b>`).join('')}</div>` : ''}
     ${n ? `<div class="tbl-wrap"><table class="tbl as-tbl"><thead><tr><th>Asset</th><th>Type</th><th>Platform</th>${client ? '' : '<th>Owner</th>'}<th>Due</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : `<div class="ph-empty">${ico('checklist')}<b>${client ? 'No assets listed yet' : 'List the assets this campaign needs'}</b><span>${client ? 'The team is putting the asset list together.' : 'One row per deliverable: who makes it, when it is due, and where it stands. The client reviews them here.'}</span></div>`}
