@@ -10,7 +10,7 @@ if (window.top !== window.self) {
 /* ===================== utilities ===================== */
 const CFG_MISSING = !window.APP_CONFIG;   // config.js didn't load: stop with a clear message instead of guessing
 const CFG = window.APP_CONFIG || {};
-const BUILD = '2026-11-22-phases2';   // shown in Settings, so you can confirm which version is live
+const BUILD = '2026-11-22-workflow';   // shown in Settings, so you can confirm which version is live
 // Firebase Web SDK, pinned to an exact version (updated from 10.12.2). If the CDN can't serve it,
 // the previous version is tried so the app still opens.
 const FB_VERSIONS = ['12.19.0', '10.12.2'];
@@ -3196,7 +3196,8 @@ function tagList(items, cls, max) {
   return shown.map(x => `<span class="tag ${cls}">${esc(x)}</span>`).join('') +
     (list.length > shown.length ? `<span class="tag more">+${list.length - shown.length}</span>` : '');
 }
-const statusPill = (c, action) => `<button class="ct-status ${STATUS_CLS[c.status] || ''}" ${action ? `data-action="ct-set" data-f="status" data-id="${c.id}"` : ''} title="Status: ${esc(c.status)}"><span class="dot"></span>${esc(c.status)}</button>`;
+const statusPill = (c, action) => (action ? `<button class="ct-status ${STATUS_CLS[c.status] || ''}" data-action="ct-set" data-f="status" data-id="${c.id}" title="Status: ${esc(c.status)}"><span class="dot"></span>${esc(c.status)}</button>`
+  : `<span class="ct-status ${STATUS_CLS[c.status] || ''}" title="Status: ${esc(c.status)}"><span class="dot"></span>${esc(c.status)}</span>`);
 function metricBtn(c, key) {
   if (key === 'weekly') {
     const done = weeklyDone(c), due = weeklyDue(c);
@@ -4969,9 +4970,7 @@ function renderBrief(b) {
       <td><button class="who-btn" data-action="st-assign" data-id="${t.id}">${avatarHTML(t.assignee)}<span>${t.assignee ? esc(personName(t.assignee)) : '<span class="warn">Assign</span>'}</span></button>${t.role ? `<small class="mut">${esc(t.role)}</small>` : ''}</td>
       <td class="nw"><button class="link-btn ${late ? 'bad' : t.status === 'Done' ? (t.due && tsKey(t.doneAt || 0) > t.due ? 'warn' : '') : t.due ? dueInfo(t.due).cls : ''}" data-action="st-due" data-id="${t.id}" title="${t.status === 'Done' && t.due ? (tsKey(t.doneAt || 0) > t.due ? 'Finished after its due date' : 'Finished on time') : 'Change the due date'}">${t.due ? esc(fmtDay(t.due)) : 'Set date'}</button></td>
       <td class="num mut">${t.slaDays != null ? t.slaDays + 'd' : '-'}</td>
-      <td class="mut nw">${t.startedAt ? esc(fmtStamp(t.startedAt)) : '-'}</td>
-      <td class="mut nw">${t.doneAt ? esc(fmtStamp(t.doneAt)) : '-'}</td>
-      <td class="num ${over ? 'warn' : ''}" title="${t.status === 'Done' ? 'Ready (previous step done) → done, in working days' : 'In progress so far, working days'}">${took != null ? fmtDur(took) : '-'}</td></tr>`;
+      <td class="nw st-time" title="${t.startedAt ? 'Started ' + esc(fmtStamp(t.startedAt)) : 'Not started'}${t.doneAt ? ' · finished ' + esc(fmtStamp(t.doneAt)) : ''}">${t.doneAt ? `<span class="mut">${esc(fmtDay(tsKey(t.doneAt)))}</span>` : t.startedAt ? '<span class="mut">In progress</span>' : '<span class="mut">-</span>'}${took != null ? `<small class="${over ? 'warn' : 'mut'}">${t.status === 'Done' ? 'took' : 'for'} ${fmtDur(took)}${t.slaDays != null ? ` of ${t.slaDays}d` : ''}</small>` : ''}</td></tr>`;
   }).join('');
   return topbar(`<a data-go="#/briefs" class="crumb-link">Briefs</a> /`, `
       <button class="top-btn" data-action="br-edit" data-id="${b.id}">${ico('pencil', 'i-sm')}Edit brief</button>
@@ -4987,7 +4986,7 @@ function renderBrief(b) {
     ${phaseCardsHTML(b, ph, tab)}
     <div class="bp-grid"><div class="bp-main">${tab !== 'brief' ? phaseMainHTML(b, ph, tab) : `
       <div class="bp-sec"><div class="bp-sec-h"><h3>${ico('flow', 'i-sm')} Workflow</h3>${steps.length ? `<span class="mut">${pr.n} of ${pr.total} done</span><div class="sp ${pr.n === pr.total ? 'full' : ''}" style="flex:1;max-width:220px"><div class="sp-track"><i style="width:${pr.pct}%"></i></div></div>` : ''}<span style="flex:1"></span>${steps.length ? `<button class="btn sm" data-action="st-add" data-id="${b.id}">${ico('plus', 'i-sm')} Step</button>` : ''}</div>
-        ${steps.length ? `<div class="tbl-wrap"><table class="tbl steps"><thead><tr><th>#</th><th>Status</th><th>Step</th><th>Assignee</th><th>Due</th><th class="num">SLA</th><th>Started</th><th>Finished</th><th class="num">Took</th></tr></thead><tbody>${stepRows}</tbody></table></div>
+        ${steps.length ? `<div class="tbl-wrap"><table class="tbl steps"><thead><tr><th>#</th><th>Status</th><th>Step</th><th>Assignee</th><th>Due</th><th class="num">SLA</th><th title="Hover a row for when it started">Finished</th></tr></thead><tbody>${stepRows}</tbody></table></div>
           ${ganttHTML(b, steps)}`
         : `<div class="db-empty">Not started yet. ${b.status === 'Draft' ? 'Submit the brief, then' : ''} assign the team and kick off the workflow - each step gets an owner and a due date from its SLA.</div>`}</div>
       ${section('Objective &amp; KPIs', `${b.objective ? `<p class="bp-p"><b>${esc(b.objective)}</b></p>` : ''}${para(b.kpis)}`)}
@@ -5133,7 +5132,7 @@ const numStr = v => (v == null || !Number.isFinite(v) ? '-' : Math.round(v).toLo
 /* ---------- the phase cards (they double as the brief's tabs) ---------- */
 function briefTab(b, ph) {
   const t = S.route && S.route.view === 'brief' && S.route.id === b.id ? S.route.tab : '';
-  return BP_TABS.includes(t) ? t : ph.cur;
+  return BP_TABS.includes(t) ? t : isClientRole() ? ph.cur : 'brief';   // the team lands on the workflow; clients on where things stand
 }
 function phaseCardsHTML(b, ph, tab) {
   const client = isClientRole(), pr = b.planReview || {};
@@ -5146,8 +5145,11 @@ function phaseCardsHTML(b, ph, tab) {
   const pc = perfCalc(b);
   const perfLine = ph.completed ? `Completed${b.closedAt ? ' ' + esc(fmtDay(tsKey(b.closedAt))) : ''}` : ph.live ? (pc.pace != null ? `Pacing ${Math.round(pc.pace * 100)}% · ${healthLabel(pc.overall)}` : 'Live - results coming in')
     : b.goLive ? `Go-live ${esc(fmtDay(b.goLive))}` : 'After go-live';
+  const sp = client ? null : stepProgress(b.id);
+  const first = client ? card('brief', 1, 'Brief', ph.submitted, ph.submitted ? `Submitted${b.submittedAt ? ' ' + esc(fmtDay(tsKey(b.submittedAt))) : ''}` : 'Draft - not submitted', b.status === 'Draft')
+    : card('brief', 1, 'Workflow', sp.total > 0 && sp.n === sp.total, sp.total ? `${sp.n} of ${sp.total} steps done` : ph.submitted ? 'Not kicked off yet' : 'Draft - not submitted', false);
   return `<div class="ph-cards" role="tablist" aria-label="Brief phases">
-    ${card('brief', 1, 'Brief', ph.submitted, ph.submitted ? `Submitted${b.submittedAt ? ' ' + esc(fmtDay(tsKey(b.submittedAt))) : ''}` : 'Draft - not submitted', client && b.status === 'Draft')}
+    ${first}
     ${card('plan', 2, 'Media plan', ph.approved, planLine, client ? ph.awaitingPlan : ph.changes)}
     ${card('assets', 3, 'Assets', ph.assetsDone, assetLine, client ? ph.inReview > 0 : ph.st.includes('Changes requested'))}
     ${card('perf', 4, 'Live &amp; results', ph.completed, perfLine, !client && ph.live && ['serious', 'warning'].includes(pc.overall))}
@@ -5725,6 +5727,12 @@ function phaseSync() {
   const mine = myPerson(), viewing = S.route && S.route.view === 'brief' ? S.route.id : null;
   Object.values(S.data.briefs).forEach(b => {
     if (b.archived) return;
+    // older sample data: a post-campaign report "in progress" while the campaign is still running goes back to To do
+    if (b.demo && b.status === 'Live' && b.flightEnd && b.flightEnd > todayKey() && !PH_SYNCED.has('rep:' + b.id)) {
+      PH_SYNCED.add('rep:' + b.id);
+      const rep = briefSteps(b.id).find(t => t.anchor === 'flightEnd' && t.status === 'In progress');
+      if (rep) store.update('tasks', rep.id, { status: 'To do', startedAt: null, updatedAt: Date.now() });
+    }
     // sample briefs made before the phases existed get matching example phases (once)
     if (b.demo && !planVersions(b).length && !((b.perf || {}).entries || []).length && !['Draft', 'Submitted'].includes(b.status) && !PH_SYNCED.has('demo:' + b.id)) {
       PH_SYNCED.add('demo:' + b.id);
@@ -6687,7 +6695,7 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
           if (st.launch) { b.liveAt = s1; b.statusLog.push({ status: 'Live', at: s1, by: pname(pid) }); act(s1, 'brief_status', { kind: 'brief', briefId: id, clientIds: hIds, title: label, from: 'In progress', to: 'Live', by: pname(pid) }); }
         } else if (i === nDone && status !== 'Completed') {
           const s0 = wh(cur + 0.3 * D);
-          if (s0 < now) {
+          if (s0 < now && !(st.anchor === 'flightEnd' && flightEnd > today)) {
             const blocked = st.name.startsWith('Client approval');
             Object.assign(t, { status: blocked ? 'Blocked' : 'In progress', startedAt: s0, ...(blocked ? { blockedAt: s0 + 0.5 * D, blockedReason: 'Waiting for the client to sign off the plan' } : {}) });
             act(s0, 'step_started', { kind: 'step', briefId: id, taskId: t.id, clientIds: hIds, title: st.name, by: pname(pid), from: 'To do', to: 'In progress' });
