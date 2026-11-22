@@ -13,11 +13,14 @@ rules_version = '2';
 //                       create, change or remove owners.
 //   teams/{id}          groups of people, used to give access to accounts.
 //   workspaces/{id}     one document per client account: name, logo, tools,
-//                       access, and roles = { email: 'admin' | 'editor' | 'viewer' }.
+//                       access, and roles = { email: 'admin' | 'editor' | 'viewer' | 'client' }.
 //   workspaces/{id}/…   everything inside the account (lists, briefs, campaigns…).
 //   Business admins (and the owner) can open and manage every account.
 //   Account admins manage their account's name, logo, tools and access.
 //   Editors change the account's data. Viewers can only read it.
+//   Clients (account role 'client') see only the account's briefs and settings: they submit briefs,
+//   approve media plans and assets (planReview / assetReview) and download the plan file. People
+//   whose business role is 'client' never see the agency's people list, teams or other accounts' data.
 // =====================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -31,32 +34,37 @@ service cloud.firestore {
     function isOwner() { return signedIn() && (me() == ownerEmail() || myBizRole() == 'owner'); }
     function isMember() { return signedIn() && (me() == ownerEmail() || exists(memberDoc())); }
     function isBizAdmin() { return signedIn() && (isOwner() || myBizRole() == 'admin'); }
+    function isClientMember() { return signedIn() && me() != ownerEmail() && myBizRole() == 'client'; }
+    function isStaff() { return isMember() && !isClientMember(); }
     function isMemberEmail(e) { return e == ownerEmail() || exists(/databases/$(database)/documents/members/$(e)); }
 
     // the account document and the caller's role in it
     function acc(wid) { return get(/databases/$(database)/documents/workspaces/$(wid)).data; }
     function accRole(wid) { return acc(wid).get('roles', {}).get(me(), ''); }
-    function canRead(wid) { return isBizAdmin() || (isMember() && accRole(wid) in ['admin', 'editor', 'viewer']); }
-    function canEdit(wid) { return isBizAdmin() || (isMember() && accRole(wid) in ['admin', 'editor']); }
+    function canRead(wid) { return isBizAdmin() || (isStaff() && accRole(wid) in ['admin', 'editor', 'viewer']); }
+    function canEdit(wid) { return isBizAdmin() || (isStaff() && accRole(wid) in ['admin', 'editor']); }
+    // the client view of an account
+    function isClient(wid) { return isMember() && !isBizAdmin() && accRole(wid) == 'client'; }
+    function canSee(wid) { return canRead(wid) || isClient(wid); }
 
     // ---------- People: business admins add and remove them ----------
     // Anyone signed in may read their own entry (that's how the app knows to let them in).
     match /members/{em} {
-      allow get: if isMember() || (signedIn() && em == me());
-      allow list: if isMember();
+      allow get: if isStaff() || (signedIn() && em == me());
+      allow list: if isStaff();
       // only owners can make someone an owner, or touch an owner's entry
       allow create: if isBizAdmin() && em == em.lower() && em.matches('^[^@\\s]+@[^@\\s]+$')
-        && request.resource.data.get('bizRole', 'member') in ['owner', 'admin', 'member']
+        && request.resource.data.get('bizRole', 'member') in ['owner', 'admin', 'member', 'client']
         && (isOwner() || request.resource.data.get('bizRole', 'member') != 'owner');
       allow update: if isBizAdmin()
-        && request.resource.data.get('bizRole', 'member') in ['owner', 'admin', 'member']
+        && request.resource.data.get('bizRole', 'member') in ['owner', 'admin', 'member', 'client']
         && (isOwner() || (request.resource.data.get('bizRole', 'member') != 'owner' && resource.data.get('bizRole', 'member') != 'owner'));
       allow delete: if isBizAdmin() && em != me() && (isOwner() || resource.data.get('bizRole', 'member') != 'owner');
     }
 
     // ---------- Teams ----------
     match /teams/{id} {
-      allow read: if isMember();
+      allow read: if isStaff();
       allow write: if isBizAdmin();
     }
 
@@ -68,10 +76,10 @@ service cloud.firestore {
       allow create, delete: if isBizAdmin();
       // account admins: name, logo, tools and access. Everyone in the account: the overview numbers.
       allow update: if isBizAdmin()
-        || (isMember() && resource.data.get('roles', {}).get(me(), '') == 'admin'
+        || (isStaff() && resource.data.get('roles', {}).get(me(), '') == 'admin'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'sector', 'logo', 'color', 'modules', 'access', 'roles', 'memberEmails', 'stats', 'updatedAt'])
             && request.resource.data.get('logo', '').size() <= 200000)
-        || (isMember() && resource.data.get('roles', {}).get(me(), '') != ''
+        || (isStaff() && resource.data.get('roles', {}).get(me(), '') in ['admin', 'editor', 'viewer']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats']));
 
       // ---------- Work data inside an account ----------
@@ -84,11 +92,41 @@ service cloud.firestore {
           && col in ['projects', 'sections', 'tasks', 'events', 'meta', 'accounts', 'campaigns', 'notes', 'briefs', 'trash'];
       }
 
+      // ---------- Clients ----------
+      // Briefs: a client can create one (draft or submitted), edit it while it's a draft or just submitted,
+      // and record their decisions on the media plan and the assets. Everything else on a brief is the team's.
+      match /briefs/{id} {
+        allow read: if isClient(wid);
+        allow create: if isClient(wid)
+          && request.resource.data.status in ['Draft', 'Submitted']
+          && request.resource.data.get('team', []).size() == 0
+          && request.resource.data.get('demo', false) == false
+          && !request.resource.data.keys().hasAny(['plan', 'planReview', 'assets', 'assetReview', 'perf', 'clientAlerts', 'kickoffAt', 'liveAt', 'closedAt', 'brandNames']);
+        allow update: if isClient(wid) && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['planReview', 'assetReview', 'updatedAt', 'updatedBy'])
+          || (resource.data.status in ['Draft', 'Submitted'] && request.resource.data.status in ['Draft', 'Submitted']
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'type', 'priority', 'clientIds', 'objective', 'kpis', 'budget', 'currency',
+                'flightStart', 'flightEnd', 'goLive', 'requestDate', 'markets', 'platforms', 'languages', 'audience', 'offer', 'promo', 'message', 'cta', 'landingUrl',
+                'assetsUrl', 'creative', 'notes', 'requestedBy', 'requestedByEmail', 'ownerId', 'workflowId', 'status', 'statusLog', 'submittedAt', 'updatedAt', 'updatedBy'])));
+      }
+      // the account's settings (team roster for names, workflows): read only
+      match /meta/{id} {
+        allow read: if isClient(wid);
+      }
+      // Small files (a media plan up to ~650 KB): the team uploads, the team and clients download one at a time.
+      match /files/{id} {
+        allow get: if canSee(wid);
+        allow list: if canRead(wid);
+        allow create: if canEdit(wid) && request.resource.data.data is string && request.resource.data.data.size() <= 950000 && request.resource.data.size() <= 10;
+        allow update: if false;
+        allow delete: if canEdit(wid);
+      }
+
       // Activity log: write-once, server-stamped, attributed to whoever is signed in.
       // Only sample-data entries (demo: true) can be removed, and only by a business admin.
       match /activity/{id} {
         allow read: if canRead(wid);
-        allow create: if canRead(wid)
+        allow create: if canSee(wid)
           && request.resource.data.byEmail == me()
           && request.resource.data.ts == request.time
           && request.resource.data.at is number
@@ -100,20 +138,20 @@ service cloud.firestore {
 
       // In-app notifications: anyone in the account can notify a teammate; only the recipient reads them.
       match /notifs/{id} {
-        allow read: if canRead(wid) && resource.data.to == me();
-        allow create: if canRead(wid)
+        allow read: if canSee(wid) && resource.data.to == me();
+        allow create: if canSee(wid)
           && request.resource.data.to is string && request.resource.data.to.size() <= 254
           && request.resource.data.fromEmail == me()
           && request.resource.data.read == false
           && request.resource.data.size() <= 17;
-        allow update: if canRead(wid) && resource.data.to == me()
+        allow update: if canSee(wid) && resource.data.to == me()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
-        allow delete: if canRead(wid) && resource.data.to == me();
+        allow delete: if canSee(wid) && resource.data.to == me();
       }
 
       // Security log for the account: write-once; business admins read it.
       match /audit/{id} {
-        allow create: if canRead(wid) && request.resource.data.email == me() && request.resource.data.at == request.time;
+        allow create: if canSee(wid) && request.resource.data.email == me() && request.resource.data.at == request.time;
         allow read: if isBizAdmin();
         allow update, delete: if false;
       }

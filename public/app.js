@@ -10,7 +10,7 @@ if (window.top !== window.self) {
 /* ===================== utilities ===================== */
 const CFG_MISSING = !window.APP_CONFIG;   // config.js didn't load: stop with a clear message instead of guessing
 const CFG = window.APP_CONFIG || {};
-const BUILD = '2026-11-19-tree';   // shown in Settings, so you can confirm which version is live
+const BUILD = '2026-11-22-phases';   // shown in Settings, so you can confirm which version is live
 // Firebase Web SDK, pinned to an exact version (updated from 10.12.2). If the CDN can't serve it,
 // the previous version is tried so the app still opens.
 const FB_VERSIONS = ['12.19.0', '10.12.2'];
@@ -392,6 +392,9 @@ function cleanDoc(col, raw) {
     d.team = asArr(d.team).filter(x => x && typeof x === 'object' && okId(x.personId)).map(x => ({ personId: x.personId, role: asStr(x.role, 60), addedAt: asNum(x.addedAt), openedAt: asNum(x.openedAt) }));
     d.statusLog = asArr(d.statusLog).filter(x => x && typeof x === 'object').map(x => ({ status: oneOf(x.status, BRIEF_STATUS, 'Draft'), at: asNum(x.at), by: asStr(x.by, 200) })).slice(-200);
     d.archived = !!d.archived; d.demo = !!d.demo;
+    const bn = d.brandNames && typeof d.brandNames === 'object' ? d.brandNames : {}; d.brandNames = {};
+    Object.entries(bn).slice(0, 50).forEach(([k, v]) => { if (okId(k) && typeof v === 'string') d.brandNames[k] = v.slice(0, 80); });
+    cleanPhaseFields(d);
   }
   if (col === 'activity' || col === 'notifs') { if (col === 'notifs') { d.read = !!d.read; d.link = /^#\/[A-Za-z0-9_./:@+-]*$/.test(d.link || '') ? d.link : '#/'; } }
   if (col === 'events') {
@@ -462,6 +465,8 @@ class LocalStore {
   // Local mode has no mail server: emails are kept in a small outbox so you can see what would go out.
   async mail(msg) { try { const box = JSON.parse(lsGet('tb:outbox') || '[]'); box.unshift({ ...msg, at: Date.now() }); lsSet('tb:outbox', JSON.stringify(box.slice(0, 50))); } catch { } }
   async log(entry) { S.data.activity[entry.id] = clone(entry); this.save(); }
+  async putFile(doc) { localStorage.setItem(LS + 'tb:file:' + doc.id, JSON.stringify(doc)); }
+  async getFile(id) { try { return JSON.parse(lsGet('tb:file:' + id) || 'null'); } catch { return null; } }
   async batch(ops) {
     for (const o of ops) {
       if (o.type === 'put') S.data[o.col][o.data.id] = clone(o.data);
@@ -474,9 +479,9 @@ class LocalStore {
 
 class CloudStore {
   // base: [] for the original workspace (top-level collections), ['workspaces', id] for everyone else's.
-  constructor(fs, db, base = []) {
+  constructor(fs, db, base = [], only = null) {
     this.fs = fs; this.db = db; this.unsubs = []; this.base = base;
-    this.cols = base.length ? COLS.filter(c => c !== 'members') : COLS;   // other workspaces keep members on the workspace itself
+    this.cols = only || (base.length ? COLS.filter(c => c !== 'members') : COLS);   // other workspaces keep members on the workspace itself; clients load only what they may see
   }
   start(cb, onErr) {
     const loaded = new Set(); this.fresh = new Set(); let raf = 0;
@@ -511,6 +516,9 @@ class CloudStore {
   async put(col, obj) { return this.fs.setDoc(this.ref(col, obj.id), clone(obj)).catch(writeErr); }
   async update(col, id, fields) { return this.fs.updateDoc(this.ref(col, id), clone(fields)).catch(writeErr); }
   async del(col, id) { return this.fs.deleteDoc(this.ref(col, id)).catch(writeErr); }
+  // Small files (a media plan) live one per document and are fetched only when someone downloads them.
+  async putFile(doc) { return this.fs.setDoc(this.ref('files', doc.id), clone(doc)); }
+  async getFile(id) { const d = await this.fs.getDoc(this.ref('files', id)); return d.exists() ? d.data() : null; }
   // Emails go to one top-level collection that the "Trigger Email" extension watches (SETUP step 7).
   async mail(msg) {
     const c = (CFG.email && CFG.email.collection) || 'mail';
@@ -578,14 +586,14 @@ function confirmBox(msg, ok = 'Delete', title = 'Are you sure?') {
     w.querySelector('[data-ok]').onclick = () => done(true);
   });
 }
-function promptBox({ title, label = 'Name', value = '', color, placeholder = '', multiline = false, ok = 'Save' }) {
+function promptBox({ title, label = 'Name', value = '', color, placeholder = '', multiline = false, ok = 'Save', max = 120 }) {
   return new Promise(res => {
     let c = color;
     const w = openModal(`<div class="modal-head"><h2>${esc(title)}</h2><button class="icon-btn" data-x>${ico('x')}</button></div>
       <form class="modal-body">
         <div class="field"><label>${esc(label)}</label>${multiline
           ? `<textarea class="ta" autofocus placeholder="${esc(placeholder)}">${esc(value)}</textarea>`
-          : `<input class="inp" autofocus value="${esc(value)}" placeholder="${esc(placeholder)}" maxlength="120">`}</div>
+          : `<input class="inp" autofocus value="${esc(value)}" placeholder="${esc(placeholder)}" maxlength="${max}">`}</div>
         ${color !== undefined ? `<div class="field"><label>Color</label><div class="swatches">${COLORS.map(k => `<button type="button" class="swatch sw-${k} ${k === c ? 'on' : ''}" data-c="${k}" title="${k}"></button>`).join('')}</div></div>` : ''}
         <button type="submit" hidden></button>
       </form>
@@ -656,6 +664,7 @@ function route() {
   const r = routeRaw();
   if (r.view === 'accounts' || r.view === 'business' || r.view === 'guide' || r.view === 'home') return r;
   if (!S.acc) return { view: 'accounts' };
+  if (isClientRole()) return CLIENT_VIEWS.includes(r.view) && !(r.view === 'brief' && !clientBriefs().some(b => b.id === r.id)) ? r : { view: 'briefs' };   // clients see their briefs and nothing else
   const tool = TOOL_OF_VIEW[r.view];
   if (tool && !toolOn(tool)) return { view: 'off', tool };
   return r;
@@ -670,7 +679,7 @@ function routeRaw() {
   if (h[0] === 'client' && S.data.projects[h[1]] && S.data.projects[h[1]].kind === 'client') return { view: 'client', id: h[1] };
   if (h[0] === 'clients') return { view: 'clients' };
   if (h[0] === 'briefs') return { view: 'briefs' };
-  if (h[0] === 'brief' && S.data.briefs[h[1]]) return { view: 'brief', id: h[1] };
+  if (h[0] === 'brief' && S.data.briefs[h[1]]) return { view: 'brief', id: h[1], tab: h[2] || '' };
   if (h[0] === 'mywork') return { view: 'mywork' };
   if (h[0] === 'tasks') return { view: 'tasks' };
   if (h[0] === 'alerts') return { view: 'alerts' };
@@ -722,6 +731,7 @@ function render(opts = {}) {
   // the sidebar and its counts don't change, so there's no reason to rebuild them.
   const main = $('.main');
   document.body.classList.toggle('view-only', !!S.acc && S.accRole === 'viewer');
+  document.body.classList.toggle('client-view', isClientRole());
   if (r.view === 'home') {   // the homepage only repaints when you arrive on it (data changes don't restart its animations)
     if (routeChanged || !$('#root .home')) { $('#root').innerHTML = homeHTML(true); document.title = 'dentsu ' + (CFG.appName || 'Ads Workspace'); homeEnhance(); }
     return;
@@ -776,7 +786,7 @@ function renderSidebar(r) {
       <button class="side-logo" data-go="#/home" title="Home">${logoMark()}</button>
       <span class="spacer"></span>
       ${S.acc ? `<button class="icon-btn bell-btn" data-action="notif-open" title="Notifications">${ico('bell')}${(() => { const n = unreadNotifs().length; return n ? `<span class="bell-n">${n > 99 ? '99+' : n}</span>` : ''; })()}</button>` : ''}
-      ${S.acc ? `<button class="icon-btn" data-action="open-settings" title="Account settings">${ico('gear')}</button>` : ''}
+      ${S.acc && !isClientRole() ? `<button class="icon-btn" data-action="open-settings" title="Account settings">${ico('gear')}</button>` : ''}
       <button class="user-btn" data-action="user-menu" title="${esc(u.name || u.email || 'Me')}"><span class="avatar sw-${esc(u.color || 'red')}">${esc(initials(u.name || u.email))}</span></button>
     </div>
     ${accSwitcherHTML()}`;
@@ -789,6 +799,7 @@ function renderSidebar(r) {
       ? `<div class="mode-note"><b>Local mode</b> - saved in this browser only${userEmail() !== S.biz.owner ? ` · viewing as <b>${esc(u.name)}</b>` : ''}. Add your Firebase config (see SETUP) to share it with your team.</div>`
       : `<div class="mode-note">Synced · ${esc(S.user?.email || '')}</div>`}</div>`;
   if (!S.acc) return `<aside class="sidebar">${top}${business}<div class="side-group side-help">${nav('guide', '#/guide', 'help', 'Guide &amp; help')}</div>${foot}</aside>`;
+  if (isClientRole()) return renderClientSidebar(r, top, foot);
   const today = todayKey();
   const todayCount = activeTasks().filter(t => t.due && t.due <= today).length;
   const counts = {}; activeTasks().forEach(t => counts[t.projectId] = (counts[t.projectId] || 0) + 1);
@@ -836,15 +847,15 @@ function renderSidebar(r) {
 }
 
 function renderMain(r) {
-  if (r.view === 'accounts') return renderAccounts();
+  if (r.view === 'accounts') return isClientUser() ? renderClientAccounts() : renderAccounts();
   if (r.view === 'business') return renderBusiness();
   if (r.view === 'guide') return renderGuide();
   if (r.view === 'off') return topbar('') + `<div class="content"><div class="page-head"><h1>${esc(toolName(r.tool))}</h1></div><div class="ct-empty">${ico('block')}<br><b>${esc(toolName(r.tool))}</b> is switched off for ${esc(S.acc ? S.acc.name : 'this account')}.<br>${canAdminAcc() ? '<br><button class="btn btn-primary" data-action="acc-tools">Choose tools for this account</button>' : 'An account admin can switch it on in Account settings → Tools.'}</div></div>`;
   if (r.view === 'project') return renderProject(S.data.projects[r.id]);
   if (r.view === 'client') return renderClient(S.data.projects[r.id]);
   if (r.view === 'clients') return renderClients();
-  if (r.view === 'briefs') return renderBriefs();
-  if (r.view === 'brief') return renderBrief(S.data.briefs[r.id]);
+  if (r.view === 'briefs') return isClientRole() ? renderClientBriefs() : renderBriefs();
+  if (r.view === 'brief') return isClientRole() ? renderClientBrief(S.data.briefs[r.id]) : renderBrief(S.data.briefs[r.id]);
   if (r.view === 'mywork') { lsSet('tb:seenMyWork', '1'); return renderMyWork(); }
   if (r.view === 'tasks') return renderAllTasks();
   if (r.view === 'alerts') return renderAlerts();
@@ -1188,8 +1199,8 @@ function dbTipShow(el) {
   dbTipEl.style.left = x + 'px'; dbTipEl.style.top = y + 'px';
 }
 const dbTipHide = () => { if (dbTipEl) dbTipEl.style.display = 'none'; };
-document.addEventListener('pointerover', e => { const el = e.target.closest && e.target.closest('.db [data-tip]'); if (el) dbTipShow(el); else dbTipHide(); });
-document.addEventListener('focusin', e => { const el = e.target.closest && e.target.closest('.db [data-tip]'); if (el) dbTipShow(el); });
+document.addEventListener('pointerover', e => { const el = e.target.closest && e.target.closest('.db [data-tip], .pf [data-tip]'); if (el) dbTipShow(el); else dbTipHide(); });
+document.addEventListener('focusin', e => { const el = e.target.closest && e.target.closest('.db [data-tip], .pf [data-tip]'); if (el) dbTipShow(el); });
 document.addEventListener('focusout', dbTipHide);
 window.addEventListener('scroll', dbTipHide, true);
 window.addEventListener('hashchange', dbTipHide);
@@ -2280,7 +2291,7 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); undoLast(); return;
   }
   if (typing || e.metaKey || e.ctrlKey || e.altKey || topModal() || !S.ready || !store || e.shiftKey || document.querySelector('#root .home')) return;
-  if (e.key === 'q') { e.preventDefault(); openTask(null, { projectId: curProjectId() }); }
+  if (e.key === 'q' && !isClientRole()) { e.preventDefault(); openTask(null, { projectId: curProjectId() }); }
   else if (e.key === '/') { e.preventDefault(); openSearch(); }
 });
 
@@ -3992,6 +4003,8 @@ Object.assign(P, {
   flow: '<rect x="3" y="4" width="6" height="5" rx="1.2"/><rect x="15" y="15" width="6" height="5" rx="1.2"/><path d="M9 6.5h4.5a2.5 2.5 0 0 1 2.5 2.5v6"/>',
   block: '<circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/>',
   mail: '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
+  folder: '<path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5Z"/>',
   star: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6Z"/>',
 });
 
@@ -4478,7 +4491,7 @@ function briefCard(b, showClients = true) {
   const team = [...new Set([b.ownerId, ...(b.team || []).map(m => m.personId)].filter(Boolean))];
   return `<article class="br-card ${crit ? 'al-crit' : al.length ? 'al-warn' : ''}" data-go="#/brief/${b.id}">
     <div class="br-top"><span class="br-ref">${esc(briefRef(b))}</span>${b.priority === 'High' ? `<span class="tag pr-high">High</span>` : ''}<span style="flex:1"></span>${briefPill(b, true)}</div>
-    <div class="br-title">${esc(b.title || 'Untitled brief')}</div>
+    <div class="br-title">${esc(b.title || 'Untitled brief')}</div>${phaseTag(b)}
     ${showClients && (b.clientIds || []).length ? `<div class="ct-chips">${clientChips(b.clientIds, 2)}</div>` : ''}
     <div class="br-meta">${b.type ? `<span>${esc(b.type)}</span>` : ''}${b.goLive ? `<span class="${risk.level === 'late' ? 'bad' : risk.level === 'risk' ? 'warn' : ''}" title="Go-live deadline">${ico('target', 'i-xs')}${esc(fmtDay(b.goLive))}${risk.level === 'risk' ? ` · +${risk.slip}d risk` : risk.level === 'late' ? ' · missed' : ''}</span>` : ''}</div>
     ${pr.total ? `<div class="sp ${pr.n === pr.total ? 'full' : ''}"><div class="sp-track"><i style="width:${pr.pct}%"></i></div><span class="sp-lbl">${pr.n}/${pr.total}</span></div>` : ''}
@@ -4513,7 +4526,7 @@ function renderBriefs() {
       <div class="cards">${items.map(b => briefCard(b)).join('') || '<div class="col-empty">-</div>'}</div></section>`; }).join('')}</div>`;
   const table = `<div class="tbl-wrap"><table class="tbl br-table"><thead><tr><th>Brief</th><th>Brands</th><th>Type</th><th>Status</th><th>Owner</th><th>Go-live</th><th>Progress</th><th>Next step</th><th></th></tr></thead><tbody>
     ${list.map(b => { const pr = stepProgress(b.id), risk = briefRisk(b), next = briefSteps(b.id).find(t => t.status !== 'Done'), al = alertsFor({ briefId: b.id });
-      return `<tr data-go="#/brief/${b.id}"><td><span class="br-ref">${esc(briefRef(b))}</span> <b>${esc(b.title || 'Untitled')}</b></td><td>${clientChips(b.clientIds, 1)}</td><td>${esc(b.type || '')}</td>
+      return `<tr data-go="#/brief/${b.id}"><td><span class="br-ref">${esc(briefRef(b))}</span> <b>${esc(b.title || 'Untitled')}</b>${phaseTag(b)}</td><td>${clientChips(b.clientIds, 1)}</td><td>${esc(b.type || '')}</td>
         <td>${briefPill(b, true)}</td><td>${b.ownerId ? `${avatarHTML(b.ownerId)} ${esc(personName(b.ownerId))}` : '<span class="mut">-</span>'}</td>
         <td class="${risk.level === 'late' ? 'bad' : risk.level === 'risk' ? 'warn' : ''}">${b.goLive ? esc(fmtDay(b.goLive)) : '<span class="mut">-</span>'}</td>
         <td>${pr.total ? `${pr.n}/${pr.total}` : '<span class="mut">not started</span>'}</td>
@@ -4570,7 +4583,7 @@ function openBriefForm(id, def = {}) {
   // New briefs open filled with the example while the sample data is loaded (or on request); "Start blank" clears it.
   const { _example, ...base } = def;
   const useEx = !ex && (_example === true || (_example !== false && Object.values(S.data.briefs).some(b => b.demo)));
-  const d = ex ? clone(ex) : newBrief({ ...(useEx ? exampleBrief() : {}), ...base });
+  const d = ex ? clone(ex) : newBrief({ ...(useEx && !isClientRole() ? exampleBrief() : {}), ...base, ...(isClientRole() ? { requestedBy: (S.user && S.user.name) || '', requestedByEmail: userEmail(), ownerId: null } : {}) });
   const picks = (field, options) => options.map(o => `<button type="button" class="pick ${d[field].includes(o) ? 'on' : ''}" data-multi="${field}" data-v="${esc(o)}">${esc(o)}</button>`).join('');
   const opt = (list, v) => list.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('');
   const w = openModal(`<div class="modal-head"><h2>${ex ? `Edit ${esc(briefRef(ex))}` : 'New brief'}</h2><span class="mut" style="font-size:12px">${ex ? '' : 'Fields marked * are needed to submit'}</span><button class="icon-btn" data-m="x">${ico('x')}</button></div>
@@ -4579,10 +4592,10 @@ function openBriefForm(id, def = {}) {
         : `<div class="bf-example quiet"><span>Not sure what to write?</span><button type="button" class="btn sm" data-m="example">${ico('sparkle', 'i-sm')} Fill with an example</button></div>`}
       <div class="bf-sec"><h4>1 · Overview</h4>
         <div class="field"><label>Brief title *</label><input class="inp" data-f="title" value="${esc(d.title)}" maxlength="160" autofocus placeholder="e.g. Year-End Sales Event"></div>
-        <div class="field" ${toolOn('brands') ? '' : 'hidden'}><label>Brands</label><div class="bf-clients" data-clients></div></div>
+        <div class="field" ${toolOn('brands') && !isClientRole() ? '' : 'hidden'}><label>Brands</label><div class="bf-clients" data-clients></div></div>
         <div class="row3"><div class="field"><label>Brief type</label><select class="sel" data-f="type">${opt(BRIEF_TYPES, d.type)}</select></div>
           <div class="field"><label>Priority</label><select class="sel" data-f="priority">${opt(BRIEF_PRIORITY, d.priority)}</select></div>
-          <div class="field"><label>Brief owner (account lead)</label><select class="sel" data-f="ownerId"><option value="">-</option>${people().map(p => `<option value="${p.id}" ${d.ownerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div></div>
+          <div class="field" ${isClientRole() ? 'hidden' : ''}><label>Brief owner (account lead)</label><select class="sel" data-f="ownerId"><option value="">-</option>${people().map(p => `<option value="${p.id}" ${d.ownerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div></div>
         <div class="row3"><div class="field"><label>Requested by</label><input class="inp" data-f="requestedBy" value="${esc(d.requestedBy)}" maxlength="80" placeholder="Client marketing team"></div>
           <div class="field"><label>Requester email</label><input class="inp" type="email" data-f="requestedByEmail" value="${esc(d.requestedByEmail)}" maxlength="254"></div>
           <div class="field"><label>Request date</label><input class="inp" type="date" data-f="requestDate" value="${d.requestDate || ''}"></div></div></div>
@@ -4592,7 +4605,7 @@ function openBriefForm(id, def = {}) {
       <div class="bf-sec"><h4>3 · Budget &amp; timing</h4>
         <div class="row3"><div class="field"><label>Media budget</label><div class="inline"><input class="inp" type="number" min="0" step="100" data-f="budget" value="${d.budget ?? ''}" placeholder="0"><input class="inp" data-f="currency" value="${esc(d.currency || CFG.currency || 'AED')}" maxlength="4" style="width:64px"></div></div>
           <div class="field"><label>Go-live deadline *</label><input class="inp" type="date" data-f="goLive" value="${d.goLive || ''}"></div>
-          <div class="field"><label>Workflow</label><select class="sel" data-f="workflowId">${workflows().map(x => `<option value="${x.id}" ${d.workflowId === x.id ? 'selected' : ''}>${esc(x.name)} (${x.steps.length} steps)</option>`).join('')}</select></div></div>
+          <div class="field" ${isClientRole() ? 'hidden' : ''}><label>Workflow</label><select class="sel" data-f="workflowId">${workflows().map(x => `<option value="${x.id}" ${d.workflowId === x.id ? 'selected' : ''}>${esc(x.name)} (${x.steps.length} steps)</option>`).join('')}</select></div></div>
         <div class="row2"><div class="field"><label>Flight start</label><input class="inp" type="date" data-f="flightStart" value="${d.flightStart || ''}"></div>
           <div class="field"><label>Flight end</label><input class="inp" type="date" data-f="flightEnd" value="${d.flightEnd || ''}"></div></div>
         <div class="hint" data-sla-hint></div></div>
@@ -4657,7 +4670,7 @@ function openBriefForm(id, def = {}) {
     const now = Date.now();
     if (ex) {
       const old = clone(ex);
-      const data = { ...pick(d, BRIEF_FIELDS), updatedAt: now, updatedBy: me() };
+      const data = { ...pick(d, BRIEF_FIELDS), updatedAt: now, updatedBy: me(), ...(isClientRole() ? {} : { brandNames: brandNamesOf(d.clientIds) }) };
       const changed = BRIEF_FIELDS.filter(k => JSON.stringify(ex[k] ?? null) !== JSON.stringify(data[k] ?? null));
       await store.update('briefs', d.id, data);
       // keep the steps' client labels in line with the brief
@@ -4671,13 +4684,16 @@ function openBriefForm(id, def = {}) {
     d.statusLog = [{ status: 'Draft', at: now, by: me() }, ...(m === 'submit' ? [{ status: 'Submitted', at: now, by: me() }] : [])];
     if (m === 'submit') d.submittedAt = now;
     d.createdAt = now; d.updatedAt = now;
+    if (!isClientRole()) d.brandNames = brandNamesOf(d.clientIds);
     await store.put('briefs', d);
     logAct('brief_created', { kind: 'brief', briefId: d.id, clientIds: d.clientIds, title: briefLabel(d) });
     if (m === 'submit') { logAct('brief_submitted', { kind: 'brief', briefId: d.id, clientIds: d.clientIds, title: briefLabel(d) }); notifyBriefSubmitted(d); }
     w.close(); go('#/brief/' + d.id);
-    if (m === 'submit') setTimeout(() => openTeamModal(d.id), 250);
+    if (m === 'submit' && !isClientRole()) setTimeout(() => openTeamModal(d.id), 250);
+    if (m === 'submit' && isClientRole()) toast('Brief sent - the team has been alerted');
   };
 }
+const brandNamesOf = ids => Object.fromEntries((ids || []).filter(id => S.data.projects[id]).map(id => [id, clientName(id).slice(0, 80)]));
 const BRIEF_FIELD_LABEL = { title: 'title', type: 'type', priority: 'priority', clientIds: 'brands', objective: 'objective', kpis: 'KPIs', budget: 'budget', currency: 'currency', flightStart: 'flight start', flightEnd: 'flight end',
   goLive: 'go-live', requestDate: 'request date', markets: 'markets', platforms: 'platforms', languages: 'languages', audience: 'audience', offer: 'offer', promo: 'promo code', message: 'key message', cta: 'CTA',
   landingUrl: 'landing page', assetsUrl: 'assets link', creative: 'creative requirements', notes: 'notes', requestedBy: 'requested by', requestedByEmail: 'requester email', ownerId: 'owner', workflowId: 'workflow' };
@@ -4695,6 +4711,8 @@ async function setBriefStatus(b, status, extra = {}) {
   logAct(status === 'Submitted' ? 'brief_submitted' : 'brief_status', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), from: b.status, to: status });
   if (status === 'Submitted') notifyBriefSubmitted({ ...b, ...upd });
   if (['Live', 'Completed', 'On hold', 'Cancelled'].includes(status)) teamOf(b).forEach(pid => notify(pid, { kind: 'brief', title: `${briefRef(b)} is now ${status}`, body: b.title, link: `#/brief/${b.id}`, briefId: b.id }));
+  // the client hears when it goes live and when it's done (once each)
+  if (['Live', 'Completed'].includes(status) && !isClientRole()) { const k = status === 'Live' ? 'live' : 'completed', nb = S.data.briefs[b.id] || { ...b, ...upd }; if (!(nb.clientAlerts || {})[k]) notifyClient(nb, k); }
 }
 function briefStatusMenu(anchor, id) {
   const b = S.data.briefs[id]; if (!b) return;
@@ -4927,7 +4945,8 @@ function markOpened(b) {
 
 /* ---------- the brief page ---------- */
 function renderBrief(b) {
-  setTimeout(() => markOpened(b), 400);
+  setTimeout(() => { markOpened(b); phaseSync(); }, 400);
+  const ph = briefPhases(b), tab = briefTab(b, ph);
   const steps = briefSteps(b.id), pr = stepProgress(b.id), risk = briefRisk(b), al = alertsFor({ briefId: b.id });
   const acts = Object.values(S.data.activity).filter(a => a.briefId === b.id).sort((x, y) => y.at - x.at);
   const row = (label, v) => (v ? `<div class="kv"><span>${label}</span><b>${v}</b></div>` : '');
@@ -4965,7 +4984,8 @@ function renderBrief(b) {
       <div class="bp-chips">${briefPill(b, true)}${clientChips(b.clientIds, 6)}</div></div>
     ${al.length ? `<div class="bp-alerts">${al.map(a => `<div class="al-row sev-${a.sev}">${ico(a.sev === 'crit' ? 'alert' : 'clock', 'i-sm')}<b>${esc(ALERT_LABEL[a.kind] || a.kind)}</b><span>${esc(a.title && a.kind !== 'golive_risk' && a.kind !== 'golive_missed' && a.kind !== 'kickoff' ? a.title + ' - ' : '')}${esc(a.detail)}</span></div>`).join('')}</div>` : ''}
     ${cta ? `<div class="bp-cta">${cta}</div>` : ''}
-    <div class="bp-grid"><div class="bp-main">
+    ${phaseCardsHTML(b, ph, tab)}
+    <div class="bp-grid"><div class="bp-main">${tab !== 'brief' ? phaseMainHTML(b, ph, tab) : `
       <div class="bp-sec"><div class="bp-sec-h"><h3>${ico('flow', 'i-sm')} Workflow</h3>${steps.length ? `<span class="mut">${pr.n} of ${pr.total} done</span><div class="sp ${pr.n === pr.total ? 'full' : ''}" style="flex:1;max-width:220px"><div class="sp-track"><i style="width:${pr.pct}%"></i></div></div>` : ''}<span style="flex:1"></span>${steps.length ? `<button class="btn sm" data-action="st-add" data-id="${b.id}">${ico('plus', 'i-sm')} Step</button>` : ''}</div>
         ${steps.length ? `<div class="tbl-wrap"><table class="tbl steps"><thead><tr><th>#</th><th>Status</th><th>Step</th><th>Assignee</th><th>Due</th><th class="num">SLA</th><th>Started</th><th>Finished</th><th class="num">Took</th></tr></thead><tbody>${stepRows}</tbody></table></div>
           ${ganttHTML(b, steps)}`
@@ -4975,7 +4995,7 @@ function renderBrief(b) {
       ${section('Offer &amp; messaging', `${para(b.offer)}${b.promo ? `<p class="bp-p mut">Promo code: <b>${esc(b.promo)}</b></p>` : ''}${b.message ? `<p class="bp-p"><i>“${esc(b.message)}”</i></p>` : ''}${b.cta ? `<p class="bp-p mut">CTA: <b>${esc(b.cta)}</b></p>` : ''}`)}
       ${section('Creative requirements', para(b.creative))}
       ${section('Notes', para(b.notes))}
-      <div class="bp-sec"><h3>${ico('history', 'i-sm')} Activity</h3>${acts.length ? activityList(acts.slice(0, 120), { compact: true }) : '<div class="db-empty">Nothing logged yet.</div>'}</div>
+      <div class="bp-sec"><h3>${ico('history', 'i-sm')} Activity</h3>${acts.length ? activityList(acts.slice(0, 120), { compact: true }) : '<div class="db-empty">Nothing logged yet.</div>'}</div>`}
     </div>
     <aside class="bp-side">
       <div class="bp-card"><h4>Key dates</h4>
@@ -4994,7 +5014,7 @@ function renderBrief(b) {
         ${(b.markets || []).length ? `<div class="kv-tags"><span>Markets</span><div>${tagList(b.markets, 'mkt', 12)}</div></div>` : ''}
         ${(b.platforms || []).length ? `<div class="kv-tags"><span>Platforms</span><div>${tagList(b.platforms, 'plat', 12)}</div></div>` : ''}
         ${(b.languages || []).length ? `<div class="kv-tags"><span>Languages</span><div>${tagList(b.languages, '', 12)}</div></div>` : ''}</div>
-      ${b.landingUrl || b.assetsUrl ? `<div class="bp-card"><h4>Links</h4><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${link('Landing page', b.landingUrl)}${link('Assets folder', b.assetsUrl)}</div></div>` : ''}
+      ${b.landingUrl || b.assetsUrl || (b.assets || {}).driveUrl ? `<div class="bp-card"><h4>Links</h4><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${link('Landing page', b.landingUrl)}${link('Assets folder', (b.assets || {}).driveUrl || b.assetsUrl)}</div></div>` : ''}
       ${linkedCampaigns(b)}
     </aside></div>
   </div></div>`;
@@ -5004,6 +5024,866 @@ function linkedCampaigns(b) {
   return `<div class="bp-card"><div class="bp-card-h"><h4>Campaigns</h4><button class="link" data-action="br-add-camp" data-id="${b.id}">+ Add</button></div>
     ${cs.map(c => `<button class="tm-row as-btn" data-action="ct-open" data-id="${c.id}">${statusPill(c, false)}<span><b>${esc(c.name)}</b><small>${esc(accName(c.accountId))}</small></span></button>`).join('') || '<div class="mut" style="font-size:12px">Track the live campaigns from this brief in the Campaign Tracker.</div>'}</div>`;
 }
+/* =====================================================================
+   BRIEF PHASES - the journey a brief takes with the client:
+   brief submitted → media plan (the team uploads it) → client approval →
+   assets (Drive link + a checklist the client reviews) → live → results.
+   The team writes plan, assets and perf on the brief. Clients write only
+   planReview and assetReview (the security rules say the same).
+   ===================================================================== */
+const isClientRole = () => !!S.acc && S.accRole === 'client';
+const CLIENT_COLS = ['meta', 'briefs', 'notifs'];
+const CLIENT_VIEWS = ['briefs', 'brief', 'guide', 'accounts', 'home'];
+const FILE_MAX = 650 * 1024;
+const ASSET_STATUS = ['Requested', 'In production', 'Internal review', 'Client review', 'Changes requested', 'Approved', 'Live'];
+const ASSET_TONE = { Requested: 'mute', 'In production': 'info', 'Internal review': 'purple', 'Client review': 'warn', 'Changes requested': 'bad', Approved: 'good', Live: 'done' };
+const ASSET_KINDS = ['Static', 'Video', 'Story / Reel', 'Carousel', 'Display banner', 'PMax asset group', 'RSA copy', 'Social captions', 'Landing page', 'Other'];
+const ASSET_PRESETS = {
+  Meta: [['Meta feed static 1:1 and 4:5', 'Static', '1080x1080 and 1080x1350'], ['Meta Stories and Reels 9:16', 'Story / Reel', '1080x1920, 6-15s'], ['Meta captions EN/AR', 'Social captions', 'Primary text 125, headline 40 characters']],
+  Snap: [['Snap single video 9:16', 'Video', '1080x1920, 5-10s'], ['Snap headline and brand name EN/AR', 'Social captions', 'Headline 34, brand name 25 characters']],
+  TikTok: [['TikTok in-feed video 9:16', 'Video', '1080x1920, 9-15s'], ['TikTok ad text EN/AR', 'Social captions', 'Up to 100 characters']],
+  Search: [['Search RSAs EN/AR', 'RSA copy', '15 headlines x 30, 4 descriptions x 90 characters']],
+  PMax: [['PMax asset group', 'PMax asset group', 'Images 1.91:1, 1:1, 4:5, logos, 5 headlines, 5 descriptions']],
+  YouTube: [['YouTube video 16:9', 'Video', '15s in-stream and 6s bumper']],
+  LinkedIn: [['LinkedIn single image 1.91:1', 'Static', '1200x627']],
+  X: [['X image ad 16:9', 'Static', '1600x900']],
+};
+// typical click-through rates used for the health check until the team sets its own targets
+const CTR_BENCH = { Search: 0.05, PMax: 0.01, YouTube: 0.005, Meta: 0.01, Snap: 0.005, TikTok: 0.008, LinkedIn: 0.005, X: 0.008 };
+const BP_TABS = ['brief', 'plan', 'assets', 'perf'];
+
+/* ---------- reading the phase fields (also used by cleanDoc) ---------- */
+function cleanPhaseFields(d) {
+  const o = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const p = o(d.plan);
+  d.plan = { versions: asArr(p.versions).filter(x => x && typeof x === 'object').slice(-30).map((x, i) => ({ id: okId(x.id) ? x.id : 'v' + (i + 1), v: Math.max(1, Math.round(+x.v || i + 1)),
+    name: asStr(x.name, 160), url: safeUrl(x.url || ''), fileId: okId(x.fileId) ? x.fileId : '', size: asNum(x.size), type: asStr(x.type, 120), note: asStr(x.note, 1000), at: asNum(x.at), by: asStr(x.by, 200) })),
+    sentV: Math.max(0, Math.round(+p.sentV || 0)), sentAt: asNum(p.sentAt), sentBy: asStr(p.sentBy, 200) };
+  const rv = x => ({ status: oneOf(x.status, ['approved', 'changes'], 'changes'), v: Math.max(0, Math.round(+x.v || 0)), note: asStr(x.note, 1000), at: asNum(x.at), by: asStr(x.by, 200), byEmail: asStr(x.byEmail, 254) });
+  const pr = o(d.planReview);
+  d.planReview = pr.status ? { ...rv(pr), log: asArr(pr.log).filter(x => x && typeof x === 'object').slice(-50).map(rv) } : { log: asArr(pr.log).filter(x => x && typeof x === 'object').slice(-50).map(rv) };
+  const as = o(d.assets);
+  d.assets = { open: !!as.open, openedAt: asNum(as.openedAt), driveUrl: safeUrl(as.driveUrl || ''),
+    items: asArr(as.items).filter(x => x && typeof x === 'object' && okId(x.id)).slice(0, 120).map(x => ({ id: x.id, name: asStr(x.name, 160), kind: asStr(x.kind, 40), platform: asStr(x.platform, 40),
+      specs: asStr(x.specs, 200), ownerId: okId(x.ownerId) ? x.ownerId : null, due: asDate(x.due), status: oneOf(x.status, ASSET_STATUS, 'Requested'), link: safeUrl(x.link || ''), note: asStr(x.note, 600),
+      sentAt: asNum(x.sentAt), updatedAt: asNum(x.updatedAt) })) };
+  const ar = o(d.assetReview), items = {};
+  Object.entries(o(ar.items)).slice(0, 200).forEach(([k, x]) => { if (okId(k) && x && typeof x === 'object') items[k] = { status: oneOf(x.status, ['approved', 'changes'], 'changes'), note: asStr(x.note, 600), at: asNum(x.at), by: asStr(x.by, 200) }; });
+  d.assetReview = { items, log: asArr(ar.log).filter(x => x && typeof x === 'object').slice(-80).map(x => ({ status: oneOf(x.status, ['approved', 'changes'], 'changes'), ids: asStrArr(x.ids, 40).slice(0, 120), note: asStr(x.note, 600), at: asNum(x.at), by: asStr(x.by, 200) })) };
+  const pf = o(d.perf), tg = o(pf.targets), ctr = {};
+  Object.entries(o(tg.ctr)).forEach(([k, v]) => { if (PLATFORMS.includes(k) && asNum(v) != null) ctr[k] = Math.max(0, Math.min(1, +v)); });
+  const num = v => { const n = asNum(v); return n == null ? null : Math.max(0, n); };
+  d.perf = { smUrl: safeUrl(pf.smUrl || ''), targets: { leads: num(tg.leads), cpl: num(tg.cpl), freq: num(tg.freq), ctr },
+    entries: asArr(pf.entries).filter(x => x && typeof x === 'object' && asDate(x.date)).slice(-2000).map(x => ({ id: okId(x.id) ? x.id : uid(), date: x.date, platform: asStr(x.platform, 40),
+      spend: num(x.spend) || 0, impr: num(x.impr) || 0, clicks: num(x.clicks) || 0, leads: num(x.leads) || 0, reach: num(x.reach) || 0 })),
+    updatedAt: asNum(pf.updatedAt), updatedBy: asStr(pf.updatedBy, 200) };
+  const ca = o(d.clientAlerts); d.clientAlerts = {};
+  ['plan', 'assets', 'assetsDone', 'live', 'completed', 'reminder'].forEach(k => { if (asNum(ca[k])) d.clientAlerts[k] = asNum(ca[k]); });
+  return d;
+}
+
+/* ---------- where a brief is ---------- */
+const planVersions = b => ((b.plan || {}).versions || []);
+const sharedVersions = b => planVersions(b).filter(v => v.v <= ((b.plan || {}).sentV || 0));
+// The team's status is the truth, except while an asset waits on the client and the client has answered.
+function assetState(b, it) {
+  const st = it.status || 'Requested';
+  if (st !== 'Client review') return st;
+  const r = ((b.assetReview || {}).items || {})[it.id];
+  return r && (r.at || 0) >= (it.sentAt || 0) ? (r.status === 'approved' ? 'Approved' : 'Changes requested') : st;
+}
+const assetFeedback = (b, it) => { const r = ((b.assetReview || {}).items || {})[it.id]; return r && r.status === 'changes' && r.note ? r : null; };
+function briefPhases(b) {
+  const vers = planVersions(b), latest = vers[vers.length - 1] || null, plan = b.plan || {}, pr = b.planReview || {};
+  const shared = plan.sentV ? vers.find(v => v.v === plan.sentV) || null : null;
+  const decided = shared && pr.v === shared.v ? pr.status || '' : '';
+  const approved = decided === 'approved' || (!!pr.status && pr.status === 'approved' && !shared && !vers.length);
+  const as = b.assets || {}, items = as.items || [], st = items.map(it => assetState(b, it));
+  const nOk = st.filter(s => s === 'Approved' || s === 'Live').length, inReview = st.filter(s => s === 'Client review').length;
+  const live = ['Live', 'Completed'].includes(b.status) || !!b.liveAt, completed = b.status === 'Completed';
+  const submitted = b.status !== 'Draft';
+  const assetsOpen = approved || !!as.open || items.length > 0 || !!as.driveUrl || live;
+  const assetsDone = items.length > 0 && nOk === items.length;
+  const cur = !submitted ? 'brief' : live ? 'perf' : !approved ? (shared || latest ? 'plan' : 'brief') : !assetsDone ? 'assets' : 'perf';
+  return { latest, shared, sentV: plan.sentV || 0, submitted, approved, changes: decided === 'changes', awaitingPlan: !!shared && !decided,
+    items, st, nOk, inReview, assetsOpen, assetsDone, live, completed, cur };
+}
+// On the team's brief lists: where the client stands, when it matters.
+function phaseTag(b) {
+  if (['Completed', 'Cancelled'].includes(b.status) || b.archived) return '';
+  const ph = briefPhases(b);
+  if (ph.changes || ph.st.includes('Changes requested')) return `<div class="ph-tag"><span class="hc hc-serious">${ico('alert', 'i-xs')}Client asked for changes</span></div>`;
+  if (ph.awaitingPlan) return `<div class="ph-tag"><span class="hc hc-warning">${ico('clock', 'i-xs')}Plan with the client</span></div>`;
+  if (ph.inReview) return `<div class="ph-tag"><span class="hc hc-warning">${ico('clock', 'i-xs')}${plural(ph.inReview, 'asset')} with the client</span></div>`;
+  return '';
+}
+// Clients see every brief on the account except the team's own drafts.
+const clientBriefs = () => Object.values(S.data.briefs).filter(b => !b.archived && b.status !== 'Cancelled' && (b.status !== 'Draft' || b.requestedByEmail === userEmail()));
+const briefBrands = b => (b.clientIds || []).map(id => (S.data.projects[id] ? clientName(id) : (b.brandNames || {})[id] || '')).filter(Boolean);
+const clientAction = b => { const ph = briefPhases(b); return ph.awaitingPlan ? 'plan' : ph.inReview ? 'assets' : ''; };
+// The people the client alerts go to: everyone with the Client role on this account.
+const clientContacts = () => Object.entries((S.acc && S.acc.roles) || {}).filter(([, r]) => r === 'client').map(([em]) => em);
+const fmtBytes = n => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'link'; } };
+const curOf = b => b.currency || CFG.currency || 'AED';
+const money = (v, b, dp = 0) => (v == null || !Number.isFinite(v) ? '-' : `${curOf(b)} ${v.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })}`);
+const pctStr = (v, dp = 1) => (v == null || !Number.isFinite(v) ? '-' : (v * 100).toFixed(dp) + '%');
+const numStr = v => (v == null || !Number.isFinite(v) ? '-' : Math.round(v).toLocaleString());
+
+/* ---------- the phase cards (they double as the brief's tabs) ---------- */
+function briefTab(b, ph) {
+  const t = S.route && S.route.view === 'brief' && S.route.id === b.id ? S.route.tab : '';
+  return BP_TABS.includes(t) ? t : ph.cur;
+}
+function phaseCardsHTML(b, ph, tab) {
+  const client = isClientRole(), pr = b.planReview || {};
+  const card = (key, n, title, done, line, attn) => `<button class="ph-card ${tab === key ? 'on' : ''} ${done ? 'done' : ''} ${attn ? 'attn' : ''}" data-action="ph-tab" data-t="${key}" data-id="${b.id}" aria-pressed="${tab === key}">
+      <span class="ph-n">${done ? ico('check', 'i-sm') : n}</span><span class="ph-t"><b>${title}</b><small>${line}</small></span></button>`;
+  const planLine = ph.approved ? `Approved${pr.at ? ' ' + esc(fmtDay(tsKey(pr.at))) : ''}` : ph.changes ? 'Changes requested' : ph.awaitingPlan ? (client ? 'Waiting for your approval' : 'Waiting for client approval')
+    : ph.latest && !client ? `v${ph.latest.v} not shared yet` : ph.submitted ? 'Team preparing the plan' : 'After the brief is submitted';
+  const assetLine = !ph.assetsOpen ? 'Opens after plan approval' : !ph.items.length ? (client ? 'Team preparing assets' : 'Add the Drive link and checklist')
+    : `${ph.nOk} of ${ph.items.length} approved${ph.inReview ? ` · ${ph.inReview} to review` : ''}`;
+  const pc = perfCalc(b);
+  const perfLine = ph.completed ? `Completed${b.closedAt ? ' ' + esc(fmtDay(tsKey(b.closedAt))) : ''}` : ph.live ? (pc.pace != null ? `Pacing ${Math.round(pc.pace * 100)}% · ${healthLabel(pc.overall)}` : 'Live - results coming in')
+    : b.goLive ? `Go-live ${esc(fmtDay(b.goLive))}` : 'After go-live';
+  return `<div class="ph-cards" role="tablist" aria-label="Brief phases">
+    ${card('brief', 1, 'Brief', ph.submitted, ph.submitted ? `Submitted${b.submittedAt ? ' ' + esc(fmtDay(tsKey(b.submittedAt))) : ''}` : 'Draft - not submitted', client && b.status === 'Draft')}
+    ${card('plan', 2, 'Media plan', ph.approved, planLine, client ? ph.awaitingPlan : ph.changes)}
+    ${card('assets', 3, 'Assets', ph.assetsDone, assetLine, client ? ph.inReview > 0 : ph.st.includes('Changes requested'))}
+    ${card('perf', 4, 'Live &amp; results', ph.completed, perfLine, !client && ph.live && ['serious', 'warning'].includes(pc.overall))}
+  </div>`;
+}
+const phaseMainHTML = (b, ph, tab) => (tab === 'plan' ? planTabHTML(b, ph) : tab === 'assets' ? assetsTabHTML(b, ph) : tab === 'perf' ? perfTabHTML(b, ph) : '');
+
+/* ---------- media plan + client approval ---------- */
+function planTabHTML(b, ph) {
+  const client = isClientRole(), edit = canEditAcc() && !client, pr = b.planReview || {};
+  const vers = (client ? sharedVersions(b) : planVersions(b)).slice().reverse();
+  const contacts = clientContacts();
+  const chip = ph.approved ? pill(`Approved v${pr.v || ''}`.trim(), 'good') : ph.changes ? pill('Changes requested', 'bad') : ph.awaitingPlan ? pill(client ? 'Waiting for you' : 'Waiting for client', 'warn')
+    : ph.latest && !client ? pill('Not shared yet', 'mute') : pill('Not uploaded', 'mute');
+  const verRow = (v, i) => `<div class="mp-row ${i === 0 ? 'latest' : ''}">
+      <span class="mp-v">v${v.v}</span>
+      <span class="mp-main"><b>${esc(v.name || (v.url ? hostOf(v.url) : 'Media plan'))}</b>
+        <small>${esc(fmtDateTime(v.at))}${v.by ? ' · ' + esc(v.by) : ''}${v.size ? ' · ' + esc(fmtBytes(v.size)) : ''}${!client && v.v > ph.sentV ? ' · <span class="warn">not shared with the client</span>' : !client && v.v === ph.sentV ? ' · shared with the client' : ''}</small>
+        ${v.note ? `<span class="mp-note">${esc(v.note)}</span>` : ''}</span>
+      <span class="mp-act">${safeUrl(v.url) ? `<a class="btn sm" data-ext href="${esc(safeUrl(v.url))}" target="_blank" rel="noopener noreferrer">${ico('ext', 'i-sm')} Open</a>` : ''}${v.fileId ? `<button class="btn sm" data-action="pl-file" data-id="${b.id}" data-f="${esc(v.fileId)}" data-n="${esc(v.name || 'media-plan')}">${ico('download', 'i-sm')} Download</button>` : ''}${!safeUrl(v.url) && !v.fileId ? '<span class="mut">no file</span>' : ''}</span></div>`;
+  let ask = '';
+  if (client && ph.awaitingPlan) ask = `<div class="ph-ask"><span class="ph-ask-i">${ico('sheet')}</span><div><b>Please review media plan v${ph.shared.v}</b><span>Approve it, or tell the team what to change. The team is alerted either way.</span></div>
+      <button class="btn" data-action="pl-changes" data-id="${b.id}">${ico('pencil', 'i-sm')} Request changes</button><button class="btn btn-primary" data-action="pl-approve" data-id="${b.id}">${ico('okcircle', 'i-sm')} Approve plan</button></div>`;
+  else if (client && ph.approved) ask = `<div class="ph-ask ok"><span class="ph-ask-i">${ico('okcircle')}</span><div><b>${pr.byEmail === userEmail() ? 'You approved' : 'Approved'} v${pr.v}</b>${pr.byEmail === userEmail() ? '' : `<span>by ${esc(pr.by || '')}</span>`}<span>${esc(fmtDateTime(pr.at))}${pr.note ? ' · ' + esc(pr.note) : ''}. Assets are next.</span></div><button class="btn" data-action="ph-tab" data-t="assets" data-id="${b.id}">Go to assets ${ico('arrowRight', 'i-sm')}</button></div>`;
+  else if (client && ph.changes) ask = `<div class="ph-ask"><span class="ph-ask-i">${ico('pencil')}</span><div><b>${pr.byEmail === userEmail() ? 'You asked' : `${esc(pr.by || 'The client')} asked`} for changes on v${pr.v}</b><span>${esc(pr.note || '')} The team will share a new version.</span></div></div>`;
+  else if (client && !vers.length) ask = `<div class="ph-empty">${ico('sheet')}<b>The team is preparing the media plan</b><span>You'll get an alert as soon as it's ready for your approval.</span></div>`;
+  else if (!client && ph.awaitingPlan) ask = `<div class="ph-ask"><span class="ph-ask-i">${ico('clock')}</span><div><b>Waiting for the client to approve v${ph.shared.v}</b><span>Shared ${esc(fmtDateTime((b.plan || {}).sentAt))}${contacts.length ? ' with ' + esc(contacts.map(memberName).join(', ')) : ''}.</span></div>
+      ${edit ? `<button class="btn" data-action="pl-remind" data-id="${b.id}" ${contacts.length ? '' : 'disabled'}>${ico('bell', 'i-sm')} Remind</button><button class="btn" data-action="pl-record" data-id="${b.id}">${ico('okcircle', 'i-sm')} Record approval</button>` : ''}</div>`;
+  else if (!client && ph.changes) ask = `<div class="ph-ask bad"><span class="ph-ask-i">${ico('pencil')}</span><div><b>The client asked for changes on v${pr.v}</b><span>${esc(pr.note || 'No note')} · ${esc(pr.by || '')}, ${esc(fmtDateTime(pr.at))}</span></div>${edit ? `<button class="btn btn-primary" data-action="pl-upload" data-id="${b.id}">${ico('upload', 'i-sm')} Upload v${(ph.latest ? ph.latest.v : 0) + 1}</button>` : ''}</div>`;
+  else if (!client && ph.approved) ask = `<div class="ph-ask ok"><span class="ph-ask-i">${ico('okcircle')}</span><div><b>Approved v${pr.v}</b><span>${esc(pr.by || '')}, ${esc(fmtDateTime(pr.at))}${pr.note ? ' · ' + esc(pr.note) : ''}</span></div><button class="btn" data-action="ph-tab" data-t="assets" data-id="${b.id}">Assets ${ico('arrowRight', 'i-sm')}</button></div>`;
+  const unshared = !client && ph.latest && ph.latest.v > ph.sentV;
+  const log = ((pr.log || []).slice().reverse()).filter(x => x.at);
+  return `<div class="bp-sec ph-sec">
+    <div class="bp-sec-h"><h3>${ico('sheet', 'i-sm')} Media plan</h3>${chip}<span class="spacer"></span>
+      ${edit ? `${unshared ? `<button class="btn btn-primary sm" data-action="pl-send" data-id="${b.id}">${ico('send', 'i-sm')} Send v${ph.latest.v} to client</button>` : ''}<button class="btn sm" data-action="pl-upload" data-id="${b.id}">${ico('upload', 'i-sm')} ${ph.latest ? 'New version' : 'Upload media plan'}</button>` : ''}</div>
+    ${ask}
+    ${!client && !contacts.length ? `<div class="hint ph-hint">${ico('people', 'i-xs')} No client has access to this account yet. Give them the <b>Client</b> role under Access so they can approve here, or record their approval yourself.</div>` : ''}
+    ${vers.length ? `<div class="mp-list">${vers.map(verRow).join('')}</div>` : !client ? `<div class="ph-empty">${ico('upload')}<b>No media plan yet</b><span>Upload the plan as a link (Drive, SharePoint, Sheets) or a small file, then send it to the client for approval.</span>${edit ? `<button class="btn btn-primary" data-action="pl-upload" data-id="${b.id}">${ico('upload', 'i-sm')} Upload media plan</button>` : ''}</div>` : ''}
+    ${log.length ? `<div class="ph-log"><h4>Approval history</h4>${log.map(x => `<div class="ph-log-row"><span class="${x.status === 'approved' ? 'ok' : 'bad'}">${ico(x.status === 'approved' ? 'okcircle' : 'pencil', 'i-xs')} ${x.status === 'approved' ? 'Approved' : 'Changes requested'} v${x.v}</span><span>${esc(x.by)}</span><span class="mut">${esc(fmtDateTime(x.at))}</span>${x.note ? `<span class="mp-note">${esc(x.note)}</span>` : ''}</div>`).join('')}</div>` : ''}
+  </div>`;
+}
+const readFileAsData = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+function openPlanUpload(id) {
+  const b = S.data.briefs[id]; if (!b) return;
+  const ph = briefPhases(b), next = (ph.latest ? ph.latest.v : 0) + 1, contacts = clientContacts();
+  const w = openModal(`<div class="modal-head"><h2>Media plan v${next}</h2><button class="icon-btn" data-m="x">${ico('x')}</button></div>
+    <form class="modal-body">
+      <div class="field"><label>Link to the plan</label><input class="inp" data-f="url" inputmode="url" placeholder="Google Sheets, Drive, SharePoint or OneDrive link" autocomplete="off"></div>
+      <div class="field"><label>Or upload a file <span class="mut">(Excel, PDF or PowerPoint, up to ${fmtBytes(FILE_MAX)})</span></label><input class="inp" type="file" data-f="file" accept=".xlsx,.xls,.csv,.pdf,.pptx,.ppt,.docx"></div>
+      <div class="field"><label>Name</label><input class="inp" data-f="name" maxlength="160" placeholder="e.g. ${esc((b.title || 'Campaign').slice(0, 40))} media plan v${next}"></div>
+      <div class="field"><label>What changed <span class="mut">(shown to the client)</span></label><textarea class="ta" data-f="note" rows="2" maxlength="1000" placeholder="${next > 1 ? 'e.g. Moved 15% from Snap to Meta as requested' : 'e.g. Split across Meta, Search and TikTok with weekly flighting'}"></textarea></div>
+      <label class="chk"><input type="checkbox" data-f="send" ${contacts.length ? 'checked' : ''}> Send to the client for approval now${contacts.length ? ` <span class="mut">(${esc(contacts.map(memberName).join(', '))})</span>` : ' <span class="mut">(no client has access yet - you can still record their approval)</span>'}</label>
+    </form>
+    <div class="modal-foot"><span class="spacer"></span><button class="btn" data-m="x">Cancel</button><button class="btn btn-primary" data-m="ok">${ico('upload', 'i-sm')} Save v${next}</button></div>`);
+  const q = s => w.querySelector(s);
+  w.addEventListener('click', async e => {
+    const m = e.target.closest('[data-m]'); if (!m) return;
+    if (m.dataset.m === 'x') return w.close();
+    const raw = q('[data-f=url]').value.trim(), file = q('[data-f=file]').files[0];
+    const url = raw ? cleanUrl(raw) : '';
+    if (url === null) return toast('That link doesn’t look right');
+    if (!url && !file) return toast('Add a link or choose a file');
+    if (file && file.size > FILE_MAX) return toast(`That file is ${fmtBytes(file.size)} - the limit is ${fmtBytes(FILE_MAX)}. Share it as a link instead.`);
+    m.disabled = true;
+    const now = Date.now(), ver = { id: uid(), v: next, name: q('[data-f=name]').value.trim() || (file ? file.name : `Media plan v${next}`), url: url || '', fileId: '', size: null, type: '', note: q('[data-f=note]').value.trim(), at: now, by: me() };
+    if (file) {
+      try {
+        const data = await readFileAsData(file);
+        const fid = uid();
+        await store.putFile({ id: fid, briefId: b.id, name: file.name.slice(0, 160), type: (file.type || '').slice(0, 120), size: file.size, data, at: now, by: me() });
+        Object.assign(ver, { fileId: fid, size: file.size, type: (file.type || '').slice(0, 120) });
+      } catch (err) { m.disabled = false; console.warn(err); return toast('Could not upload that file - try a link instead'); }
+    }
+    const fresh = S.data.briefs[b.id] || b, plan = { ...(fresh.plan || {}), versions: [...planVersions(fresh), ver] };
+    await store.update('briefs', b.id, { plan, updatedAt: now, updatedBy: me() });
+    logAct('plan_uploaded', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), detail: `v${next} · ${ver.name}` });
+    w.close();
+    if (q('[data-f=send]').checked) await sendPlan(b.id);
+    else toast(`v${next} saved - send it to the client when it's ready`);
+  });
+}
+async function sendPlan(id, quiet) {
+  const b = S.data.briefs[id]; if (!b) return;
+  const ph = briefPhases(b); if (!ph.latest) return;
+  const now = Date.now();
+  await store.update('briefs', b.id, { plan: { ...(b.plan || {}), sentV: ph.latest.v, sentAt: now, sentBy: me() }, updatedAt: now, updatedBy: me() });
+  logAct('plan_shared', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), detail: `v${ph.latest.v}` });
+  const n = await notifyClient(S.data.briefs[b.id] || b, 'plan', { v: ph.latest.v });
+  completePhaseSteps(S.data.briefs[b.id] || b, ['plan']);
+  if (!quiet) toast(n ? `v${ph.latest.v} sent - ${plural(n, 'client contact')} alerted` : `v${ph.latest.v} marked as shared - no client has access yet, so record their approval when it comes`);
+}
+async function planDecide(id, status, note = '', onBehalf = '') {
+  const b = S.data.briefs[id]; if (!b) return;
+  const ph = briefPhases(b), v = ph.shared ? ph.shared.v : ph.latest ? ph.latest.v : 0;
+  if (!v) return toast('There is no shared media plan yet');
+  const now = Date.now(), pr = b.planReview || {};
+  const entry = { status, v, note: String(note || '').slice(0, 1000), at: now, by: onBehalf ? `${onBehalf} (recorded by ${me()})`.slice(0, 200) : me(), byEmail: userEmail() };
+  const upd = { planReview: { ...entry, log: [...(pr.log || []), entry].slice(-50) }, updatedAt: now, updatedBy: me() };
+  // recording an approval for a version that was never shared also marks it as shared
+  if (!isClientRole() && !ph.shared) upd.plan = { ...(b.plan || {}), sentV: v, sentAt: now, sentBy: me() };
+  await store.update('briefs', b.id, upd);
+  logAct(status === 'approved' ? 'plan_approved' : 'plan_changes', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), detail: `v${v}${onBehalf ? ' · ' + onBehalf : ''}${note ? ' - ' + note : ''}` });
+  const nb = S.data.briefs[b.id] || { ...b, ...upd };
+  if (isClientRole()) notifyTeamOfClient(nb, status === 'approved' ? `Media plan v${v} approved` : `Changes requested on media plan v${v}`, `${me()}${note ? ': ' + note : ''}`, status === 'approved' ? 'assets' : 'plan');
+  else if (status === 'approved') completePhaseSteps(nb, ['plan', 'approval']);
+  toast(status === 'approved' ? (isClientRole() ? 'Thanks - the plan is approved and the team has been told' : `v${v} recorded as approved`) : 'The team has your feedback');
+}
+
+/* ---------- assets ---------- */
+function assetsTabHTML(b, ph) {
+  const client = isClientRole(), edit = canEditAcc() && !client, as = b.assets || {}, drive = safeUrl(as.driveUrl) || safeUrl(b.assetsUrl);
+  if (!ph.assetsOpen) return `<div class="bp-sec ph-sec"><div class="bp-sec-h"><h3>${ico('image', 'i-sm')} Assets</h3>${pill('Locked', 'mute')}</div>
+    <div class="ph-empty">${ico('lock')}<b>Assets open once the media plan is approved</b><span>${client ? 'Approve the media plan first - the asset checklist and Drive folder appear here straight after.' : 'The section unlocks itself when the client approves. You can open it early if creative is already moving.'}</span>
+    ${edit ? `<button class="btn" data-action="as-open" data-id="${b.id}">Open assets now</button>` : ''}</div></div>`;
+  const items = ph.items, n = items.length, pct = n ? Math.round(ph.nOk / n * 100) : 0;
+  const counts = ASSET_STATUS.map(s => [s, ph.st.filter(x => x === s).length]).filter(x => x[1]);
+  const ready = items.filter((it, i) => ph.st[i] === 'Internal review').length;
+  const opt = (list, v) => list.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('');
+  const rows = items.map((it, i) => {
+    const st = ph.st[i], fb = assetFeedback(b, it), late = it.due && it.due < todayKey() && !['Approved', 'Live'].includes(st);
+    return `<tr class="${['Approved', 'Live'].includes(st) ? 'done' : ''}">
+      <td><b class="as-name">${esc(it.name || 'Asset')}</b>${it.specs ? `<small class="mut as-specs">${esc(it.specs)}</small>` : ''}${fb ? `<div class="bad sm-note">${ico('comment', 'i-xs')} ${esc(fb.by)}: ${esc(fb.note)}</div>` : ''}${it.note && !client ? `<div class="mut sm-note">${esc(it.note)}</div>` : ''}</td>
+      <td class="nw">${esc(it.kind || '-')}</td><td class="nw">${it.platform ? tagList([it.platform], 'plat', 1) : '-'}</td>
+      ${client ? '' : `<td class="nw">${it.ownerId ? `${avatarHTML(it.ownerId)} ${esc(personName(it.ownerId))}` : '<span class="mut">-</span>'}</td>`}
+      <td class="nw ${late ? 'bad' : ''}">${it.due ? esc(fmtDay(it.due)) : '-'}</td>
+      <td class="nw">${edit ? `<select class="sel sm as-st" data-asst="${esc(it.id)}" data-id="${b.id}" aria-label="Status of ${esc(it.name)}">${opt(ASSET_STATUS, it.status)}</select>${st !== it.status ? `<div class="sm-note">${pill(st, ASSET_TONE[st])}</div>` : ''}` : pill(st, ASSET_TONE[st])}</td>
+      <td class="nw as-act">${safeUrl(it.link) ? `<a class="icon-btn" data-ext href="${esc(safeUrl(it.link))}" target="_blank" rel="noopener noreferrer" title="Open the asset">${ico('ext', 'i-sm')}</a>` : ''}
+        ${client && st === 'Client review' ? `<button class="btn sm" data-action="as-changes" data-id="${b.id}" data-a="${esc(it.id)}">Changes</button><button class="btn btn-primary sm" data-action="as-approve" data-id="${b.id}" data-a="${esc(it.id)}">Approve</button>` : ''}
+        ${edit ? `<button class="icon-btn" data-action="as-edit" data-id="${b.id}" data-a="${esc(it.id)}" title="Edit">${ico('pencil', 'i-sm')}</button><button class="icon-btn" data-action="as-del" data-id="${b.id}" data-a="${esc(it.id)}" title="Remove">${ico('trash', 'i-sm')}</button>` : ''}</td></tr>`;
+  }).join('');
+  const presets = (b.platforms || []).filter(p => ASSET_PRESETS[p]).flatMap(p => ASSET_PRESETS[p]).filter(x => !items.some(it => it.name === x[0]));
+  return `<div class="bp-sec ph-sec">
+    <div class="bp-sec-h"><h3>${ico('image', 'i-sm')} Assets</h3>${n ? `<span class="mut">${ph.nOk} of ${n} approved</span><div class="sp ${ph.nOk === n ? 'full' : ''}" style="flex:1;max-width:200px"><div class="sp-track"><i style="width:${pct}%"></i></div></div>` : ''}<span class="spacer"></span>
+      ${edit && ready ? `<button class="btn btn-primary sm" data-action="as-send" data-id="${b.id}">${ico('send', 'i-sm')} Send ${plural(ready, 'asset')} for client review</button>` : ''}
+      ${client && ph.inReview > 1 ? `<button class="btn btn-primary sm" data-action="as-approve-all" data-id="${b.id}">${ico('okcircle', 'i-sm')} Approve all ${ph.inReview}</button>` : ''}</div>
+    <div class="as-drive">${ico('folder')}<span><b>Assets folder</b><small>${drive ? esc(hostOf(drive)) : client ? 'The team will add the link' : 'Add the Drive link with the final assets'}</small></span>
+      ${drive ? `<a class="btn sm" data-ext href="${esc(drive)}" target="_blank" rel="noopener noreferrer">${ico('ext', 'i-sm')} Open folder</a>` : ''}${edit ? `<button class="btn sm" data-action="as-drive" data-id="${b.id}">${drive ? 'Change link' : 'Add link'}</button>` : ''}</div>
+    ${client && ph.inReview ? `<div class="ph-ask"><span class="ph-ask-i">${ico('image')}</span><div><b>${plural(ph.inReview, 'asset')} waiting for your review</b><span>Open the Drive folder, then approve each asset or ask for changes.</span></div></div>` : ''}
+    ${!client && ph.assetsDone ? `<div class="ph-ask ok"><span class="ph-ask-i">${ico('okcircle')}</span><div><b>All assets approved</b><span>Next: campaign build and go-live.</span></div></div>` : ''}
+    ${counts.length ? `<div class="as-counts">${counts.map(([s, c]) => `${pill(s, ASSET_TONE[s])}<b>${c}</b>`).join('')}</div>` : ''}
+    ${n ? `<div class="tbl-wrap"><table class="tbl as-tbl"><thead><tr><th>Asset</th><th>Type</th><th>Platform</th>${client ? '' : '<th>Owner</th>'}<th>Due</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<div class="ph-empty">${ico('checklist')}<b>${client ? 'No assets listed yet' : 'List the assets this campaign needs'}</b><span>${client ? 'The team is putting the asset list together.' : 'One row per deliverable: who makes it, when it is due, and where it stands. The client reviews them here.'}</span></div>`}
+    ${edit ? `<div class="as-add"><button class="btn sm" data-action="as-add" data-id="${b.id}">${ico('plus', 'i-sm')} Add asset</button>${presets.length ? `<button class="btn sm" data-action="as-presets" data-id="${b.id}" title="${esc(presets.map(x => x[0]).join('\n'))}">${ico('sparkle', 'i-sm')} Add the usual ${plural(presets.length, 'deliverable')} for ${esc((b.platforms || []).filter(p => ASSET_PRESETS[p]).join(', '))}</button>` : ''}</div>` : ''}
+  </div>`;
+}
+async function saveAssets(b, patch, items) {
+  const now = Date.now(), fresh = S.data.briefs[b.id] || b;
+  await store.update('briefs', b.id, { assets: { ...(fresh.assets || {}), ...(patch || {}), ...(items ? { items } : {}) }, updatedAt: now, updatedBy: me() });
+}
+function openAssetForm(bid, aid) {
+  const b = S.data.briefs[bid]; if (!b) return;
+  const items = (b.assets || {}).items || [], ex = aid ? items.find(x => x.id === aid) : null;
+  const d = ex ? clone(ex) : { id: uid(), name: '', kind: 'Static', platform: (b.platforms || [])[0] || '', specs: '', ownerId: null, due: b.goLive ? subWorkdays(b.goLive, 3) : null, status: 'Requested', link: '', note: '' };
+  const opt = (list, v, blank) => (blank ? `<option value="">-</option>` : '') + list.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('');
+  const w = openModal(`<div class="modal-head"><h2>${ex ? 'Edit asset' : 'Add asset'}</h2><button class="icon-btn" data-m="x">${ico('x')}</button></div>
+    <form class="modal-body">
+      <div class="field"><label>Asset *</label><input class="inp" data-f="name" maxlength="160" value="${esc(d.name)}" placeholder="e.g. Meta Stories 9:16 - Year-End offer" autofocus></div>
+      <div class="row3"><div class="field"><label>Type</label><select class="sel" data-f="kind">${opt(ASSET_KINDS, d.kind)}</select></div>
+        <div class="field"><label>Platform</label><select class="sel" data-f="platform">${opt(PLATFORMS, d.platform, true)}</select></div>
+        <div class="field"><label>Status</label><select class="sel" data-f="status">${opt(ASSET_STATUS, d.status)}</select></div></div>
+      <div class="field"><label>Sizes and specs</label><input class="inp" data-f="specs" maxlength="200" value="${esc(d.specs)}" placeholder="e.g. 1080x1920, 15s, EN and AR"></div>
+      <div class="row2"><div class="field"><label>Owner</label><select class="sel" data-f="ownerId"><option value="">-</option>${people().map(p => `<option value="${p.id}" ${d.ownerId === p.id ? 'selected' : ''}>${esc(p.name)}${p.role ? ' · ' + esc(p.role) : ''}</option>`).join('')}</select></div>
+        <div class="field"><label>Due</label><input class="inp" type="date" data-f="due" value="${d.due || ''}"></div></div>
+      <div class="field"><label>Link to the asset <span class="mut">(optional)</span></label><input class="inp" data-f="link" inputmode="url" value="${esc(d.link)}" placeholder="Drive file, Frame.io, Figma…" autocomplete="off"></div>
+      <div class="field"><label>Internal note</label><input class="inp" data-f="note" maxlength="600" value="${esc(d.note)}"></div>
+    </form>
+    <div class="modal-foot"><span class="spacer"></span><button class="btn" data-m="x">Cancel</button><button class="btn btn-primary" data-m="ok">${ex ? 'Save' : 'Add asset'}</button></div>`);
+  const q = s => w.querySelector(s);
+  w.addEventListener('click', async e => {
+    const m = e.target.closest('[data-m]'); if (!m) return;
+    if (m.dataset.m === 'x') return w.close();
+    const v = k => q(`[data-f=${k}]`).value.trim();
+    if (!v('name')) { q('[data-f=name]').focus(); return toast('Name the asset'); }
+    const link = v('link') ? cleanUrl(v('link')) : '';
+    if (link === null) return toast('That link doesn’t look right');
+    const now = Date.now(), status = v('status');
+    Object.assign(d, { name: v('name'), kind: v('kind'), platform: v('platform'), specs: v('specs'), ownerId: v('ownerId') || null, due: v('due') || null, link, note: v('note'), updatedAt: now });
+    if (status !== (ex ? ex.status : '')) { d.status = status; if (status === 'Client review') d.sentAt = now; }
+    const fresh = (S.data.briefs[bid].assets || {}).items || [];
+    await saveAssets(b, null, ex ? fresh.map(x => (x.id === d.id ? d : x)) : [...fresh, d]);
+    if (!ex) logAct('asset_added', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), detail: d.name });
+    w.close();
+  });
+}
+async function setAssetStatus(bid, aid, status) {
+  const b = S.data.briefs[bid]; if (!b) return;
+  const now = Date.now(), items = ((b.assets || {}).items || []).map(x => (x.id === aid ? { ...x, status, updatedAt: now, ...(status === 'Client review' ? { sentAt: now } : {}) } : x));
+  const it = items.find(x => x.id === aid);
+  await saveAssets(b, null, items);
+  logAct('asset_status', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), detail: `${it ? it.name : ''} → ${status}` });
+  afterAssetsChange(bid);
+}
+async function sendAssetsForReview(bid) {
+  const b = S.data.briefs[bid]; if (!b) return;
+  const ph = briefPhases(b), now = Date.now();
+  const ids = ph.items.filter((it, i) => ph.st[i] === 'Internal review').map(x => x.id); if (!ids.length) return;
+  await saveAssets(b, null, ph.items.map(x => (ids.includes(x.id) ? { ...x, status: 'Client review', sentAt: now, updatedAt: now } : x)));
+  logAct('assets_sent', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), detail: plural(ids.length, 'asset') });
+  const n = await notifyClient(S.data.briefs[bid] || b, 'assets', { n: ids.length });
+  toast(n ? `${plural(ids.length, 'asset')} sent - ${plural(n, 'client contact')} alerted` : `${plural(ids.length, 'asset')} marked for client review - no client has access yet`);
+}
+async function assetDecide(bid, ids, status, note = '') {
+  const b = S.data.briefs[bid]; if (!b || !ids.length) return;
+  const now = Date.now(), ar = b.assetReview || {}, items = { ...(ar.items || {}) };
+  ids.forEach(id => { items[id] = { status, note: String(note || '').slice(0, 600), at: now, by: me() }; });
+  const entry = { status, ids: ids.slice(0, 120), note: String(note || '').slice(0, 600), at: now, by: me() };
+  await store.update('briefs', bid, { assetReview: { items, log: [...(ar.log || []), entry].slice(-80) }, updatedAt: now, updatedBy: me() });
+  const names = ((b.assets || {}).items || []).filter(x => ids.includes(x.id)).map(x => x.name);
+  logAct(status === 'approved' ? 'asset_approved' : 'asset_changes', { kind: 'brief', briefId: bid, clientIds: b.clientIds, title: briefLabel(b), detail: `${names.slice(0, 4).join(', ')}${names.length > 4 ? ` +${names.length - 4}` : ''}${note ? ' - ' + note : ''}` });
+  const nb = S.data.briefs[bid] || b, ph = briefPhases(nb);
+  if (isClientRole()) notifyTeamOfClient(nb, ph.assetsDone ? 'All assets approved' : status === 'approved' ? `${plural(ids.length, 'asset')} approved` : `Changes requested on ${plural(ids.length, 'asset')}`,
+    `${me()}: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}${note ? ' - ' + note : ''}`, 'assets');
+  else afterAssetsChange(bid);
+  toast(status === 'approved' ? (ph.assetsDone ? 'All assets approved - the team has been told' : `${plural(ids.length, 'asset')} approved`) : 'The team has your feedback');
+}
+// Every asset approved: tick the creative steps and let the client know (once).
+async function afterAssetsChange(bid) {
+  const b = S.data.briefs[bid]; if (!b || isClientRole()) return;
+  const ph = briefPhases(b);
+  if (!ph.assetsDone) return;
+  await completePhaseSteps(b, ['assetReq', 'assets']);
+  if (!(b.clientAlerts || {}).assetsDone) await notifyClient(b, 'assetsDone');
+}
+
+/* ---------- results: manual KPI tracking until Supermetrics is connected ---------- */
+function perfCalc(b) {
+  const p = b.perf || {}, tg = p.targets || {}, ents = (p.entries || []).slice().sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+  const sum = list => list.reduce((s, e) => ({ spend: s.spend + (e.spend || 0), impr: s.impr + (e.impr || 0), clicks: s.clicks + (e.clicks || 0), leads: s.leads + (e.leads || 0), reach: s.reach + (e.reach || 0) }), { spend: 0, impr: 0, clicks: 0, leads: 0, reach: 0 });
+  const ratios = t => ({ ...t, ctr: t.impr ? t.clicks / t.impr : null, cpm: t.impr ? t.spend / t.impr * 1000 : null, cpc: t.clicks ? t.spend / t.clicks : null, cpl: t.leads ? t.spend / t.leads : null, freq: t.reach ? t.impr / t.reach : null });
+  const tot = ratios(sum(ents));
+  const budget = +b.budget || 0, s = b.flightStart, e = b.flightEnd;
+  const days = s && e && e >= s ? dayDiff(s, e) + 1 : 0;
+  const last = ents.length ? ents[ents.length - 1].date : null;
+  const asOf = last || (b.status === 'Live' ? addDays(todayKey(), -1) : null);
+  const elapsed = days && asOf ? Math.max(0, Math.min(days, dayDiff(s, asOf) + 1)) : 0;
+  const expected = budget && days ? budget * elapsed / days : null;
+  const pace = expected ? tot.spend / expected : null;
+  const projected = elapsed ? tot.spend / elapsed * days : null;
+  const leadsExp = tg.leads && days ? tg.leads * elapsed / days : null;
+  const plats = [...new Set([...(b.platforms || []), ...ents.map(x => x.platform).filter(Boolean)])];
+  const byPlat = plats.map(pl => ({ platform: pl, ...ratios(sum(ents.filter(x => x.platform === pl))) })).filter(x => x.spend || x.impr || (b.platforms || []).includes(x.platform));
+  // cumulative spend by date, for the pacing chart
+  const dates = [...new Set(ents.map(x => x.date))].sort();
+  let run = 0; const series = dates.map(d => { run += ents.filter(x => x.date === d).reduce((a, x) => a + (x.spend || 0), 0); return { date: d, cum: run }; });
+  const checks = healthChecks(b, { tot, budget, days, elapsed, expected, pace, projected, leadsExp, byPlat, last, tg });
+  const rank = { good: 0, info: 0, warning: 1, serious: 2 };
+  const overall = checks.every(x => x.status === 'info') ? 'info' : checks.reduce((w, x) => (rank[x.status] > rank[w] ? x.status : w), 'good');
+  return { ents, tot, budget, days, elapsed, asOf, expected, pace, projected, leadsExp, byPlat, series, checks, overall, last, tg, smUrl: p.smUrl || '' };
+}
+const HEALTH = { good: ['okcircle', 'On track'], warning: ['alert', 'Watch'], serious: ['alert', 'Act now'], info: ['clock', 'Not enough data'] };
+const healthLabel = s => (HEALTH[s] || HEALTH.info)[1];
+const healthTag = s => `<span class="hc hc-${s}">${ico((HEALTH[s] || HEALTH.info)[0], 'i-xs')}${esc(healthLabel(s))}</span>`;
+function healthChecks(b, c) {
+  const out = [], add = (check, status, value, target, note) => out.push({ check, status, value, target, note });
+  if (!c.tot.spend && !c.tot.impr) { add('Results', 'info', 'No results yet', '', 'Add daily or weekly results, or connect Supermetrics later.'); return out; }
+  if (c.pace == null) add('Budget pacing', 'info', money(c.tot.spend, b), c.budget ? money(c.budget, b) : 'No budget', 'Add the budget and flight dates to the brief to track pacing.');
+  else add('Budget pacing', c.pace >= 0.9 && c.pace <= 1.1 ? 'good' : c.pace >= 0.8 && c.pace <= 1.2 ? 'warning' : 'serious', `${Math.round(c.pace * 100)}% of planned`, `${money(c.expected, b)} by ${fmtDay(c.last || todayKey())}`,
+    c.pace < 0.9 ? 'Under-pacing: raise bids or budgets, or widen the audience.' : c.pace > 1.1 ? 'Over-pacing: cap daily budgets so the money lasts the flight.' : 'Spend is in line with the flight.');
+  if (c.projected != null && c.budget) add('Projected spend', c.projected <= c.budget * 1.05 && c.projected >= c.budget * 0.9 ? 'good' : 'warning', money(c.projected, b), money(c.budget, b),
+    c.projected > c.budget * 1.05 ? 'On this run rate the budget runs out before the flight ends.' : c.projected < c.budget * 0.9 ? 'On this run rate part of the budget will be left unspent.' : 'On course to spend the budget.');
+  if (c.tg.leads) { const r = c.leadsExp ? c.tot.leads / c.leadsExp : null; add('Leads vs target', r == null ? 'info' : r >= 1 ? 'good' : r >= 0.8 ? 'warning' : 'serious', numStr(c.tot.leads), `${numStr(c.leadsExp)} by now (${numStr(c.tg.leads)} total)`, r != null && r < 1 ? 'Behind the lead target for this point in the flight.' : 'Lead volume on target.'); }
+  if (c.tg.cpl && c.tot.cpl != null) add('Cost per lead', c.tot.cpl <= c.tg.cpl ? 'good' : c.tot.cpl <= c.tg.cpl * 1.2 ? 'warning' : 'serious', money(c.tot.cpl, b, 2), `≤ ${money(c.tg.cpl, b, 2)}`,
+    c.tot.cpl > c.tg.cpl ? 'Above target: shift budget to the platforms with the lowest CPL.' : 'Below the target cost per lead.');
+  c.byPlat.filter(p => p.impr >= 1000).forEach(p => {
+    const t = (c.tg.ctr || {})[p.platform] ?? CTR_BENCH[p.platform]; if (t == null || p.ctr == null) return;
+    add(`CTR · ${p.platform}`, p.ctr >= t ? 'good' : p.ctr >= t * 0.7 ? 'warning' : 'serious', pctStr(p.ctr, 2), `${pctStr(t, 2)}${(c.tg.ctr || {})[p.platform] != null ? '' : ' typical'}`,
+      p.ctr < t ? 'Below the usual click-through for this platform: refresh creative or tighten targeting.' : 'Click-through in line or better.');
+  });
+  if (c.tg.freq && c.tot.freq != null) add('Frequency', c.tot.freq <= c.tg.freq ? 'good' : c.tot.freq <= c.tg.freq * 1.25 ? 'warning' : 'serious', c.tot.freq.toFixed(1), `≤ ${c.tg.freq}`, c.tot.freq > c.tg.freq ? 'People see the ads too often: add creative or widen the audience.' : 'Frequency under the cap.');
+  if (b.status === 'Live' && c.last) { const age = dayDiff(c.last, todayKey()); add('Data freshness', age <= 2 ? 'good' : age <= 5 ? 'warning' : 'serious', `Last update ${fmtDay(c.last)}`, 'Within 2 days', age > 2 ? 'Results are out of date: update them or connect Supermetrics.' : 'Up to date.'); }
+  return out;
+}
+function perfTabHTML(b, ph) {
+  const client = isClientRole(), edit = canEditAcc() && !client, c = perfCalc(b), t = c.tot;
+  const tile = (label, value, sub, tip) => `<div class="db-tile" ${tip ? `data-tip="${esc(tip)}" tabindex="0"` : ''}><div class="db-l">${esc(label)}</div><div class="db-v">${value}</div>${sub ? `<div class="db-s">${sub}</div>` : ''}</div>`;
+  const tiles = `<div class="db-tiles c6 pf-tiles">
+      ${tile('Spend', money(t.spend, b), c.budget ? `of ${esc(money(c.budget, b))} · ${Math.round(t.spend / c.budget * 100)}% used` : 'No budget on the brief', `Spend to date\n${money(t.spend, b)} of ${money(c.budget, b)}`)}
+      ${tile('Pacing', c.pace != null ? `${Math.round(c.pace * 100)}<small>%</small>` : '-', c.expected != null ? `planned ${esc(money(c.expected, b))} by now` : 'Needs budget and flight dates', c.pace != null ? `Pacing\nSpend ÷ planned spend for day ${c.elapsed} of ${c.days}` : '')}
+      ${tile('Leads', numStr(t.leads), c.tg.leads ? `target ${esc(numStr(c.tg.leads))}${c.leadsExp ? ` · ${esc(numStr(c.leadsExp))} by now` : ''}` : 'No target set')}
+      ${tile('Cost per lead', t.cpl != null ? esc(money(t.cpl, b, 2)) : '-', c.tg.cpl ? `target ≤ ${esc(money(c.tg.cpl, b, 2))}` : 'No target set')}
+      ${tile('CTR', t.ctr != null ? `${(t.ctr * 100).toFixed(2)}<small>%</small>` : '-', `${esc(numStr(t.clicks))} clicks · CPC ${esc(money(t.cpc, b, 2))}`)}
+      ${tile('CPM', t.cpm != null ? esc(money(t.cpm, b, 2)) : '-', `${esc(numStr(t.impr))} impressions${t.freq != null ? ` · freq ${t.freq.toFixed(1)}` : ''}`)}
+    </div>`;
+  const hc = c.checks.map(x => `<tr><td><b>${esc(x.check)}</b></td><td>${healthTag(x.status)}</td><td class="nw">${esc(x.value)}</td><td class="nw mut">${esc(x.target)}</td><td class="mut">${esc(x.note)}</td></tr>`).join('');
+  const plat = c.byPlat.map(p => `<tr><td>${tagList([p.platform], 'plat', 1)}</td><td class="num">${esc(money(p.spend, b))}</td><td class="num">${t.spend ? Math.round(p.spend / t.spend * 100) + '%' : '-'}</td><td class="num">${esc(numStr(p.impr))}</td><td class="num">${esc(numStr(p.clicks))}</td><td class="num">${esc(pctStr(p.ctr, 2))}</td><td class="num">${esc(money(p.cpm, b, 2))}</td><td class="num">${esc(numStr(p.leads))}</td><td class="num">${esc(money(p.cpl, b, 2))}</td></tr>`).join('');
+  const recent = c.ents.slice().reverse().slice(0, 60);
+  const platOpts = [...new Set([...(b.platforms || []), ...PLATFORMS])].map(p => `<option>${esc(p)}</option>`).join('');
+  const sm = c.smUrl ? `<a class="btn sm" data-ext href="${esc(c.smUrl)}" target="_blank" rel="noopener noreferrer">${ico('ext', 'i-sm')} Supermetrics report</a>` : '';
+  if (client && !ph.live && !c.ents.length) return `<div class="bp-sec ph-sec"><div class="bp-sec-h"><h3>${ico('chart', 'i-sm')} Live &amp; results</h3>${pill(b.goLive ? 'Go-live ' + fmtDay(b.goLive) : 'Not live yet', 'mute')}<span class="spacer"></span>${edit ? `<button class="btn sm" data-action="pf-targets" data-id="${b.id}">${ico('target', 'i-sm')} Targets &amp; Supermetrics</button>` : ''}</div>
+    <div class="ph-empty">${ico('chart')}<b>Results appear here once the campaign is live</b><span>${client ? 'You will get an alert when it goes live, with pacing and results tracked here.' : 'Set the KPI targets now. After go-live, add results by hand (or import a CSV) until the Supermetrics link is ready.'}</span></div></div>`;
+  return `<div class="bp-sec ph-sec pf">
+    <div class="bp-sec-h"><h3>${ico('chart', 'i-sm')} Live &amp; results</h3>${ph.completed ? pill('Completed', 'done') : ph.live ? pill('Live', 'good') : pill('Not live yet', 'mute')}${healthTag(c.overall)}<span class="spacer"></span>
+      ${sm}<button class="btn sm" data-action="pf-export" data-id="${b.id}">${ico('download', 'i-sm')} Excel report</button>
+      ${edit ? `<button class="btn sm" data-action="pf-targets" data-id="${b.id}">${ico('target', 'i-sm')} Targets</button>` : ''}
+      ${edit && ph.live && !ph.completed ? `<button class="btn btn-primary sm" data-action="pf-complete" data-id="${b.id}">${ico('okcircle', 'i-sm')} Mark completed</button>` : ''}</div>
+    ${!ph.live ? `<div class="ph-ask"><span class="ph-ask-i">${ico('clock')}</span><div><b>Not live yet</b><span>Set the targets now. The client sees this tab once the campaign goes live${b.goLive ? ` (planned ${esc(fmtDay(b.goLive))})` : ''}.</span></div></div>` : ''}
+    <div class="hint pf-src">${c.smUrl ? `${ico('link', 'i-xs')} Numbers are entered from the Supermetrics report.` : `${ico('pencil', 'i-xs')} Manual tracking${edit ? ' - add results below or import a CSV. Paste the Supermetrics link under Targets when it is ready.' : ' - the team updates these numbers.'}`}${c.last ? ` Last update: <b>${esc(fmtDay(c.last))}</b>.` : ''}</div>
+    ${tiles}
+    <div class="db-card"><div class="db-ch"><h3>Spend vs planned pacing</h3><span>${c.days ? `Day ${c.elapsed} of ${c.days} · ${esc(fmtDay(b.flightStart))} to ${esc(fmtDay(b.flightEnd))}` : 'Add flight dates to see the plan line'}</span></div>${pacingChart(b, c)}</div>
+    <div class="db-card"><div class="db-ch"><h3>Health check</h3><span>${esc(healthLabel(c.overall))}</span></div><div class="tbl-wrap"><table class="tbl hc-tbl"><thead><tr><th>Check</th><th>Status</th><th>Now</th><th>Target</th><th>What it means</th></tr></thead><tbody>${hc}</tbody></table></div></div>
+    ${plat ? `<div class="db-card"><div class="db-ch"><h3>By platform</h3></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Platform</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">Leads</th><th class="num">CPL</th></tr></thead><tbody>${plat}</tbody></table></div></div>` : ''}
+    <div class="db-card"><div class="db-ch"><h3>Results log</h3><span>${plural(c.ents.length, 'entry', 'entries')}</span>${edit ? `<button class="btn sm" data-action="pf-import" data-id="${b.id}">${ico('upload', 'i-sm')} Import CSV</button>` : ''}</div>
+      ${edit ? `<form class="pf-add" data-pf="${b.id}"><input class="inp" type="date" name="date" value="${addDays(todayKey(), -1)}" required aria-label="Date"><select class="sel" name="platform" aria-label="Platform">${platOpts}</select>
+        <input class="inp" name="spend" type="number" min="0" step="0.01" placeholder="Spend" aria-label="Spend"><input class="inp" name="impr" type="number" min="0" step="1" placeholder="Impressions" aria-label="Impressions">
+        <input class="inp" name="clicks" type="number" min="0" step="1" placeholder="Clicks" aria-label="Clicks"><input class="inp" name="leads" type="number" min="0" step="1" placeholder="Leads" aria-label="Leads">
+        <input class="inp" name="reach" type="number" min="0" step="1" placeholder="Reach" aria-label="Reach (optional)"><button class="btn btn-primary sm">${ico('plus', 'i-sm')} Add</button></form>` : ''}
+      ${recent.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Platform</th><th class="num">Spend</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Leads</th><th class="num">Reach</th>${edit ? '<th></th>' : ''}</tr></thead><tbody>
+        ${recent.map(x => `<tr><td class="nw">${esc(fmtDay(x.date))}</td><td>${esc(x.platform || '-')}</td><td class="num">${esc(money(x.spend, b, 2))}</td><td class="num">${esc(numStr(x.impr))}</td><td class="num">${esc(numStr(x.clicks))}</td><td class="num">${esc(numStr(x.leads))}</td><td class="num">${x.reach ? esc(numStr(x.reach)) : '-'}</td>${edit ? `<td><button class="icon-btn" data-action="pf-del" data-id="${b.id}" data-e="${esc(x.id)}" title="Remove">${ico('x', 'i-sm')}</button></td>` : ''}</tr>`).join('')}</tbody></table></div>${c.ents.length > 60 ? `<div class="hint">Showing the latest 60 - the Excel report has them all.</div>` : ''}` : '<div class="db-empty">No results yet.</div>'}</div>
+  </div>`;
+}
+// Cumulative spend against a straight-line plan across the flight; hover a day for its numbers.
+function pacingChart(b, c) {
+  if (!c.series.length) return '<div class="db-empty">The line appears after the first results are added.</div>';
+  const W = 640, H = 200, L = 56, R = 12, T = 12, B = 26;
+  const s0 = c.days ? b.flightStart : c.series[0].date, n = c.days || (dayDiff(s0, c.series[c.series.length - 1].date) + 1);
+  const top = Math.max(c.budget || 0, ...c.series.map(p => p.cum)) || 1, mag = Math.pow(10, Math.floor(Math.log10(top)));
+  const ymax = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map(f => f * mag).find(v => v >= top);
+  const x = d => L + (Math.max(0, Math.min(n - 1, dayDiff(s0, d))) / Math.max(1, n - 1)) * (W - L - R), y = v => T + (1 - v / ymax) * (H - T - B);
+  const planAt = d => (c.budget && c.days ? c.budget * Math.min(n, dayDiff(s0, d) + 1) / n : null);
+  const actual = c.series.map(p => `${x(p.date).toFixed(1)},${y(p.cum).toFixed(1)}`).join(' ');
+  const plan = c.budget && c.days ? `<line class="pf-plan" x1="${x(s0)}" y1="${y(planAt(s0))}" x2="${x(b.flightEnd)}" y2="${y(c.budget)}"/>` : '';
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => `<line class="pf-grid" x1="${L}" x2="${W - R}" y1="${y(ymax * f)}" y2="${y(ymax * f)}"/><text class="pf-ax" x="${L - 6}" y="${y(ymax * f) + 3}" text-anchor="end">${esc(fmtN(Math.round(ymax * f)))}</text>`).join('');
+  const xt = [s0, addDays(s0, Math.floor((n - 1) / 2)), addDays(s0, n - 1)].map((d, i) => `<text class="pf-ax" x="${x(d)}" y="${H - 8}" text-anchor="${['start', 'middle', 'end'][i]}">${esc(fmtDay(d))}</text>`).join('');
+  const last = c.series[c.series.length - 1];
+  const xs = c.series.map(p => x(p.date));
+  const hits = c.series.map((p, i) => { const px = xs[i], pl = planAt(p.date);
+    const x0 = i ? (xs[i - 1] + px) / 2 : Math.max(L, px - 10), x1 = i < xs.length - 1 ? (px + xs[i + 1]) / 2 : Math.min(W - R, px + 10);
+    return `<g class="pf-hit" data-tip="${esc(`${fmtDay(p.date)}\nActual spend: ${money(p.cum, b)}${pl != null ? `\nPlanned: ${money(pl, b)}\nPacing: ${Math.round(p.cum / pl * 100)}%` : ''}`)}" tabindex="0"><rect x="${x0.toFixed(1)}" y="${T}" width="${Math.max(4, x1 - x0).toFixed(1)}" height="${H - T - B}"/><line class="pf-xh" x1="${px}" x2="${px}" y1="${T}" y2="${H - B}"/><circle cx="${px}" cy="${y(p.cum)}" r="4"/></g>`; }).join('');
+  return `<div class="pf-legend"><span><i class="lg-a"></i>Actual spend (cumulative)</span>${plan ? '<span><i class="lg-p"></i>Planned pacing</span>' : ''}</div>
+    <svg class="pf-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumulative spend ${esc(money(last.cum, b))} by ${esc(fmtDay(last.date))}${c.expected != null ? ` against ${esc(money(c.expected, b))} planned` : ''}">
+      ${ticks}${xt}${plan}<polyline class="pf-act" points="${actual}"/><circle class="pf-end" cx="${x(last.date)}" cy="${y(last.cum)}" r="4"/>
+      <text class="pf-lbl" x="${Math.min(W - R - 4, x(last.date) + 8)}" y="${y(last.cum) - 8}" text-anchor="${x(last.date) > W - 120 ? 'end' : 'start'}">${esc(money(last.cum, b))}</text>${hits}</svg>`;
+}
+async function savePerf(b, patch) {
+  const fresh = S.data.briefs[b.id] || b, now = Date.now();
+  await store.update('briefs', b.id, { perf: { ...(fresh.perf || {}), ...patch, updatedAt: now, updatedBy: me() }, updatedAt: now, updatedBy: me() });
+}
+async function addPerfEntries(bid, list, how = 'perf_added') {
+  const b = S.data.briefs[bid]; if (!b || !list.length) return;
+  const ents = [...((b.perf || {}).entries || [])];
+  list.forEach(e => {   // one row per date and platform: a newer entry replaces the older one
+    const i = ents.findIndex(x => x.date === e.date && x.platform === e.platform);
+    if (i >= 0) ents[i] = { ...e, id: ents[i].id }; else ents.push(e);
+  });
+  await savePerf(b, { entries: ents.slice(-2000) });
+  logAct(how, { kind: 'brief', briefId: bid, clientIds: b.clientIds, title: briefLabel(b), detail: list.length === 1 ? `${fmtDay(list[0].date)} · ${list[0].platform} · ${money(list[0].spend, b)}` : plural(list.length, 'row') });
+}
+function openPerfTargets(bid) {
+  const b = S.data.briefs[bid]; if (!b) return;
+  const p = b.perf || {}, tg = p.targets || {}, plats = (b.platforms || []).length ? b.platforms : Object.keys(CTR_BENCH);
+  const w = openModal(`<div class="modal-head"><h2>Targets &amp; data source</h2><button class="icon-btn" data-m="x">${ico('x')}</button></div>
+    <form class="modal-body">
+      <div class="field"><label>Supermetrics report link</label><input class="inp" data-f="smUrl" value="${esc(p.smUrl || '')}" inputmode="url" placeholder="Google Sheet or Looker Studio report fed by Supermetrics" autocomplete="off">
+        <div class="hint">Until it's connected, results are tracked by hand. Export the Supermetrics sheet as CSV and use Import CSV to bring the numbers in.</div></div>
+      <div class="row3"><div class="field"><label>Lead target (flight)</label><input class="inp" type="number" min="0" step="1" data-f="leads" value="${tg.leads ?? ''}" placeholder="e.g. 800"></div>
+        <div class="field"><label>Max cost per lead (${esc(curOf(b))})</label><input class="inp" type="number" min="0" step="0.01" data-f="cpl" value="${tg.cpl ?? ''}" placeholder="e.g. 200"></div>
+        <div class="field"><label>Frequency cap</label><input class="inp" type="number" min="0" step="0.1" data-f="freq" value="${tg.freq ?? ''}" placeholder="e.g. 3"></div></div>
+      <div class="field"><label>CTR targets by platform (%) <span class="mut">- blank uses the typical rate shown</span></label>
+        <div class="pf-ctr">${plats.map(pl => `<label><span>${esc(pl)}</span><input class="inp" type="number" min="0" max="100" step="0.01" data-ctr="${esc(pl)}" value="${(tg.ctr || {})[pl] != null ? +((tg.ctr[pl] * 100).toFixed(2)) : ''}" placeholder="${CTR_BENCH[pl] != null ? (CTR_BENCH[pl] * 100).toFixed(1) : ''}"></label>`).join('')}</div></div>
+      <div class="hint">Budget and flight dates come from the brief${b.budget ? ` (${esc(money(+b.budget, b))}, ${b.flightStart ? esc(fmtDay(b.flightStart)) : '-'} to ${b.flightEnd ? esc(fmtDay(b.flightEnd)) : '-'})` : ''}.</div>
+    </form>
+    <div class="modal-foot"><span class="spacer"></span><button class="btn" data-m="x">Cancel</button><button class="btn btn-primary" data-m="ok">Save</button></div>`);
+  const q = s => w.querySelector(s);
+  w.addEventListener('click', async e => {
+    const m = e.target.closest('[data-m]'); if (!m) return;
+    if (m.dataset.m === 'x') return w.close();
+    const sm = q('[data-f=smUrl]').value.trim(), smUrl = sm ? cleanUrl(sm) : '';
+    if (smUrl === null) return toast('That link doesn’t look right');
+    const n = k => { const v = q(`[data-f=${k}]`).value.trim(); return v === '' ? null : Math.max(0, +v || 0); };
+    const ctr = {}; $$('[data-ctr]', w).forEach(i => { if (i.value.trim() !== '') ctr[i.dataset.ctr] = Math.max(0, Math.min(100, +i.value || 0)) / 100; });
+    await savePerf(b, { smUrl, targets: { leads: n('leads'), cpl: n('cpl'), freq: n('freq'), ctr } });
+    w.close(); toast('Targets saved');
+  });
+}
+// Paste or upload a CSV (from a Supermetrics sheet, an ads manager export, or by hand).
+function openPerfImport(bid) {
+  const b = S.data.briefs[bid]; if (!b) return;
+  const w = openModal(`<div class="modal-head"><h2>Import results</h2><button class="icon-btn" data-m="x">${ico('x')}</button></div>
+    <div class="modal-body">
+      <p class="set-p">Columns it understands (any order, header row first): <b>Date</b>, <b>Platform</b>, <b>Spend</b> (or Cost, Amount spent), <b>Impressions</b>, <b>Clicks</b> (or Link clicks, Swipe ups), <b>Leads</b> (or Results, Conversions), <b>Reach</b>. A row for a date and platform that already exists replaces it.</p>
+      <div class="field"><label>Paste from a sheet, or choose a CSV file</label><textarea class="ta" data-f="txt" rows="8" placeholder="Date,Platform,Spend,Impressions,Clicks,Leads\n2026-11-18,Meta,1250,184000,2210,46"></textarea></div>
+      <input class="inp" type="file" data-f="file" accept=".csv,.tsv,.txt">
+      <div class="hint" data-prev></div>
+    </div>
+    <div class="modal-foot"><span class="spacer"></span><button class="btn" data-m="x">Cancel</button><button class="btn btn-primary" data-m="ok">Import</button></div>`, 'wide');
+  const q = s => w.querySelector(s);
+  let rows = [];
+  const parse = () => { rows = parsePerfRows(q('[data-f=txt]').value, b); q('[data-prev]').innerHTML = q('[data-f=txt]').value.trim() ? (rows.length ? `${plural(rows.length, 'row')} ready · ${esc(money(rows.reduce((s, r) => s + r.spend, 0), b))} spend` : '<span class="warn">No rows found - check that the first row has the column names and dates look like 2026-11-18 or 18/11/2026.</span>') : ''; };
+  q('[data-f=txt]').addEventListener('input', parse);
+  q('[data-f=file]').addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; if (f.size > 2e6) return toast('That file is too big - keep it under 2 MB'); q('[data-f=txt]').value = await f.text(); parse(); });
+  w.addEventListener('click', async e => {
+    const m = e.target.closest('[data-m]'); if (!m) return;
+    if (m.dataset.m === 'x') return w.close();
+    parse(); if (!rows.length) return toast('Nothing to import yet');
+    await addPerfEntries(bid, rows, 'perf_imported'); w.close(); toast(`${plural(rows.length, 'row')} imported`);
+  });
+}
+function parsePerfRows(text, b) {
+  const grid = parseRows(text); if (grid.length < 2) return [];
+  const head = grid[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+  const col = keys => head.findIndex(h => keys.some(k => h === k || h.startsWith(k)));
+  const ix = { date: col(['date', 'day', 'reportingstarts']), platform: col(['platform', 'source', 'network', 'channel']), spend: col(['spend', 'cost', 'amountspent', 'amount']),
+    impr: col(['impressions', 'impr', 'impression']), clicks: col(['clicks', 'linkclicks', 'swipeups', 'swipes']), leads: col(['leads', 'results', 'conversions', 'lead']), reach: col(['reach']) };
+  if (ix.date < 0 || ix.spend < 0) return [];
+  const toDate = v => { v = String(v || '').trim(); let m;
+    if ((m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+    if ((m = v.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})/))) return `${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;   // day first, as in the GCC
+    return null; };
+  const num = v => { const n = +String(v == null ? '' : v).replace(/[^0-9.-]/g, ''); return Number.isFinite(n) ? Math.max(0, n) : 0; };
+  const platName = v => { const s = String(v || '').trim(); if (!s) return (b.platforms || [])[0] || ''; const hit = PLATFORMS.find(p => p.toLowerCase() === s.toLowerCase()) || PLATFORMS.find(p => s.toLowerCase().includes(p.toLowerCase()))
+    || ({ facebook: 'Meta', instagram: 'Meta', snapchat: 'Snap', google: 'Search', 'google ads': 'Search', adwords: 'Search', twitter: 'X' })[s.toLowerCase()]; return hit || s.slice(0, 40); };
+  return grid.slice(1).map(r => ({ id: uid(), date: toDate(r[ix.date]), platform: platName(ix.platform >= 0 ? r[ix.platform] : ''), spend: num(r[ix.spend]), impr: ix.impr >= 0 ? num(r[ix.impr]) : 0,
+    clicks: ix.clicks >= 0 ? num(r[ix.clicks]) : 0, leads: ix.leads >= 0 ? num(r[ix.leads]) : 0, reach: ix.reach >= 0 ? num(r[ix.reach]) : 0 })).filter(r => r.date).slice(0, 2000);
+}
+
+/* ---------- Excel report (.xlsx) - a tiny writer, no libraries ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = u8 => { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files, type) {   // [{ name, data }] → one zip with the files stored as they are
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const dt = new Date(), tm = (dt.getHours() << 11) | (dt.getMinutes() << 5) | (dt.getSeconds() >> 1), dd = ((dt.getFullYear() - 1980) << 9) | ((dt.getMonth() + 1) << 5) | dt.getDate();
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, tm, 2], [12, dd, 2], [14, crc, 4], [18, data.length, 4], [22, data.length, 4], [26, name.length, 2], [28, 0, 2]]
+      .forEach(([o, v, n]) => (n === 4 ? h.setUint32(o, v, true) : h.setUint16(o, v, true)));
+    parts.push(new Uint8Array(h.buffer), name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, tm, 2], [14, dd, 2], [16, crc, 4], [20, data.length, 4], [24, data.length, 4], [28, name.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, off, 4]]
+      .forEach(([o, v, n]) => (n === 4 ? c.setUint32(o, v, true) : c.setUint16(o, v, true)));
+    central.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + data.length;
+  });
+  const size = central.reduce((s, x) => s + x.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type });
+}
+// sheets: [{ name, widths, rows: [[cell…]], freeze }] - a cell is text, a number, null, or { v, s } with s one of the styles below
+const XS = { text: 0, head: 1, int: 2, money: 3, pct: 4, title: 5, dec: 6, good: 7, warn: 8, bad: 9, sub: 10, bold: 11 };
+function xlsxBlob(sheets) {
+  const x = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const sheetXml = sh => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet ${NS}>`
+    + (sh.freeze ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sh.freeze}" topLeftCell="A${sh.freeze + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>')
+    + (sh.widths ? `<cols>${sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : '')
+    + `<sheetData>${sh.rows.map((r, ri) => `<row r="${ri + 1}">${r.map((c, ci) => {
+      if (c == null || c === '') return '';
+      const o = typeof c === 'object' ? c : { v: c }, ref = col(ci) + (ri + 1);
+      if (o.v == null || o.v === '' || (typeof o.v === 'number' && !Number.isFinite(o.v))) return o.s ? `<c r="${ref}" s="${XS[o.s] || 0}"/>` : '';
+      const s = XS[o.s] ?? (typeof o.v === 'number' ? XS.dec : 0);
+      return typeof o.v === 'number' ? `<c r="${ref}" s="${s}"><v>${o.v}</v></c>` : `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${x(o.v)}</t></is></c>`;
+    }).join('')}</row>`).join('')}</sheetData></worksheet>`;
+  const names = sheets.map((s, i) => (String(s.name || 'Sheet' + (i + 1)).replace(/[\[\]:*?/\\]/g, ' ').slice(0, 31) || 'Sheet' + (i + 1)));
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0"/><numFmt numFmtId="165" formatCode="#,##0.00"/><numFmt numFmtId="166" formatCode="0.00%"/></numFmts>
+<fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="15"/><name val="Calibri"/></font><font><sz val="10"/><color rgb="FF6B7080"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+<fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF323232"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE2F3E5"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF1D6"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFCE1DC"/></patternFill></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="12"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="4" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="4" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="4" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const files = [
+    { name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
+    { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook ${NS}><sheets>${names.map((n, i) => `<sheet name="${x(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name: 'xl/styles.xml', data: styles },
+    ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s) })),
+  ];
+  return zipStore(files, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+function perfWorkbook(b) {
+  const c = perfCalc(b), t = c.tot, cur = curOf(b), H = v => ({ v, s: 'head' }), M = v => ({ v: v == null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100, s: 'money' });
+  const I = v => ({ v: v == null || !Number.isFinite(v) ? null : Math.round(v), s: 'int' }), Pc = v => ({ v: v == null || !Number.isFinite(v) ? null : v, s: 'pct' });
+  const hs = s => ({ v: healthLabel(s), s: s === 'good' ? 'good' : s === 'warning' ? 'warn' : s === 'serious' ? 'bad' : 'text' });
+  const summary = [
+    [{ v: `${briefRef(b)} · ${b.title || 'Campaign'}`, s: 'title' }],
+    [{ v: `${S.acc ? S.acc.name + ' · ' : ''}Performance report, exported ${fmtDateTime(Date.now())}${c.smUrl ? ' · source: Supermetrics report' : ' · source: manual tracking'}`, s: 'sub' }],
+    [],
+    [H('Item'), H('Value'), H('Note')],
+    ['Brands', (b.clientIds || []).map(clientName).join(', ') || '-'],
+    ['Flight', b.flightStart && b.flightEnd ? `${b.flightStart} to ${b.flightEnd}` : '-', c.days ? `Day ${c.elapsed} of ${c.days}` : ''],
+    ['Status', b.status, ''],
+    ['Overall health', hs(c.overall)],
+    [],
+    [H('KPI'), H('Actual'), H('Target / plan'), H(`Currency: ${cur}`)],
+    ['Budget', M(c.budget || null), '', ''],
+    ['Spend to date', M(t.spend), M(c.expected), c.pace != null ? `Pacing ${Math.round(c.pace * 100)}%` : ''],
+    ['Projected spend', M(c.projected), M(c.budget || null), ''],
+    ['Impressions', I(t.impr)], ['Clicks', I(t.clicks)], ['CTR', Pc(t.ctr)], ['CPC', M(t.cpc)], ['CPM', M(t.cpm)],
+    ['Leads', I(t.leads), I(c.tg.leads), c.leadsExp ? `${Math.round(c.leadsExp)} expected by now` : ''],
+    ['Cost per lead', M(t.cpl), M(c.tg.cpl), ''],
+    ['Reach', I(t.reach || null)], ['Frequency', { v: t.freq != null ? Math.round(t.freq * 100) / 100 : null, s: 'dec' }, { v: c.tg.freq, s: 'dec' }, ''],
+  ];
+  const plat = [[H('Platform'), H(`Spend (${cur})`), H('Share of spend'), H('Impressions'), H('Clicks'), H('CTR'), H('CPC'), H('CPM'), H('Leads'), H('CPL'), H('Reach'), H('Frequency')],
+    ...c.byPlat.map(p => [p.platform, M(p.spend), Pc(t.spend ? p.spend / t.spend : null), I(p.impr), I(p.clicks), Pc(p.ctr), M(p.cpc), M(p.cpm), I(p.leads), M(p.cpl), I(p.reach || null), { v: p.freq != null ? Math.round(p.freq * 100) / 100 : null, s: 'dec' }]),
+    [{ v: 'Total', s: 'bold' }, M(t.spend), Pc(t.spend ? 1 : null), I(t.impr), I(t.clicks), Pc(t.ctr), M(t.cpc), M(t.cpm), I(t.leads), M(t.cpl), I(t.reach || null), { v: t.freq != null ? Math.round(t.freq * 100) / 100 : null, s: 'dec' }]];
+  // one row per day for pacing, and the raw rows by platform
+  const days = [...new Set(c.ents.map(e => e.date))].sort();
+  let run = 0;
+  const log = [[H('Date'), H(`Spend (${cur})`), H('Impressions'), H('Clicks'), H('Leads'), H('CTR'), H('CPL'), H(`Cumulative spend (${cur})`), H(`Planned to date (${cur})`), H('Pacing')],
+    ...days.map(d => { const list = c.ents.filter(e => e.date === d), sp = list.reduce((x, e) => x + (e.spend || 0), 0), im = list.reduce((x, e) => x + (e.impr || 0), 0), cl = list.reduce((x, e) => x + (e.clicks || 0), 0), ld = list.reduce((x, e) => x + (e.leads || 0), 0);
+      run += sp; const plan = c.budget && c.days ? c.budget * Math.min(c.days, Math.max(0, dayDiff(b.flightStart, d) + 1)) / c.days : null;
+      return [d, M(sp), I(im), I(cl), I(ld), Pc(im ? cl / im : null), M(ld ? sp / ld : null), M(run), M(plan), Pc(plan ? run / plan : null)]; })];
+  const raw = [[H('Date'), H('Platform'), H(`Spend (${cur})`), H('Impressions'), H('Clicks'), H('Leads'), H('Reach'), H('CTR'), H('CPC'), H('CPL')],
+    ...c.ents.map(e => [e.date, e.platform, M(e.spend), I(e.impr), I(e.clicks), I(e.leads), I(e.reach || null), Pc(e.impr ? e.clicks / e.impr : null), M(e.clicks ? e.spend / e.clicks : null), M(e.leads ? e.spend / e.leads : null)])];
+  const health = [[H('Check'), H('Status'), H('Now'), H('Target'), H('What it means')], ...c.checks.map(x => [x.check, hs(x.status), x.value, x.target, x.note])];
+  return xlsxBlob([
+    { name: 'Summary', widths: [24, 34, 26, 22], rows: summary },
+    { name: 'KPIs by platform', widths: [14, 14, 14, 14, 11, 9, 10, 10, 9, 10, 12, 11], rows: plat, freeze: 1 },
+    { name: 'Pacing log', widths: [12, 13, 13, 10, 9, 9, 11, 22, 22, 10], rows: log, freeze: 1 },
+    { name: 'Daily by platform', widths: [12, 12, 13, 13, 10, 9, 11, 9, 9, 10], rows: raw, freeze: 1 },
+    { name: 'Health check', widths: [22, 16, 22, 26, 70], rows: health, freeze: 1 },
+  ]);
+}
+// data: URLs are decoded by hand (the page's security policy doesn't let fetch() read them)
+function dataUrlBlob(u) {
+  const i = String(u).indexOf(','), head = u.slice(0, i), body = u.slice(i + 1), mime = (head.match(/^data:([^;,]+)/) || [])[1] || 'application/octet-stream';
+  const bin = /;base64/.test(head) ? atob(body) : decodeURIComponent(body), out = new Uint8Array(bin.length);
+  for (let k = 0; k < bin.length; k++) out[k] = bin.charCodeAt(k);
+  return new Blob([out], { type: mime });
+}
+function downloadBlob(name, blob) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function exportPerf(bid) {
+  const b = S.data.briefs[bid]; if (!b) return;
+  const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  downloadBlob(`${slug(briefRef(b))}-${slug(b.title) || 'campaign'}-report-${todayKey()}.xlsx`, perfWorkbook(b));
+}
+
+/* ---------- alerts to the client, and from the client to the team ---------- */
+async function notifyClient(b, kind, o = {}) {
+  const to = clientContacts(); if (!to.length || isClientRole()) return 0;
+  const c = ['live', 'completed'].includes(kind) ? perfCalc(b) : null;
+  const M = {
+    plan: [`Media plan ready for your approval`, `Version ${o.v} of the media plan is ready. Open it to approve, or tell the team what to change.`, 'Review the media plan', 'plan'],
+    reminder: [`Reminder: the media plan is waiting for you`, `Version ${o.v} of the media plan still needs your approval before the team can move on to assets.`, 'Review the media plan', 'plan'],
+    assets: [`${plural(o.n || 1, 'asset')} ready for your review`, 'The team has shared assets for review. Open the Drive folder, then approve each one or ask for changes.', 'Review the assets', 'assets'],
+    assetsDone: ['All assets approved', 'Every asset on this brief is approved. Next: campaign build and go-live.', 'Open the brief', 'assets'],
+    live: ['Your campaign is live', 'The campaign is live. Pacing and results are tracked on the brief.', 'See pacing and results', 'perf'],
+    completed: ['Campaign completed', 'The campaign has finished. The results summary, the health check and the Excel report are on the brief.', 'See the results', 'perf'],
+  }[kind]; if (!M) return 0;
+  const [heading, intro, cta, tab] = M, link = `#/brief/${b.id}/${tab}`;
+  const rows = [['Brief', briefLabel(b)], ['Brands', (b.clientIds || []).map(clientName).join(', ')], ['Go-live', b.goLive ? longDay(b.goLive) : ''],
+    ...(c && c.tot.spend ? [['Spend', money(c.tot.spend, b)], ['Leads', c.tot.leads ? numStr(c.tot.leads) : ''], ['Cost per lead', c.tot.cpl != null ? money(c.tot.cpl, b, 2) : '']] : [])];
+  await Promise.all(to.map(em => notifyEmail(em, { kind: 'brief', title: `${briefRef(b)}: ${heading}`, body: b.title, link, briefId: b.id,
+    email: { subject: `[${briefRef(b)}] ${heading}: ${b.title}`, html: emailHTML({ heading, intro, rows, cta, link }), text: `${heading}\n\n${intro}\n\n${rows.filter(r => r[1]).map(r => `${r[0]}: ${r[1]}`).join('\n')}\n\n${appLink(link)}` } })));
+  const fresh = S.data.briefs[b.id] || b;
+  await store.update('briefs', b.id, { clientAlerts: { ...(fresh.clientAlerts || {}), [kind]: Date.now() } });
+  logAct('client_alert', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b), detail: `${heading} → ${to.map(memberName).join(', ')}` });
+  return to.length;
+}
+function notifyTeamOfClient(b, heading, body, tab) {
+  const to = teamOf(b).length ? teamOf(b) : people().filter(p => p.role === 'Account Lead').map(p => p.id), link = `#/brief/${b.id}/${tab}`;
+  to.forEach(pid => notify(pid, { kind: 'brief', title: `${briefRef(b)}: ${heading}`, body, link, briefId: b.id,
+    email: { subject: `[${briefRef(b)}] ${heading}: ${b.title}`, html: emailHTML({ heading, intro: body, rows: briefRows(b), cta: 'Open the brief', link }), text: textOf(heading, b) } }));
+}
+
+/* ---------- keeping the workflow steps in line with the phases ---------- */
+const PHASE_STEP = { plan: t => t.stepKey === 'f2' || /media plan/i.test(t.title), approval: t => t.stepKey === 'f3' || /client approval/i.test(t.title),
+  assetReq: t => t.stepKey === 'f4' || /asset request/i.test(t.title), assets: t => t.stepKey === 'f5' || /creative production/i.test(t.title) };
+async function completePhaseSteps(b, keys) {
+  if (!b || !canEditAcc() || isClientRole()) return;
+  const steps = briefSteps(b.id);
+  for (const k of keys) { const t = steps.find(PHASE_STEP[k]); if (t && t.status !== 'Done') await setStepStatus(t, 'Done'); }
+}
+// A client's approval can't touch the steps, so the team's side ticks them: the brief owner when they're
+// online, otherwise whoever opens the brief.
+const PH_SYNCED = new Set();
+function phaseSync() {
+  if (!S.acc || !canEditAcc() || isClientRole() || !store || (store.isFresh && !store.isFresh())) return;
+  const mine = myPerson(), viewing = S.route && S.route.view === 'brief' ? S.route.id : null;
+  Object.values(S.data.briefs).forEach(b => {
+    if (b.archived) return;
+    // sample briefs made before the phases existed get matching example phases (once)
+    if (b.demo && !planVersions(b).length && !((b.perf || {}).entries || []).length && !['Draft', 'Submitted'].includes(b.status) && !PH_SYNCED.has('demo:' + b.id)) {
+      PH_SYNCED.add('demo:' + b.id);
+      const steps = briefSteps(b.id), who = re => steps.find(t => re.test(t.title)) || {};
+      const f = demoPhaseFields(b, steps, { seed: b.seq || 0, requester: b.requestedBy || 'Client marketing team', planner: personName(who(/media plan/i).assignee), creative: who(/creative production/i).assignee || null, analyst: personName(who(/report/i).assignee) });
+      if (Object.keys(f).length) store.update('briefs', b.id, f);
+      return;
+    }
+    const ph = briefPhases(b), todo = [...(ph.shared ? ['plan'] : []), ...(ph.approved ? ['approval'] : []), ...(ph.assetsDone ? ['assetReq', 'assets'] : [])];
+    if (!todo.length) return;
+    const steps = briefSteps(b.id);
+    if (!todo.some(k => { const t = steps.find(PHASE_STEP[k]); return t && t.status !== 'Done'; })) return;
+    if (b.ownerId && (!mine || b.ownerId !== mine.id) && viewing !== b.id) return;
+    const key = b.id + ':' + todo.join(',');
+    if (PH_SYNCED.has(key)) return;
+    PH_SYNCED.add(key);
+    completePhaseSteps(b, todo);
+  });
+}
+
+/* ---------- the client's own pages ---------- */
+function renderClientBriefs() {
+  const all = clientBriefs().sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+  const needs = all.filter(b => clientAction(b)), rest = all.filter(b => !clientAction(b));
+  const row = b => {
+    const ph = briefPhases(b), act = clientAction(b);
+    const step = !ph.submitted ? 'Draft' : ph.completed ? 'Completed' : ph.live ? 'Live' : ph.approved ? (ph.items.length ? `Assets · ${ph.nOk} of ${ph.items.length} approved` : 'Assets in production') : ph.awaitingPlan ? 'Media plan ready for you' : ph.changes ? 'Plan being revised' : 'Team preparing the media plan';
+    return `<button class="cb-row ${act ? 'attn' : ''}" data-go="#/brief/${b.id}${act ? '/' + act : ''}">
+      <span class="cb-main"><small>${esc(briefRef(b))}${b.type ? ' · ' + esc(b.type) : ''}</small><b>${esc(b.title || 'Untitled brief')}</b><span class="cb-brands">${briefBrands(b).slice(0, 4).map(esc).join(', ')}</span></span>
+      <span class="cb-step">${act ? `<span class="hc hc-warning">${ico('alert', 'i-xs')}${act === 'plan' ? 'Approve the media plan' : `Review ${plural(ph.inReview, 'asset')}`}</span>` : esc(step)}</span>
+      <span class="cb-date">${b.goLive ? `Go-live<b>${esc(fmtDay(b.goLive))}</b>` : ''}</span>${briefPill(b)}</button>`;
+  };
+  return topbar('<span>Briefs</span>', `<button class="top-btn" data-action="br-new">${ico('plus', 'i-sm')}New brief</button>`) + `<div class="content"><div class="cb">
+    <div class="page-head"><h1>Your briefs</h1></div>
+    <p class="set-p">Send the team a brief, approve the media plan, review assets and follow the results - all in one place.</p>
+    ${needs.length ? `<div class="cb-sec"><h3>${ico('bell', 'i-sm')} Needs your review</h3>${needs.map(row).join('')}</div>` : ''}
+    <div class="cb-sec"><h3>${needs.length ? 'Other briefs' : 'All briefs'}</h3>${rest.length ? rest.map(row).join('') : needs.length ? '<div class="db-empty">Nothing else right now.</div>' : `<div class="ph-empty">${ico('brief')}<b>No briefs yet</b><span>Start one with New brief - the team is alerted when you submit it.</span><button class="btn btn-primary" data-action="br-new">${ico('plus', 'i-sm')} New brief</button></div>`}</div>
+  </div></div>`;
+}
+function renderClientBrief(b) {
+  const ph = briefPhases(b), tab = briefTab(b, ph);
+  const row = (label, v) => (v ? `<div class="kv"><span>${label}</span><b>${v}</b></div>` : '');
+  const link = (label, u) => (safeUrl(u) ? `<a class="sheet-btn" data-ext href="${esc(safeUrl(u))}" target="_blank" rel="noopener noreferrer">${ico('link', 'i-sm')}${esc(label)}${ico('ext', 'i-xs')}</a>` : '');
+  const section = (title, html) => (html && html.replace(/<[^>]+>/g, '').trim() ? `<div class="bp-sec"><h3>${title}</h3>${html}</div>` : '');
+  const para = v => (v ? `<p class="bp-p">${esc(v)}</p>` : '');
+  const canEdit = ['Draft', 'Submitted'].includes(b.status);
+  const timeline = [['Brief submitted', b.submittedAt], ['Media plan shared', (b.plan || {}).sentAt], ['Media plan approved', ph.approved ? (b.planReview || {}).at : null], ['Assets approved', ph.assetsDone ? Math.max(...Object.values((b.assetReview || {}).items || {}).map(x => x.at || 0), 0) || null : null], ['Live', b.liveAt], ['Completed', b.closedAt]];
+  const main = tab === 'brief' ? `
+      <div class="bp-sec"><h3>${ico('flow', 'i-sm')} Progress</h3><div class="cb-tl">${timeline.map(([l, at]) => `<div class="cb-tl-row ${at ? 'done' : ''}"><span class="cb-dot">${at ? ico('check', 'i-xs') : ''}</span><b>${l}</b><span class="mut">${at ? esc(fmtDateTime(at)) : '-'}</span></div>`).join('')}</div></div>
+      ${section('Objective &amp; KPIs', `${b.objective ? `<p class="bp-p"><b>${esc(b.objective)}</b></p>` : ''}${para(b.kpis)}`)}
+      ${section('Audience', para(b.audience))}
+      ${section('Offer &amp; messaging', `${para(b.offer)}${b.promo ? `<p class="bp-p mut">Promo code: <b>${esc(b.promo)}</b></p>` : ''}${b.message ? `<p class="bp-p"><i>“${esc(b.message)}”</i></p>` : ''}${b.cta ? `<p class="bp-p mut">CTA: <b>${esc(b.cta)}</b></p>` : ''}`)}
+      ${section('Creative requirements', para(b.creative))}
+      ${section('Notes', para(b.notes))}` : phaseMainHTML(b, ph, tab);
+  return topbar(`<a data-go="#/briefs" class="crumb-link">Briefs</a> /`, canEdit ? `<button class="top-btn" data-action="br-edit" data-id="${b.id}">${ico('pencil', 'i-sm')}Edit brief</button>` : '') +
+  `<div class="content"><div class="bp cbp">
+    <div class="bp-head"><div class="bp-ref">${esc(briefRef(b))}${b.type ? ` · ${esc(b.type)}` : ''}</div>
+      <h1>${esc(b.title || 'Untitled brief')}</h1>
+      <div class="bp-chips">${briefPill(b)}${briefBrands(b).map(n => `<span class="tag clt">${ico('client', 'i-xs')}${esc(n)}</span>`).join('')}</div></div>
+    ${b.status === 'Draft' ? `<div class="bp-cta"><button class="btn btn-primary" data-action="br-submit" data-id="${b.id}">${ico('send', 'i-sm')} Submit brief</button></div>` : ''}
+    ${phaseCardsHTML(b, ph, tab)}
+    <div class="bp-grid"><div class="bp-main">${main}</div>
+    <aside class="bp-side">
+      <div class="bp-card"><h4>Key dates</h4>
+        ${row('Go-live', b.goLive ? esc(longDay(b.goLive)) : '')}
+        ${row('Flight', b.flightStart || b.flightEnd ? `${b.flightStart ? esc(fmtDay(b.flightStart)) : '-'} → ${b.flightEnd ? esc(fmtDay(b.flightEnd)) : '-'}` : '')}
+        ${row('Submitted', b.submittedAt ? esc(fmtDateTime(b.submittedAt)) : '')}
+        ${row('Live since', b.liveAt ? esc(fmtDateTime(b.liveAt)) : '')}
+        ${row('Completed', b.closedAt ? esc(fmtDateTime(b.closedAt)) : '')}</div>
+      ${teamOf(b).length ? `<div class="bp-card"><h4>Your team</h4>${teamOf(b).map(pid => `<div class="tm-row">${avatarHTML(pid)}<span><b>${esc(personName(pid))}</b><small>${esc(pid === b.ownerId ? 'Account lead' : ((b.team || []).find(m => m.personId === pid) || {}).role || '')}</small></span></div>`).join('')}</div>` : ''}
+      <div class="bp-card"><h4>Budget &amp; channels</h4>
+        ${row('Budget', b.budget != null ? esc(money(+b.budget, b)) : '<span class="mut">-</span>')}
+        ${(b.markets || []).length ? `<div class="kv-tags"><span>Markets</span><div>${tagList(b.markets, 'mkt', 12)}</div></div>` : ''}
+        ${(b.platforms || []).length ? `<div class="kv-tags"><span>Platforms</span><div>${tagList(b.platforms, 'plat', 12)}</div></div>` : ''}</div>
+      ${b.landingUrl || (b.assets || {}).driveUrl || b.assetsUrl ? `<div class="bp-card"><h4>Links</h4><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">${link('Landing page', b.landingUrl)}${link('Assets folder', (b.assets || {}).driveUrl || b.assetsUrl)}</div></div>` : ''}
+    </aside></div>
+  </div></div>`;
+}
+// Clients get a plain list of their accounts: no internal numbers, teams or alerts.
+function renderClientAccounts() {
+  const rows = accTree(myAccounts());
+  return topbar('<span>Accounts</span>') + `<div class="content"><div class="cb">
+    <div class="page-head"><h1>Your accounts</h1></div><p class="set-p">Pick an account to see its briefs, media plans, assets and results.</p>
+    <div class="cb-sec">${rows.map(({ a, depth }) => `<button class="cb-row cb-acc ${S.acc && S.acc.id === a.id ? 'cur' : ''}" style="--d:${depth}" data-action="acc-open" data-id="${esc(a.id)}">
+      <span class="cb-main cb-acc-main">${accLogo(a)}<span><b>${esc(accLabel(a))}</b><small>${esc(a.parentId && accAncestors(a)[0] ? accPath(a) : a.sector || '')}</small></span></span>
+      <span class="cb-step">${S.acc && S.acc.id === a.id ? 'Open now' : ''}</span>${ico('arrowRight', 'i-sm')}</button>`).join('') || '<div class="db-empty">No accounts yet.</div>'}</div>
+  </div></div>`;
+}
+function renderClientSidebar(r, top, foot) {
+  const nav = (view, hash, icon, label, cnt = '') => `<button class="nav-item ${r.view === view ? 'active' : ''}" data-go="${hash}">${ico(icon)}<span class="lbl">${label}</span>${cnt}</button>`;
+  const needs = clientBriefs().filter(b => clientAction(b)).length;
+  return `<aside class="sidebar client-side">${top}
+    <div class="side-actions"><button class="add-task-btn brief-btn" data-action="br-new" title="New brief">${ico('brief')}New brief</button></div>
+    <button class="nav-item ${['briefs', 'brief'].includes(r.view) ? 'active' : ''}" data-go="#/briefs">${ico('brief')}<span class="lbl">Your briefs</span>${needs ? `<span class="cnt al-cnt" title="${plural(needs, 'brief')} waiting for you">${needs}</span>` : `<span class="cnt">${clientBriefs().filter(b => BRIEF_ACTIVE.includes(b.status)).length || ''}</span>`}</button>
+    ${myAccounts().length > 1 ? nav('accounts', '#/accounts', 'grid', 'All accounts', `<span class="cnt">${myAccounts().length}</span>`) : ''}
+    <div class="side-group side-help">${nav('guide', '#/guide', 'help', 'Guide &amp; help')}</div>
+    <div class="side-note">${ico('shield', 'i-sm')}<span>Client access: you see briefs, media plans, assets and results for ${esc(S.acc.name)}.</span></div>
+    ${foot}</aside>`;
+}
+// What a client can change: only the brief, notifications and the activity log entry for it (the rules agree).
+function clientStore(st) {
+  const ok = (k, args) => k === 'batch' ? (args[0] || []).every(o => o.col === 'briefs' && o.type !== 'del') : ['briefs', 'notifs'].includes(args[0]) && (k !== 'del' || args[0] === 'notifs');
+  return new Proxy(st, { get(t, k) {
+    if (k === 'clientOnly') return true;
+    if (['put', 'update', 'del', 'batch'].includes(k)) return (...args) => (ok(k, args) ? t[k](...args) : Promise.resolve());
+    const v = t[k]; return typeof v === 'function' ? v.bind(t) : v;
+  } });
+}
+
+Object.assign(ACTIONS, {
+  'ph-tab': a => { const t = a.dataset.t, id = a.dataset.id; history.replaceState(null, '', `${location.pathname}${location.search}#/brief/${id}/${t}`); S.route = route(); render({ mainOnly: true }); const c = $('.ph-cards'); if (c && c.getBoundingClientRect().top < 0) c.scrollIntoView({ block: 'start' }); },
+  'pl-upload': a => openPlanUpload(a.dataset.id),
+  'pl-send': a => sendPlan(a.dataset.id),
+  'pl-approve': async a => { const b = S.data.briefs[a.dataset.id]; if (!b || !briefPhases(b).shared) return; const r = await promptBox({ title: `Approve media plan v${briefPhases(b).shared.v}?`, label: 'Comment for the team (optional)', placeholder: 'e.g. Approved - go ahead', ok: 'Approve plan', multiline: true }); if (!r) return; planDecide(b.id, 'approved', r.value); },
+  'pl-changes': async a => { const r = await promptBox({ title: 'What should change?', label: 'Your feedback (sent to the team)', placeholder: 'e.g. Move 10% from Snap to Meta and add a KSA split', ok: 'Send feedback', multiline: true }); if (!r || !r.value.trim()) return r && toast('Add a note so the team knows what to change'); planDecide(a.dataset.id, 'changes', r.value); },
+  'pl-record': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; const r = await promptBox({ title: 'Record the client’s approval', label: 'Who approved, and how', placeholder: 'e.g. Lina, by email on 21 Nov', ok: 'Record approval', max: 160 }); if (!r || !r.value.trim()) return; planDecide(b.id, 'approved', '', r.value.trim()); },
+  'pl-remind': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; const ph = briefPhases(b); const n = await notifyClient(b, 'reminder', { v: ph.shared ? ph.shared.v : '' }); toast(n ? `Reminder sent to ${plural(n, 'client contact')}` : 'No client has access to this account yet'); },
+  'pl-file': async a => {
+    try { const f = await store.getFile(a.dataset.f); if (!f || !f.data) return toast('That file is no longer available');
+      downloadBlob(f.name || a.dataset.n || 'media-plan', dataUrlBlob(f.data)); }
+    catch (e) { console.warn(e); toast('Could not download that file'); }
+  },
+  'as-open': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; await saveAssets(b, { open: true, openedAt: Date.now() }); logAct('assets_opened', { kind: 'brief', briefId: b.id, clientIds: b.clientIds, title: briefLabel(b) }); },
+  'as-drive': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return;
+    const r = await promptBox({ title: 'Assets folder', label: 'Google Drive (or SharePoint) link with the assets', value: (b.assets || {}).driveUrl || b.assetsUrl || '', placeholder: 'https://drive.google.com/…', ok: 'Save link', max: 2000 }); if (!r) return;
+    const u = r.value.trim() ? cleanUrl(r.value) : ''; if (u === null) return toast('That link doesn’t look right');
+    await saveAssets(b, { driveUrl: u, ...(u && !(b.assets || {}).open ? { open: true, openedAt: Date.now() } : {}) }); },
+  'as-add': a => openAssetForm(a.dataset.id),
+  'as-edit': a => openAssetForm(a.dataset.id, a.dataset.a),
+  'as-del': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; const it = ((b.assets || {}).items || []).find(x => x.id === a.dataset.a); if (!it || !await confirmBox(`Remove “${it.name}” from the asset list?`, 'Remove', 'Remove asset?')) return;
+    await saveAssets(b, null, b.assets.items.filter(x => x.id !== it.id)); },
+  'as-presets': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; const items = (b.assets || {}).items || [], now = Date.now();
+    const add = (b.platforms || []).filter(p => ASSET_PRESETS[p]).flatMap(p => ASSET_PRESETS[p].map(x => [...x, p])).filter(x => !items.some(it => it.name === x[0]))
+      .map(([name, kind, specs, platform]) => ({ id: uid(), name, kind, specs, platform, ownerId: null, due: b.goLive ? subWorkdays(b.goLive, 3) : null, status: 'Requested', link: '', note: '', updatedAt: now }));
+    if (!add.length) return; await saveAssets(b, { open: true, openedAt: (b.assets || {}).openedAt || now }, [...items, ...add]); toast(`${plural(add.length, 'asset')} added - set owners and due dates`); },
+  'as-send': a => sendAssetsForReview(a.dataset.id),
+  'as-approve': a => assetDecide(a.dataset.id, [a.dataset.a], 'approved'),
+  'as-approve-all': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; const ph = briefPhases(b); const ids = ph.items.filter((it, i) => ph.st[i] === 'Client review').map(x => x.id);
+    if (await confirmBox(`Approve all ${plural(ids.length, 'asset')} waiting for review?`, 'Approve all', 'Approve assets?')) assetDecide(b.id, ids, 'approved'); },
+  'as-changes': async a => { const r = await promptBox({ title: 'What should change?', label: 'Feedback on this asset (sent to the team)', placeholder: 'e.g. Use the AR end card and make the price bigger', ok: 'Send feedback', multiline: true }); if (!r || !r.value.trim()) return r && toast('Add a note so the team knows what to change'); assetDecide(a.dataset.id, [a.dataset.a], 'changes', r.value); },
+  'pf-targets': a => openPerfTargets(a.dataset.id),
+  'pf-import': a => openPerfImport(a.dataset.id),
+  'pf-export': a => exportPerf(a.dataset.id),
+  'pf-del': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; await savePerf(b, { entries: ((b.perf || {}).entries || []).filter(x => x.id !== a.dataset.e) }); },
+  'pf-complete': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; const n = clientContacts().length;
+    if (!await confirmBox(`Mark ${briefRef(b)} as completed${n ? ` and send the completed alert to ${plural(n, 'client contact')}` : ''}?`, 'Mark completed', 'Campaign completed?')) return;
+    await setBriefStatus(b, 'Completed'); toast(n ? 'Completed - the client has been alerted' : 'Marked as completed'); },
+});
+document.addEventListener('change', e => { const s = e.target.closest && e.target.closest('[data-asst]'); if (s) setAssetStatus(s.dataset.id, s.dataset.asst, s.value); });
+document.addEventListener('submit', async e => {
+  const f = e.target.closest && e.target.closest('form[data-pf]'); if (!f) return;
+  e.preventDefault();
+  const v = k => f.elements[k].value.trim(), n = k => Math.max(0, +v(k) || 0);
+  if (!asDate(v('date'))) return toast('Pick a date');
+  if (!v('spend') && !v('impr') && !v('clicks') && !v('leads')) return toast('Add at least one number');
+  await addPerfEntries(f.dataset.pf, [{ id: uid(), date: v('date'), platform: v('platform'), spend: n('spend'), impr: n('impr'), clicks: n('clicks'), leads: n('leads'), reach: n('reach') }]);
+  setTimeout(() => { const nf = $(`form[data-pf="${f.dataset.pf}"]`); if (nf) { ['spend', 'impr', 'clicks', 'leads', 'reach'].forEach(k => { nf.elements[k].value = ''; }); nf.elements.spend.focus(); } }, 60);
+});
+
 // A simple timeline: planned (due) vs actual for each step, with today and the go-live deadline marked.
 function ganttHTML(b, steps) {
   const now = Date.now(), dayMs = 864e5;
@@ -5076,7 +5956,10 @@ const ACT_LABEL = {
   step_added: 'added a step', step_assigned: 'assigned a step', step_started: 'started a step', step_blocked: 'flagged a step as blocked', step_unblocked: 'unblocked a step',
   step_review: 'sent a step for review', step_done: 'completed a step', step_reopened: 'reopened a step', step_status: 'changed step status', step_due: 'changed a due date',
   task_created: 'created a task', task_done: 'completed a task', task_reopened: 'reopened a task', task_assigned: 'assigned a task', task_due: 'changed a due date', task_deleted: 'deleted a task',
-  replanned: 'rescheduled the remaining steps', comment: 'commented', client_added: 'added a client', client_edited: 'edited a client', clients_imported: 'imported clients',
+  replanned: 'rescheduled the remaining steps', comment: 'commented',
+  plan_uploaded: 'uploaded a media plan', plan_shared: 'sent the media plan to the client', plan_approved: 'approved the media plan', plan_changes: 'asked for changes to the media plan',
+  assets_opened: 'opened the assets phase', asset_added: 'added an asset', asset_status: 'changed an asset status', assets_sent: 'sent assets for client review',
+  asset_approved: 'approved assets', asset_changes: 'asked for changes to an asset', perf_added: 'added results', perf_imported: 'imported results', client_alert: 'alerted the client', client_added: 'added a client', client_edited: 'edited a client', clients_imported: 'imported clients',
 };
 const ACT_GROUPS = { Briefs: a => a.kind === 'brief', 'Workflow steps': a => a.kind === 'step', Tasks: a => a.kind === 'task', Brands: a => a.kind === 'client', Comments: a => a.action === 'comment' };
 const ACT_ICON = { brief: 'brief', step: 'flow', task: 'check', client: 'client' };
@@ -5150,13 +6033,13 @@ const myNotifs = () => Object.values(S.data.notifs).filter(n => n.to && n.to ===
 const unreadNotifs = () => myNotifs().filter(n => !n.read);
 // links in emails open the right account: ?a=<account id>#/brief/…
 const appLink = hash => (((CFG.email && CFG.email.appUrl) || (location.origin + location.pathname)).replace(/[?#].*$/, '')) + (S.acc ? '?a=' + encodeURIComponent(S.acc.id) : '') + hash;
-async function notify(pid, { title, body = '', link = '#/', briefId = null, taskId = null, kind = 'info', email = null }) {
-  const p = personById(pid); if (!p || !p.email) return;
-  if (S.mode === 'cloud' && p.email === myEmail()) return;        // no notifications about your own actions
-  const n = { id: uid(), to: p.email, at: Date.now(), title: String(title).slice(0, 200), body: String(body).slice(0, 500), link, briefId, taskId, kind, read: false, from: me(), fromEmail: (S.user && S.user.email) || '' };
+async function notify(pid, o) { const p = personById(pid); if (!p || !p.email) return; return notifyEmail(p.email, o); }
+async function notifyEmail(to, { title, body = '', link = '#/', briefId = null, taskId = null, kind = 'info', email = null }) {
+  to = String(to || '').toLowerCase(); if (!to) return;
+  if (S.mode === 'cloud' && to === myEmail()) return;        // no notifications about your own actions
+  const n = { id: uid(), to, at: Date.now(), title: String(title).slice(0, 200), body: String(body).slice(0, 500), link, briefId, taskId, kind, read: false, from: me(), fromEmail: (S.user && S.user.email) || '' };
   await store.put('notifs', n);
-  // sample people (@example.com) never get real emails
-  if (email && CFG.email && CFG.email.enabled !== false && store.mail && !/@example\.(com|org|net)$/.test(p.email)) await store.mail({ to: [p.email], message: { subject: `${S.acc ? S.acc.name + ' · ' : ''}${email.subject}`, html: email.html, text: email.text } });
+  if (email && CFG.email && CFG.email.enabled !== false && store.mail && !/@example\.(com|org|net)$/.test(to)) await store.mail({ to: [to], message: { subject: `${S.acc ? S.acc.name + ' · ' : ''}${email.subject}`, html: email.html, text: email.text } });
 }
 function emailHTML({ heading, intro, rows = [], items = [], cta, link }) {
   const e = s => esc(s == null ? '' : s);
@@ -5814,6 +6697,9 @@ function buildAccountSample(P, { people: roster, seatEmail, settingsDoc, now }) 
         put('tasks', t);
       });
       if (status === 'Completed') { b.closedAt = wh(cur + 0.5 * D); b.statusLog.push({ status: 'Completed', at: b.closedAt, by: lead.name }); act(b.closedAt, 'brief_status', { kind: 'brief', briefId: id, clientIds: hIds, title: label, from: 'Live', to: 'Completed' }); }
+      // the phases that go with those steps: media plan versions, the client's approval, assets and results
+      Object.assign(b, demoPhaseFields(b, wf.map((st, i) => S.data.tasks[`${id}-s${i}`]).filter(Boolean), { now, seed: bi, requester, planner: pname(byRole('Media Planner')), creative: byRole('Creative'), analyst: pname(byRole('Analytics')) }));
+      b.brandNames = Object.fromEntries(hIds.map(h => [h, (S.data.projects[h] || {}).name || ''].filter(Boolean)).filter(x => x.length === 2));
       b.status = status;
       put('briefs', b);
       if (['Live', 'Completed'].includes(status)) put('campaigns', { ...newCampaign(ctId), id: `${id}-c`, name: extra.campaignName || title, briefId: id, clientIds: hIds, status: status === 'Live' ? 'Live' : 'Ended',
@@ -6015,7 +6901,7 @@ Object.assign(ACTIONS, {
   'br-edit': a => openBriefForm(a.dataset.id),
   'br-team': a => openTeamModal(a.dataset.id),
   'br-kickoff': a => { const b = S.data.briefs[a.dataset.id]; if (b && !(b.team || []).length && !b.ownerId) return openTeamModal(b.id); openKickoff(a.dataset.id); },
-  'br-submit': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; if (!b.goLive) { toast('Add the go-live date first'); return openBriefForm(b.id); } await setBriefStatus(b, 'Submitted'); setTimeout(() => openTeamModal(b.id), 200); },
+  'br-submit': async a => { const b = S.data.briefs[a.dataset.id]; if (!b) return; if (!b.goLive) { toast('Add the go-live date first'); return openBriefForm(b.id); } await setBriefStatus(b, 'Submitted'); if (!isClientRole()) setTimeout(() => openTeamModal(b.id), 200); },
   'br-complete': a => setBriefStatus(S.data.briefs[a.dataset.id], 'Completed'),
   'br-status': (a, e) => { e && e.stopPropagation(); briefStatusMenu(a, a.dataset.id); },
   'br-menu': a => briefMenu(a, a.dataset.id),
@@ -6084,6 +6970,7 @@ function onData() {
   queueStats();
   setTimeout(alertSweep, 1500);
   ctMaintenance();          // auto-end finished campaigns, tidy contradictory statuses, empty old trash
+  setTimeout(phaseSync, 1200);
 }
 
 /* ===================== logo ===================== */
@@ -6101,10 +6988,11 @@ const wordmark = () => `<span class="wordmark">${esc(CFG.appName || 'Ads Workspa
    under workspaces/{accountId}/…). Local mode keeps the same shape in
    this browser.
    ===================================================================== */
-const ACC_ROLES = ['admin', 'editor', 'viewer'];
-const ACC_ROLE_LABEL = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
-const ACC_ROLE_HELP = { admin: 'Everything, plus the account’s tools, logo and access', editor: 'Works on everything in the account', viewer: 'Sees everything, changes nothing' };
-const roleRank = r => ({ admin: 3, editor: 2, viewer: 1 })[r] || 0;
+const ACC_ROLES = ['admin', 'editor', 'viewer', 'client'];
+const ACC_ROLE_LABEL = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer', client: 'Client' };
+const ACC_ROLE_HELP = { admin: 'Everything, plus the account’s tools, logo and access', editor: 'Works on everything in the account', viewer: 'Sees everything, changes nothing',
+  client: 'Submits briefs, approves media plans and assets, follows results - sees nothing internal' };
+const roleRank = r => ({ admin: 3, editor: 2, viewer: 1, client: 0.5 })[r] || 0;
 const TOOLS = [
   ['mywork', 'My work', 'inbox', 'Everything assigned to you in this account'],
   ['lists', 'Task lists', 'check', 'Project lists and boards, Today and Upcoming'],
@@ -6133,7 +7021,10 @@ const bizTeams = () => Object.values(S.biz.teams).sort((a, b) => String(a.name).
 const allAccounts = withArchived => Object.values(S.biz.accounts).filter(a => withArchived || !a.archived).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const memberName = em => (S.biz.members[em] && S.biz.members[em].name) || em;
 // Business roles: owners (the first owner is ownerEmail in config.js, and owners can add more), admins, members.
-const BIZ_ROLES = [['member', 'Member'], ['admin', 'Admin'], ['owner', 'Owner']];
+const BIZ_ROLES = [['member', 'Member'], ['client', 'Client'], ['admin', 'Admin'], ['owner', 'Owner']];
+// Client people only ever get the Client role, and only on the accounts they're given directly.
+const isClientMember = (em, members = S.biz.members) => ((members[em] || {}).bizRole === 'client');
+const isClientUser = () => !!S.user && !isBizAdmin() && isClientMember(userEmail());
 const isOwnerEmail = em => !!em && (em === (S.biz.owner || String(CFG.ownerEmail || '').toLowerCase()) || (S.biz.members[em] || {}).bizRole === 'owner');
 const isFirstOwner = em => !!em && em === (S.biz.owner || String(CFG.ownerEmail || '').toLowerCase());
 const isOwnerUser = () => !!S.user && (S.user.isOwner || isOwnerEmail(userEmail()));
@@ -6207,12 +7098,16 @@ const accSelectOptions = (list, sel = '') => accTree(list).map(({ a, depth }) =>
 // Who can open an account: its own teams and people, plus everyone with access to the accounts above it.
 function computeAccess(a, members = S.biz.members, teams = S.biz.teams, accounts = S.biz.accounts) {
   const roles = {};
-  const bump = (em, r) => { em = String(em || '').toLowerCase(); if (!em || !ACC_ROLES.includes(r)) return; if (roleRank(r) > roleRank(roles[em])) roles[em] = r; };
+  const bump = (em, r, everyone) => {
+    em = String(em || '').toLowerCase(); if (!em || !ACC_ROLES.includes(r)) return;
+    if (isClientMember(em, members)) { if (everyone) return; r = 'client'; }      // "Everyone" means the agency, never clients
+    if (roleRank(r) > roleRank(roles[em])) roles[em] = r;
+  };
   [a, ...accAncestors(a, accounts)].forEach(x => {
     const acc = x.access || {};
     Object.entries(acc.teams || {}).forEach(([tid, r]) => {
-      if (tid === '*') Object.keys(members).forEach(em => bump(em, r));
-      else if (teams[tid]) (teams[tid].memberEmails || []).forEach(em => bump(em, r));
+      if (tid === '*') Object.keys(members).forEach(em => bump(em, r, true));
+      else if (teams[tid]) (teams[tid].memberEmails || []).forEach(em => bump(em, r, true));
     });
     Object.entries(acc.people || {}).forEach(([em, r]) => bump(em, r));
   });
@@ -6267,6 +7162,67 @@ const localBizApi = {
   },
 };
 
+// Sample phase data that matches a brief's workflow history (used by the sample business, and to add the
+// phases to sample briefs created before they existed). steps: the brief's steps in order.
+function demoPhaseFields(b, steps, { now = Date.now(), seed = 0, requester = 'Client marketing team', planner = '', creative = null, analyst = '' } = {}) {
+  const H = 36e5, D = 864e5, today = todayKey(), out = {}, id = b.id, title = b.title || 'Campaign', status = b.status;
+  if (['Draft', 'Submitted'].includes(status)) return out;
+  const nDone = steps.filter(t => t.status === 'Done').length, kick = b.kickoffAt || b.submittedAt || now - 20 * D;
+  const stepAt = i => (steps[i] || {}).doneAt || null;
+  const rnd = k => { const x = Math.sin((seed + 1) * 9301 + k * 49297) * 233280; return x - Math.floor(x); };
+  const plats = (b.platforms || []).length ? b.platforms : ['Meta', 'Search'];
+  if (nDone >= 2) {
+    const at1 = stepAt(1) || kick + D, revised = nDone >= 3 && seed % 3 === 1;
+    const v1 = { id: `${id}-v1`, v: 1, name: `${title} - media plan v1`, url: '', fileId: '', size: null, type: '', note: `Budget split across ${plats.join(', ')} with weekly flighting.`, at: at1 - 2 * H, by: planner };
+    out.plan = { versions: [v1], sentV: 1, sentAt: at1, sentBy: planner };
+    out.planReview = { log: [] };
+    if (nDone >= 3) {
+      const at2 = stepAt(2) || at1 + D;
+      if (revised) {
+        const ch = { status: 'changes', v: 1, note: 'Move 10% from Snap to Meta and show the KSA split separately.', at: at1 + 0.4 * D, by: requester, byEmail: '' };
+        out.plan.versions.push({ ...v1, id: `${id}-v2`, v: 2, name: `${title} - media plan v2`, note: 'Moved 10% from Snap to Meta; KSA split on its own tab.', at: at1 + 0.8 * D });
+        Object.assign(out.plan, { sentV: 2, sentAt: at1 + 0.8 * D });
+        const ok = { status: 'approved', v: 2, note: 'Approved - go ahead.', at: at2, by: requester, byEmail: '' };
+        out.planReview = { ...ok, log: [ch, ok] };
+      } else { const ok = { status: 'approved', v: 1, note: 'Approved.', at: at2, by: requester, byEmail: '' }; out.planReview = { ...ok, log: [ok] }; }
+      // assets: the usual deliverables for the brief's platforms
+      const list = plats.filter(pl => ASSET_PRESETS[pl]).flatMap(pl => ASSET_PRESETS[pl].map(x => [...x, pl]));
+      const live = ['Live', 'Completed'].includes(status), allOk = nDone >= 5, sentAt = (stepAt(2) || at1) + 1.5 * D;
+      const mixed = ['Approved', 'Client review', 'Approved', 'In production', 'Changes requested', 'Internal review', 'Client review'];
+      const items = list.map(([name, kind, specs, platform], k) => ({ id: `${id}-a${k}`, name, kind, specs, platform, ownerId: creative, due: addWorkdays(tsKey(stepAt(2) || at1), 2 + (k % 3)),
+        status: allOk ? (live ? 'Live' : 'Approved') : mixed[k % mixed.length], link: '', note: '', sentAt, updatedAt: sentAt }));
+      const rv = {};
+      items.forEach((it, k) => {
+        if (it.status === 'Changes requested') { rv[it.id] = { status: 'changes', note: 'Use the Arabic end card and make the offer bigger.', at: sentAt + 0.5 * D, by: requester }; it.status = 'In production'; it.updatedAt = sentAt + 0.6 * D; }
+        else if (['Approved', 'Live'].includes(it.status)) rv[it.id] = { status: 'approved', note: '', at: sentAt + (0.3 + (k % 3) * 0.2) * D, by: requester };
+      });
+      out.assets = { open: true, openedAt: stepAt(2) || at1, driveUrl: 'https://drive.google.com/drive/my-drive', items };
+      out.assetReview = { items: rv, log: Object.keys(rv).length ? [{ status: 'approved', ids: Object.keys(rv).filter(k => rv[k].status === 'approved'), note: '', at: sentAt + 0.5 * D, by: requester }] : [] };
+    }
+  }
+  if (['Live', 'Completed'].includes(status) && b.flightStart) {
+    // daily results per platform from the start of the flight to yesterday (or the end of the flight)
+    const end = b.flightEnd || addDays(b.flightStart, 28), last = [addDays(today, -1), end].sort()[0], ndays = Math.max(0, dayDiff(b.flightStart, last) + 1), budget = +b.budget || 50000;
+    const cpm = { Search: 260, PMax: 30, YouTube: 25, Meta: 18, Snap: 8, TikTok: 12, LinkedIn: 60, X: 15 }, ctr = { Search: 0.058, PMax: 0.011, YouTube: 0.004, Meta: 0.011, Snap: 0.0042, TikTok: 0.0085, LinkedIn: 0.005, X: 0.007 };
+    const cvr = { Search: 0.045, PMax: 0.022, YouTube: 0.004, Meta: 0.011, Snap: 0.008, TikTok: 0.007, LinkedIn: 0.01, X: 0.005 };
+    const span = Math.max(1, dayDiff(b.flightStart, end) + 1), pace = seed % 2 ? 1.02 : 0.84;
+    const share = plats.map((pl, k) => (pl === 'Meta' ? 1.4 : pl === 'Search' ? 1.3 : 1) * (0.9 + rnd(k) * 0.2)), tot = share.reduce((x, y) => x + y, 0);
+    const entries = [];
+    for (let d = 0; d < Math.min(ndays, 60); d++) {
+      const date = addDays(b.flightStart, d);
+      plats.forEach((pl, k) => {
+        const spend = Math.round(budget / span * pace * share[k] / tot * (0.85 + rnd(d * 13 + k) * 0.3) * 100) / 100;
+        const impr = Math.round(spend / (cpm[pl] || 20) * 1000), clicks = Math.round(impr * (ctr[pl] || 0.008) * (0.85 + rnd(d * 7 + k + 3) * 0.3));
+        const leads = Math.round(clicks * (cvr[pl] || 0.01) * (0.8 + rnd(d * 5 + k + 1) * 0.4) + rnd(d * 3 + k) * 0.6);
+        entries.push({ id: `${id}-e${d}-${k}`, date, platform: pl, spend, impr, clicks, leads, reach: Math.round(impr / (1.6 + rnd(d + k) * 0.8)) });
+      });
+    }
+    const ct = String(b.kpis || '').match(/(?:CPL|CPA)\s*≤\s*[A-Z]{3}\s*([\d,]+)/i), cplT = ct ? +ct[1].replace(/,/g, '') : 200;
+    out.perf = { smUrl: '', targets: { leads: Math.round(budget / cplT * 1.1 / 10) * 10, cpl: cplT, freq: 3, ctr: {} }, entries, updatedAt: now - 3 * H, updatedBy: analyst };
+    out.clientAlerts = { live: b.liveAt || now, ...(status === 'Completed' ? { completed: b.closedAt || now } : {}) };
+  }
+  return out;
+}
 // Called whenever people, teams or accounts change (either mode).
 function bizChanged() {
   if (S.acc) {
@@ -6274,7 +7230,8 @@ function bizChanged() {
     const role = accRoleOf(fresh);
     if (!fresh || !role || fresh.archived) { toast(`You no longer have access to ${S.acc.name}`); S.acc = null; openBestAccount(); return; }
     const before = S.accRole; S.acc = fresh; S.ws = fresh; S.accRole = role;
-    if ((before === 'viewer') !== (role === 'viewer')) { openAccount(fresh, location.hash); return; }   // the store has to switch between read-only and normal
+    const own = r => (r === 'viewer' || r === 'client' ? r : 'work');
+    if (own(before) !== own(role)) { openAccount(fresh, location.hash); return; }   // the store has to switch between read-only and normal
   }
   if (S.ready) scheduleRender();
 }
@@ -6309,8 +7266,9 @@ function openAccount(a, hash) {
   }
   if (hash && hash !== location.hash) history.replaceState(null, '', location.pathname + location.search + hash);
   S.ready = false;
-  let st = S.mode === 'local' ? new LocalStore(a.id) : S.makeStore(a);
+  let st = S.mode === 'local' ? new LocalStore(a.id) : S.makeStore(a, S.accRole === 'client' ? CLIENT_COLS : null);
   if (S.accRole === 'viewer') st = readOnlyStore(st);
+  if (S.accRole === 'client') st = clientStore(st);
   store = st;
   $('#root').innerHTML = `<div class="loading">${accLogo(a, 'lg')}<span>Opening ${esc(a.name)}…</span></div>`;
   const mine = store;
@@ -6321,7 +7279,7 @@ function openAccount(a, hash) {
     S.acc = null; openBestAccount();
   });
 }
-const defaultView = () => (toolOn('mywork') ? 'mywork' : toolOn('dashboard') ? 'dashboard' : toolOn('lists') ? 'today' : toolOn('briefs') ? 'briefs' : 'activity');
+const defaultView = () => (isClientRole() ? 'briefs' : toolOn('mywork') ? 'mywork' : toolOn('dashboard') ? 'dashboard' : toolOn('lists') ? 'today' : toolOn('briefs') ? 'briefs' : 'activity');
 // Viewers can look at everything but not change it (the security rules say the same).
 function readOnlyStore(st) {
   const ok = (k, col) => col === 'notifs' || (k === 'log');
@@ -6349,7 +7307,7 @@ function accountStats() {
 let statsT = 0;
 function queueStats() { clearTimeout(statsT); statsT = setTimeout(pushStats, 2500); }
 function pushStats() {
-  if (!S.acc || !S.ready || !bizApi) return;
+  if (!S.acc || !S.ready || !bizApi || isClientRole()) return;
   const st = accountStats(), prev = S.acc.stats || {};
   const same = Object.keys(st).every(k => k === 'at' || st[k] === prev[k]);
   if (same && Date.now() - (prev.at || 0) < 6 * 36e5) return;
@@ -6648,7 +7606,7 @@ function openPersonAccess(em) {
       <div class="pa-list">${accTree(list, { fold: true }).map(r => { const a = r.a, e = eff(a.id), v = via(a.id);
         return `<div class="pa-row ${direct[a.id] !== start[a.id] ? 'changed' : ''}"><div class="ao-name" style="--d:${r.depth}">${r.depth ? '<span class="ao-branch" aria-hidden="true"></span>' : ''}${treeTwisty(r, 'data-pa-tog')}${accLogo(a)}<span><b>${esc(a.name)}</b><small>${esc(a.parentId ? kindLabel(a.kind) || 'Sub-account' : a.sector || '')}</small></span></div>
           <div class="pa-now">${e ? roleTag(e) : '<span class="mut">No access</span>'}${v.length ? `<small class="mut">${esc(v.join(' · '))}</small>` : ''}</div>
-          <select class="sel sm" data-pa="${esc(a.id)}"><option value="">${direct[a.id] ? 'Remove direct access' : 'No direct access'}</option>${ACC_ROLES.map(x => `<option value="${x}" ${direct[a.id] === x ? 'selected' : ''}>${ACC_ROLE_LABEL[x]}</option>`).join('')}</select></div>`; }).join('') || '<p class="set-p mut">No accounts yet.</p>'}</div>`;
+          <select class="sel sm" data-pa="${esc(a.id)}"><option value="">${direct[a.id] ? 'Remove direct access' : 'No direct access'}</option>${(isClientMember(em) ? ['client'] : ACC_ROLES).map(x => `<option value="${x}" ${direct[a.id] === x ? 'selected' : ''}>${ACC_ROLE_LABEL[x]}</option>`).join('')}</select></div>`; }).join('') || '<p class="set-p mut">No accounts yet.</p>'}</div>`;
   };
   draw();
   $$('[data-x]', w).forEach(b => b.onclick = () => w.close());
@@ -6725,7 +7683,7 @@ function bizTeamsHTML() {
   const ts = bizTeams();
   return `<p class="set-p">Teams make access simple: give a team access to an account once, and everyone in it - now or later - gets in with that role.</p>
     <div class="bz-teams">${ts.map(t => { const accs = allAccounts(true).filter(a => ((a.access || {}).teams || {})[t.id]);
-      const others = bizMembers().filter(m => !(t.memberEmails || []).includes(m.id));
+      const others = bizMembers().filter(m => !(t.memberEmails || []).includes(m.id) && m.bizRole !== 'client');
       const freeAccs = allAccounts().filter(a => !((a.access || {}).teams || {})[t.id]);
       return `<div class="bz-team"><div class="bz-team-h"><span class="dot sw-${esc(t.color || 'grey')}"></span><input class="inp ghost" data-tname="${esc(t.id)}" value="${esc(t.name)}" maxlength="60"><button class="icon-btn" data-tdel="${esc(t.id)}" title="Delete team">${ico('trash', 'i-sm')}</button></div>
         <div class="bz-sub">People</div>
@@ -6747,7 +7705,9 @@ document.addEventListener('change', async e => {
     const m = S.biz.members[ds.mrole]; if (!m) return;
     if ((t.value === 'owner' || m.bizRole === 'owner') && !isOwnerUser()) { t.value = m.bizRole || 'member'; return toast('Only owners can change owners'); }
     if (t.value === 'owner' && !await confirmBox(`Make <b>${esc(m.name || m.id)}</b> an owner? Owners can do everything here, including adding and removing other owners.`, 'Make owner')) { t.value = m.bizRole || 'member'; return; }
-    await bizApi.putMember({ ...m, bizRole: t.value }); audit('business_role', `${m.id}: ${t.value}`); render({ mainOnly: true });
+    await bizApi.putMember({ ...m, bizRole: t.value }); audit('business_role', `${m.id}: ${t.value}`);
+    if ([t.value, m.bizRole].includes('client')) await syncAccess();    // a client's access is recomputed as Client-only
+    render({ mainOnly: true });
   }
   if (ds.tname) { const tm = S.biz.teams[ds.tname]; if (tm && t.value.trim()) await bizApi.putTeam({ ...tm, name: t.value.trim().slice(0, 60) }); }
   if (ds.tmadd && t.value) { const tm = S.biz.teams[ds.tmadd]; await bizApi.putTeam({ ...tm, memberEmails: [...new Set([...(tm.memberEmails || []), t.value])] }); await syncAccess(); }
@@ -6821,7 +7781,7 @@ const GUIDE = [
     a: '<p>An account can sit under another one, like brands and dealers under a client: <b>General Motors</b> › <b>GM Cadillac</b> › <b>Al Ghanim Cadillac (Dealer)</b>. Each sub-account has its own briefs, boards, tools and data.</p><p>Access flows down: anyone with access to General Motors can open its sub-accounts too. You can add extra people or a higher role on a sub-account only.</p><p>To add one: All accounts or Business settings → the <b>…</b> menu on an account → <b>Add a sub-account</b>, or choose <b>Part of</b> when you create an account.</p>',
     go: '#/accounts', gl: 'Open All accounts', rel: ['s-one-sub', 'setup', 'roles'] },
   { id: 'roles', c: 'start', q: 'What can Admins, Editors and Viewers do?', k: 'role roles admin editor viewer permission rights can cannot',
-    a: '<ul><li><b>Owner</b>: everything a business admin can do, plus adding and removing other owners.</li><li><b>Business admin</b>: adds people and teams, creates accounts, sees every account.</li><li><b>Account admin</b>: changes the account\'s name, logo, access and tools.</li><li><b>Editor</b>: does the work - briefs, tasks, campaigns, notes.</li><li><b>Viewer</b>: sees everything in the account but can\'t change anything.</li></ul>',
+    a: '<ul><li><b>Owner</b>: everything a business admin can do, plus adding and removing other owners.</li><li><b>Business admin</b>: adds people and teams, creates accounts, sees every account.</li><li><b>Account admin</b>: changes the account\'s name, logo, access and tools.</li><li><b>Editor</b>: does the work - briefs, tasks, campaigns, notes.</li><li><b>Viewer</b>: sees everything in the account but can\'t change anything.</li><li><b>Client</b>: submits briefs, approves the media plan and assets, and follows results. Sees nothing internal.</li></ul>',
     rel: ['s-access', 's-viewer', 'setup'] },
   { id: 'tools', c: 'start', q: 'How do I switch tools on or off?', k: 'tools modules features turn on off enable disable hide simplify',
     a: '<p>Open <b>Account settings</b> (the gear at the top of the sidebar) → <b>Tools</b>. Account admins can switch each tool on or off for everyone in that account.</p><p>New accounts start with the essentials: My work, Task lists, Briefs, Campaign Tracker, Alerts and Dashboard. Turning a tool off only hides it - nothing is deleted.</p>',
@@ -6840,6 +7800,21 @@ const GUIDE = [
   { id: 'alerts', c: 'app', q: 'What do Alerts mean?', k: 'alerts late stuck risk overdue warning critical red amber',
     a: '<p>Alerts flag work that needs attention: steps past their SLA, briefs not picked up, work that has stalled, and briefs at risk of missing their go-live date.</p><p><b>Critical</b> needs action now; <b>warnings</b> need a look. An alert clears itself once the cause is fixed.</p>',
     go: '#/alerts', gl: 'Open Alerts', rel: ['workflow', 'dashboard'] },
+  { id: 'phases', c: 'app', q: 'What are the brief phases?', k: 'phase phases brief media plan approval assets live results stages journey client flow',
+    a: '<p>Every brief moves through four phases, shown as cards at the top of the brief:</p><ol><li><b>Brief</b>: the client (or the team) submits it.</li><li><b>Media plan</b>: the team uploads the plan and sends it to the client, who approves it or asks for changes.</li><li><b>Assets</b>: opens once the plan is approved. Add the Drive link and one row per deliverable; the client reviews each one.</li><li><b>Live &amp; results</b>: pacing, KPIs, the health check and the Excel report.</li></ol><p>Click a card to open that phase. The matching workflow steps tick themselves when the client approves.</p>',
+    go: '#/briefs', gl: 'Open Briefs', rel: ['media-plan', 'assets', 'results', 'client-access'] },
+  { id: 'media-plan', c: 'app', q: 'How do I send a media plan for client approval?', k: 'media plan upload version approve approval client send share sign off file link excel',
+    a: '<ol><li>Open the brief and click the <b>Media plan</b> card.</li><li><b>Upload media plan</b>: paste a link (Sheets, Drive, SharePoint) or attach a small file (up to 650 KB).</li><li>Tick <b>Send to the client</b>. Everyone with the Client role is alerted.</li></ol><p>The client approves or asks for changes, and the team is told either way. Each upload is a new version, so the history stays. If the client approves by email, use <b>Record approval</b>.</p>',
+    rel: ['phases', 'client-access', 'assets'] },
+  { id: 'assets', c: 'app', q: 'How does the assets phase work?', k: 'assets creative drive folder checklist deliverables review approve status sizes rsa captions',
+    a: '<p>The <b>Assets</b> card opens when the client approves the plan (or open it early). Add the <b>Drive folder</b> link, then one row per deliverable with type, platform, specs, owner and due date. <b>Add the usual deliverables</b> fills in the standard sizes for the brief\'s platforms.</p><p>Move assets to <b>Internal review</b>, then <b>Send for client review</b>. The client approves each one or asks for changes. When all are approved, the creative steps tick and the client gets an "All assets approved" alert.</p>',
+    rel: ['phases', 'media-plan', 'results'] },
+  { id: 'results', c: 'app', q: 'How do I track pacing and KPIs after go-live?', k: 'results pacing kpi kpis supermetrics manual tracking dashboard health check export excel report cpl ctr leads',
+    a: '<p>On the brief, open <b>Live &amp; results</b>:</p><ul><li><b>Targets</b>: lead target, max CPL, frequency cap and CTR by platform. Budget and flight dates come from the brief.</li><li><b>Add results</b> by hand or <b>Import CSV</b> (for example from the Supermetrics sheet). One row per date and platform.</li><li>The tiles, pacing chart and <b>health check</b> update straight away.</li><li><b>Excel report</b> downloads a workbook with the summary, KPIs by platform, pacing log and health check.</li></ul><p>Paste the Supermetrics report link under Targets when it\'s ready. <b>Mark completed</b> sends the client the completed alert.</p>',
+    rel: ['m-pacing', 'phases', 'client-access'] },
+  { id: 'client-access', c: 'sec', q: 'How do I give a client access?', k: 'client access login portal approve customer brand external invite',
+    a: '<ol><li><b>Business settings → People</b>: add the client by email with the business role <b>Client</b>.</li><li>Click <b>Accounts</b> on their row and give them the <b>Client</b> role on their account (or sub-account).</li><li>They sign up with that email and land on <b>Your briefs</b>.</li></ol><p>Clients see only briefs, media plans, assets and results for the accounts you give them. They never see tasks, notes, alerts, the activity log, other accounts or the agency\'s people list.</p>',
+    go: 'people', gl: 'Open People', rel: ['media-plan', 'roles', 's-access'] },
   { id: 'campaign-add', c: 'app', q: 'How do I add a campaign to the tracker?', k: 'campaign tracker new add launch flight',
     a: '<p>Open <b>Campaign Tracker</b> and click <b>Add campaign</b>. Pick the ad account, flight dates, markets, and the platforms with their objectives.</p><p>Status follows the dates. Set pacing, creatives and results as it runs; anything off shows under <b>Needs attention</b>.</p>',
     go: '#/campaigns', gl: 'Open Campaign Tracker', rel: ['weekly', 'm-pacing'] },
@@ -6944,9 +7919,9 @@ const GUIDE = [
     a: '<p>Click your initials at the top of the sidebar, then <b>Sign out</b>.</p>' },
 ];
 const GUIDE_BY = Object.fromEntries(GUIDE.map(g => [g.id, g]));
-const GUIDE_START = { start: ['first-day', 'switch', 'subaccounts', 'setup', 'roles', 'tools'], app: ['brief-new', 'workflow', 'mywork', 'alerts', 'campaign-add', 'undo'],
-  media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['s-access', 's-one-sub', 's-owners', 's-who-sees', 's-viewer', 's-noaccess'] };
-const GUIDE_FAQ = ['what', 'subaccounts', 'switch', 'roles', 'tools', 'workflow', 's-who-sees', 's-signup'];
+const GUIDE_START = { start: ['first-day', 'switch', 'subaccounts', 'setup', 'roles', 'tools'], app: ['brief-new', 'phases', 'media-plan', 'assets', 'results', 'workflow', 'mywork', 'alerts'],
+  media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['client-access', 's-access', 's-one-sub', 's-owners', 's-who-sees', 's-viewer', 's-noaccess'] };
+const GUIDE_FAQ = ['what', 'phases', 'media-plan', 'client-access', 'subaccounts', 'roles', 'results', 's-who-sees'];
 
 // tiny keyword matcher: words in the question count most, then the extra keywords
 const G_STOP = new Set('a an and are as at be can do does for from how i in is it me my of on or our should the to we what when where which who why with you your there this that'.split(' '));
@@ -7150,7 +8125,8 @@ function renderGuide() {
   const roleRows = [['Owner', 'Everything a business admin can do, plus adding and removing other owners', true, true, true, true],
     ['Business admin', 'Adds people and teams, creates accounts, sees every account', true, true, true, true],
     ['Account admin', 'Runs one account: name, logo, access and tools', false, true, true, true], ['Editor', 'Does the work: briefs, tasks, campaigns, notes', false, false, true, true],
-    ['Viewer', 'Sees the account, changes nothing', false, false, false, true]];
+    ['Viewer', 'Sees the account, changes nothing', false, false, false, true],
+    ['Client', 'Submits briefs, approves plans and assets, follows results', false, false, false, false]];
   const yes = v => v ? `<span class="gd-yes">${ico('check', 'i-sm')}<span class="sr">Yes</span></span>` : '<span class="mut">-</span>';
   const biz = go => go === 'people' || go === 'teams';
   const btn = (go, label) => (biz(go) ? isBizAdmin() : guideCan(go))
@@ -7294,8 +8270,8 @@ function homeHTML(signedIn) {
   const PV_FLOW = `<div class="pv-flow"><div class="pv-steps">${['Kick-off', 'Plan', 'Approval', 'Setup', 'Live'].map((l, i) => `<span class="pv-st s${i}"><i><svg viewBox="0 0 24 24">${P.check}</svg></i>${l}</span>`).join('')}</div>
       <div class="pv-prog"><i></i></div><div class="pv-fnote"><span>Next: <b>Setup</b> · Paid Search</span><em>SLA 2 days</em></div></div>`;
   const PV_WS = `<div class="pv-ws"><div class="pv-wsbtn"><i class="pv-av a2">GM</i><i class="pv-line" style="width:48%"></i></div>
-      <div class="pv-menu"><span class="pv-hl"></span><span class="pv-row"><i class="pv-av a2">GM</i>General Motors</span><span class="pv-row sub"><i class="pv-av a4">GC</i>GM Cadillac</span>
-      <span class="pv-row sub2"><i class="pv-av a3">AG</i>Al Ghanim Cadillac <em>Dealer</em></span><span class="pv-inv">+ Add a sub-account</span></div></div>`;
+      <div class="pv-menu"><span class="pv-hl"></span><span class="mp-row"><i class="pv-av a2">GM</i>General Motors</span><span class="mp-row sub"><i class="pv-av a4">GC</i>GM Cadillac</span>
+      <span class="mp-row sub2"><i class="pv-av a3">AG</i>Al Ghanim Cadillac <em>Dealer</em></span><span class="pv-inv">+ Add a sub-account</span></div></div>`;
   const PV_ACC = `<div class="pv-acc"><span class="pv-ar"><b>GM team</b><em class="pv-role">Editor</em></span><span class="pv-ar"><b>Leadership</b><em class="pv-role v">Viewer</em></span>
       <span class="pv-ar"><b>Retail &amp; FMCG team</b><em class="pv-role n">No access</em><em class="pv-role v flip">Viewer</em></span><span class="pv-inh">Covers General Motors and its 6 sub-accounts</span></div>`;
 
@@ -7533,7 +8509,7 @@ async function bootCloud() {
     store = null; S.ready = false; S.acc = null; S.ws = null;
   };
   S.signOut = async () => { audit('sign_out', ''); stopAll(); S.biz = { members: {}, teams: {}, accounts: {}, owner, ready: false }; UNDO.length = 0; history.replaceState(null, '', location.pathname); await A.signOut(auth); };
-  S.makeStore = a => new CloudStore(F, db, ['workspaces', a.id]);
+  S.makeStore = (a, only) => new CloudStore(F, db, ['workspaces', a.id], only);
   S.auditList = () => F.getDocs(F.query(F.collection(db, ...(S.acc ? ['workspaces', S.acc.id] : []), 'audit'), F.orderBy('at', 'desc'), F.limit(200)));
   // write-once security log entries, stamped with the server's clock (see the rules)
   auditFn = (action, detail) => {
@@ -7570,12 +8546,17 @@ async function bootCloud() {
       for (let i = 0; i < docs.length; i += 400) { const b = F.writeBatch(db); docs.slice(i, i + 400).forEach(r => b.delete(r)); await b.commit().catch(e => console.warn('could not delete', col, e && e.code)); }
     }
   };
-  const startBiz = (email, admin) => new Promise(resolve => {
+  const startBiz = (email, admin, client) => new Promise(resolve => {
     let got = 0; const done = () => { if (++got === 3) { S.biz.ready = true; resolve(); } };
     const once = f => { let first = true; return snap => { f(snap); if (first) { first = false; done(); } else bizChanged(); }; };
     const fail = what => err => { console.warn(what, err && err.code); done(); };
-    bizUnsubs.push(F.onSnapshot(F.collection(db, 'members'), once(snap => { const m = {}; snap.forEach(d => { m[d.id] = { ...d.data(), id: d.id }; }); S.biz.members = m; }), fail('members')));
-    bizUnsubs.push(F.onSnapshot(F.collection(db, 'teams'), once(snap => { const m = {}; snap.forEach(d => { m[d.id] = { ...d.data(), id: d.id }; }); S.biz.teams = m; }), fail('teams')));
+    if (client) {   // clients never see the agency's people list or teams
+      bizUnsubs.push(F.onSnapshot(F.doc(db, 'members', email), once(d => { S.biz.members = d.exists() ? { [email]: { ...d.data(), id: email } } : {}; }), fail('members')));
+      S.biz.teams = {}; done();
+    } else {
+      bizUnsubs.push(F.onSnapshot(F.collection(db, 'members'), once(snap => { const m = {}; snap.forEach(d => { m[d.id] = { ...d.data(), id: d.id }; }); S.biz.members = m; }), fail('members')));
+      bizUnsubs.push(F.onSnapshot(F.collection(db, 'teams'), once(snap => { const m = {}; snap.forEach(d => { m[d.id] = { ...d.data(), id: d.id }; }); S.biz.teams = m; }), fail('teams')));
+    }
     const accQ = admin ? F.collection(db, 'workspaces') : F.query(F.collection(db, 'workspaces'), F.where('memberEmails', 'array-contains', email));
     bizUnsubs.push(F.onSnapshot(accQ, once(snap => { const m = {}; snap.forEach(d => { m[d.id] = { ...d.data(), id: d.id }; }); S.biz.accounts = m; }), fail('accounts')));
   });
@@ -7672,7 +8653,7 @@ async function bootCloud() {
     if (member && member.name) S.user.name = member.name;
     S.biz = { members: {}, teams: {}, accounts: {}, owner, ready: false };
     bizUnsubs.forEach(u => u()); bizUnsubs = [];
-    await startBiz(email, isOwner || (member && ['admin', 'owner'].includes(member.bizRole)));
+    await startBiz(email, isOwner || (member && ['admin', 'owner'].includes(member.bizRole)), !isOwner && !!member && member.bizRole === 'client');
     if (isOwner && CFG.sampleData && !allAccounts(true).length && !lsGet('tb:sampleDone:' + email)) {
       lsSet('tb:sampleDone:' + email, '1');
       await loadSampleBusiness({ silent: true });

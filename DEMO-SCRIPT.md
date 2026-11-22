@@ -17,14 +17,17 @@ Team calendar and All tasks are off for this client, so they're gone from its si
 **4. A brief comes in (2 min)** - switch to **General Motors** → sidebar **New brief**
 The form opens with a worked example. The hint under the dates shows the earliest realistic go-live from the workflow SLAs. **Submit** → pick the team → **Kick off**: each step gets an owner and a due date, and each person is notified.
 
-**5. Nothing slips quietly (1.5 min)** - *Alerts*, then *Dashboard → Briefs & workflow*
+**5. The client journey (2 min)** - open *Briefs* → **Cadillac Escalade IQ launch**
+The four cards at the top are the phases. *Media plan*: v1, the client's change request, v2 and the approval. *Assets*: the Drive folder and every deliverable, approved by the client. *Live & results*: spend against the planned pacing line, leads and CPL against target, the health check, and **Excel report**. Then open **Ramadan 2027 offers**: upload a plan link, tick *Send to the client*, and the client gets an alert to approve it.
+
+**6. Nothing slips quietly (1.5 min)** - *Alerts*, then *Dashboard → Briefs & workflow*
 Overdue and blocked steps, and briefs projected to miss go-live. **Bottlenecks by step** shows where the time goes - usually client approval.
 
-**6. Help built in (1 min)** - press **?** (or *Guide & help* in the sidebar)
+**7. Help built in (1 min)** - press **?** (or *Guide & help* in the sidebar)
 Ask "how do I give my team access?" - the answer comes with a button that opens the right screen. The Guide page has a getting-started checklist for each role.
 
-**7. A viewer's view (1 min)** - Business settings → People → **View as** Hala Youssef (local mode only)
-Leadership sees every client account and every number, with no buttons to change anything.
+**8. A viewer's view (1 min)** - Business settings → People → **View as** Hala Youssef (local mode only)
+Leadership sees every client account and every number, with no buttons to change anything. A person with the **Client** role sees only *Your briefs*: what needs their approval, the media plan, the assets and the results.
 
 ---
 

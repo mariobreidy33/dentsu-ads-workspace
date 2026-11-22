@@ -111,6 +111,8 @@ From now on: edit → commit → push → live in about a minute. Pull requests 
 
 To share running the platform with upper management, add them under **Business settings → People** with the business role **Owner**. Only owners can add or remove other owners.
 
+**Clients.** To let a client submit briefs and approve media plans and assets on the platform: add them under **Business settings → People** with the business role **Client**, then click **Accounts** on their row and give them the **Client** role on their account (or just a sub-account, such as one dealer). They sign up with that email and land on *Your briefs*. Clients never see tasks, notes, alerts, the activity log, other accounts or the people list. This needs the latest `firestore.rules` (step 5).
+
 Before real use: **Business settings → Accounts → Remove sample business**, and set `sampleData: false`.
 
 That's a working demo. Everything below is optional.
@@ -176,6 +178,8 @@ firebase deploy --only functions
 | A teammate sees "this email isn't on the platform yet" | Add their exact email under Business settings → People; they must verify their email |
 | A teammate signs in but sees no accounts | Add them to a team that has access, or give them access in the account's Access window |
 | "You have view-only access" | They're a Viewer on that account - change it in the account's Access window |
+| A client only sees *Your briefs* | That's the Client role. Team members get Editor or Viewer instead |
+| "That file is … - the limit is 650 KB" when uploading a media plan | Share the plan as a Google Sheets, Drive or SharePoint link instead (files are kept in the database, which caps their size) |
 | "This needs the updated security rules" banner | Publish the latest `firestore.rules` |
 | Notifications appear in the bell but no email | Extension not installed, wrong SMTP URI, or the recipient isn't on the access list - check the `delivery` field in `mail` |
 | Sign-in errors on GitHub Pages or a custom domain | Add the domain under Authentication → Settings → Authorized domains |
