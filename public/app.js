@@ -10,7 +10,7 @@ if (window.top !== window.self) {
 /* ===================== utilities ===================== */
 const CFG_MISSING = !window.APP_CONFIG;   // config.js didn't load: stop with a clear message instead of guessing
 const CFG = window.APP_CONFIG || {};
-const BUILD = '2026-11-22-workflow';   // shown in Settings, so you can confirm which version is live
+const BUILD = '2026-11-22-tour';   // shown in Settings, so you can confirm which version is live
 // Firebase Web SDK, pinned to an exact version (updated from 10.12.2). If the CDN can't serve it,
 // the previous version is tried so the app still opens.
 const FB_VERSIONS = ['12.19.0', '10.12.2'];
@@ -757,6 +757,7 @@ function render(opts = {}) {
   if (S.drawerPaint) S.drawerPaint();
   document.body.classList.remove('on-home');
   guideFab();
+  maybeTour();
 
   document.title = (['project', 'client'].includes(r.view) ? S.data.projects[r.id]?.name + ' - ' : r.view === 'brief' ? `${S.data.briefs[r.id]?.ref || ''} ${S.data.briefs[r.id]?.title || 'Brief'} - ` : { today: 'Today - ', upcoming: 'Upcoming - ', campaigns: 'Campaign Tracker - ', archive: 'Archive - ', dashboard: 'Dashboard - ', notes: (r.id && S.data.notes[r.id] ? (S.data.notes[r.id].title || 'Untitled') + ' - ' : 'Notebook - '), trash: 'Recently deleted - ',
     clients: 'Brands - ', briefs: 'Briefs - ', mywork: 'My work - ', tasks: 'All tasks - ', alerts: 'Alerts - ', activity: 'Activity log - ', accounts: 'All accounts - ', business: 'Business settings - ', guide: 'Guide - ' }[r.view] || '') + (S.acc && !['accounts', 'business', 'guide'].includes(r.view) ? S.acc.name + ' - ' : '') + 'dentsu ' + (CFG.appName || 'Ads Workspace');
@@ -2115,12 +2116,13 @@ const ACTIONS = {
   'open-settings': () => openSettings(),
   'user-menu': a => openMenu(a, [
     { title: `${(S.user && S.user.name) || 'Me'}${S.user && S.user.email && S.mode === 'cloud' ? ' · ' + S.user.email : ''}` },
-    ...(S.acc ? [{ label: 'Account settings', icon: 'gear', onClick: openSettings }] : []),
+    ...(S.acc && !isClientRole() ? [{ label: 'Account settings', icon: 'gear', onClick: openSettings }] : []),
     ...(isBizAdmin() ? [{ label: 'Business settings', icon: 'people', onClick: () => go('#/business') }] : []),
     { label: document.documentElement.dataset.theme === 'dark' ? 'Light theme' : 'Dark theme', icon: 'moon', onClick: toggleTheme },
     { label: 'Guide & help', icon: 'help', onClick: () => go('#/guide') },
+    { label: 'Take the tour', icon: 'play', onClick: openTour },
     { label: 'Home page', icon: 'sidebar', onClick: () => go('#/home') },
-    { label: 'Export backup', icon: 'download', onClick: exportData },
+    ...(isClientRole() ? [] : [{ label: 'Export backup', icon: 'download', onClick: exportData }]),
     ...(S.mode === 'cloud' ? ['-', { label: 'Sign out', icon: 'out', onClick: () => S.signOut && S.signOut() }] : []),
   ]),
   'add-project': () => editProject(null),
@@ -2229,6 +2231,7 @@ const ACTIONS = {
     await saveSettings({ people: [...people(), { id: uid(), name: m.name || (S.user && S.user.name) || em.split('@')[0], email: em, role: rolesList().includes(m.jobRole) ? m.jobRole : '', color: m.color || 'red' }] }); toast('You’re on the team'); },
   'bz-tab': a => { S.bz.tab = a.dataset.t; render({ mainOnly: true }); },
   'gd-biz': a => { S.bz.tab = a.dataset.t; go('#/business'); },
+  tour: () => openTour(),
   'bz-sample-load': () => openSampleDialog(),
   'bz-sample-clear': () => clearSampleBusiness(),
   'db-view': a => { S.db.view = a.dataset.v; lsSet('tb:db', JSON.stringify(S.db)); render({ mainOnly: true }); },
@@ -7776,6 +7779,9 @@ const GUIDE = [
   { id: 'what', c: 'start', q: 'What is the Ads Workspace?', k: 'about platform overview ads manager accounts clients explain',
     a: '<p>One platform for all client work, set up like an ads manager. Each client is an <b>account</b> with its own logo, team, tools and data.</p><p>Switch accounts from the top of the sidebar. You only see the accounts you\'ve been given access to.</p>',
     go: '#/accounts', gl: 'Open All accounts', rel: ['switch', 'first-day', 'roles'] },
+  { id: 'tour', c: 'start', q: 'Can you show me around?', k: 'tour walkthrough show around intro introduction new first time onboarding demo',
+    a: '<p>Take the one-minute tour: it follows a brief from the request to the media plan, client approval, assets, go-live, tracking and the report, and points at the buttons you will use.</p><p>Start it from <b>Guide &amp; help</b>, the menu under your initials, or the link at the bottom of this panel.</p>',
+    go: '#/guide', gl: 'Open the Guide', rel: ['first-day', 'phases', 'roles'] },
   { id: 'first-day', c: 'start', q: 'I\'m new. Where do I start?', k: 'new start begin first day onboarding help lost',
     a: '<ol><li>Pick your account at the top of the sidebar.</li><li>Open <b>My work</b>: the briefs, steps and tasks waiting on you.</li><li>Check <b>Alerts</b> for anything late or stuck.</li><li>Follow the checklist on the <b>Guide</b> page.</li></ol>',
     go: '#/guide', gl: 'Open the Guide', rel: ['switch', 'mywork', 'brief-new'] },
@@ -7927,7 +7933,7 @@ const GUIDE = [
     a: '<p>Click your initials at the top of the sidebar, then <b>Sign out</b>.</p>' },
 ];
 const GUIDE_BY = Object.fromEntries(GUIDE.map(g => [g.id, g]));
-const GUIDE_START = { start: ['first-day', 'switch', 'subaccounts', 'setup', 'roles', 'tools'], app: ['brief-new', 'phases', 'media-plan', 'assets', 'results', 'workflow', 'mywork', 'alerts'],
+const GUIDE_START = { start: ['tour', 'first-day', 'switch', 'subaccounts', 'setup', 'roles', 'tools'], app: ['brief-new', 'phases', 'media-plan', 'assets', 'results', 'workflow', 'mywork', 'alerts'],
   media: ['m-pacing', 'm-formulas', 'm-under', 'm-qa', 'm-weekly', 'm-learning'], sec: ['client-access', 's-access', 's-one-sub', 's-owners', 's-who-sees', 's-viewer', 's-noaccess'] };
 const GUIDE_FAQ = ['what', 'phases', 'media-plan', 'client-access', 'subaccounts', 'roles', 'results', 's-who-sees'];
 
@@ -8036,7 +8042,7 @@ function gbPaint() {
     <div class="gb-log" aria-live="polite">${GB.log.map(gbMsgHTML).join('')}</div>
     <div class="gb-auto" role="listbox"></div>
     <form class="gb-form" data-gb-form autocomplete="off"><input name="q" maxlength="200" placeholder="Ask, e.g. how do I give my team access?" aria-label="Your question"><button title="Ask">${ico('send')}</button></form>
-    <div class="gb-foot">Built-in answers · nothing you type leaves this browser</div>`;
+    <div class="gb-foot"><button class="link" data-action="tour">${ico('play', 'i-xs')} Take the tour</button> · built-in answers, nothing you type leaves this browser</div>`;
   const log = el.querySelector('.gb-log'); log.scrollTop = log.scrollHeight;
 }
 function gbPush(m) { GB.log.push(m); if (GB.log.length > 80) GB.log.splice(1, GB.log.length - 80); }
@@ -8128,6 +8134,116 @@ function guideSteps() {
     { t: 'Check My work and Alerts each morning', d: 'My work shows what\'s waiting on you; Alerts shows what\'s late or at risk.', done: lsGet('tb:seenMyWork') === '1', go: '#/mywork', gl: 'Open My work' });
   return steps.filter(s => !s.admin || (S.acc && canAdminAcc()));
 }
+/* =====================================================================
+   FIRST-TIME TOUR - a short walk from brief to report. It opens by itself
+   the first time someone signs in, and from Guide & help any time after.
+   Steps with a target point at the real control; the rest are shown in
+   the middle of the screen with a small picture.
+   ===================================================================== */
+const TOUR_KEY = () => 'tb:tour:' + (userEmail() || 'local');
+let TOUR = null, tourAuto = false;
+const TOUR_ART = {
+  flow: (client) => `<div class="ta-flow">${(client ? ['Brief', 'Media plan', 'You approve', 'Assets', 'Live', 'Results'] : ['Brief', 'Media plan', 'Client approval', 'Assets', 'Go-live', 'Tracking', 'Report'])
+    .map((s, i, a) => `<span class="ta-chip ${i === 0 ? 'on' : ''}"><b>${i + 1}</b>${s}</span>${i < a.length - 1 ? `<i>${ico('arrowRight', 'i-xs')}</i>` : ''}`).join('')}</div>`,
+  phases: () => `<div class="ta-cards">${[['Workflow', '6 of 10 steps done', 1], ['Media plan', 'Approved 11 Nov', 1], ['Assets', '3 of 5 approved', 0, 1], ['Live & results', 'Go-live 27 Nov', 0]]
+    .map(([t, s, done, attn], i) => `<span class="ta-card ${i === 0 ? 'on' : ''} ${done ? 'done' : ''} ${attn ? 'attn' : ''}"><i>${done ? ico('check', 'i-xs') : i + 1}</i><b>${t}</b><small>${s}</small></span>`).join('')}</div>`,
+  plan: (client) => `<div class="ta-box"><div class="ta-row"><span class="ta-v">v2</span><span><b>Year-End media plan v2</b><small>Moved 10% from Snap to Meta</small></span></div>
+    <div class="ta-ask"><span><b>${client ? 'Please review media plan v2' : 'Waiting for the client to approve v2'}</b><small>${client ? 'Approve it, or tell the team what to change' : 'Shared today · alert sent'}</small></span>${client ? '<em class="ta-btn">Request changes</em><em class="ta-btn pri">Approve plan</em>' : '<em class="ta-btn">Remind</em><em class="ta-btn">Record approval</em>'}</div></div>`,
+  assets: () => `<div class="ta-box">${[['Meta Stories and Reels 9:16', 'Meta', 'Approved', 'good'], ['Search RSAs EN/AR', 'Search', 'Client review', 'warn'], ['TikTok in-feed video 9:16', 'TikTok', 'In production', 'info']]
+    .map(([n, p, s, t]) => `<div class="ta-row"><span><b>${n}</b><small>${p}</small></span><span class="pill tone-${t}">${s}</span></div>`).join('')}<div class="ta-drive">${ico('folder', 'i-sm')} Assets folder · drive.google.com</div></div>`,
+  results: () => `<div class="ta-tiles">${[['Spend', 'AED 31,224', '66% of budget'], ['Pacing', '102%', 'On track'], ['Cost per lead', 'AED 113', 'target 200']].map(([l, v, s]) => `<span><small>${l}</small><b>${v}</b><em>${s}</em></span>`).join('')}</div>
+    <svg class="ta-spark" viewBox="0 0 300 70" aria-hidden="true"><line x1="6" y1="64" x2="294" y2="8" class="ta-plan"/><polyline points="6,64 40,58 80,49 120,42 160,33 200,26" class="ta-act"/><circle cx="200" cy="26" r="4" class="ta-dot"/></svg>
+    <div class="ta-row ta-xl">${ico('download', 'i-sm')} <b>Excel report</b><small>Summary · KPIs by platform · Pacing log · Health check</small></div>`,
+  alerts: () => `<div class="ta-box">${[['Overdue', 'Campaign build - 1 working day late', 'bad'], ['Go-live at risk', 'Ramadan offers - projected 2 days late', 'warn'], ['Weekly check due', 'CHEV_YearEnd_Leads', 'info']]
+    .map(([k, d, t]) => `<div class="ta-row"><span class="pill tone-${t}">${k}</span><span><small>${d}</small></span></div>`).join('')}</div>`,
+};
+function tourSteps() {
+  const client = isClientRole();
+  const steps = client ? [
+    { art: 'flow', t: 'Welcome to dentsu Ads Workspace', d: `This is your space with the dentsu team${S.acc ? ` for <b>${esc(S.acc.name)}</b>` : ''}: send briefs, approve media plans and assets, and follow your campaigns' results. One minute, six steps.` },
+    { sel: '.sidebar [data-action="br-new"]', t: 'Send a brief', d: 'Start every request here: objective, budget, dates, markets and platforms. The team is alerted the moment you submit.' },
+    { art: 'plan', t: 'Approve the media plan', d: 'You get an alert when the plan is ready. Open it, then <b>Approve</b> or <b>Request changes</b> with a note. Every version is kept.' },
+    { art: 'assets', t: 'Review the assets', d: 'Once the plan is approved, the Drive folder and the list of deliverables appear. Approve each asset or ask for changes.' },
+    { art: 'results', t: 'Follow the results', d: 'After go-live you see spend against plan, leads, cost per lead and a health check, and you can download the Excel report at any time.' },
+    { sel: '.sidebar [data-go="#/briefs"]', t: 'Your briefs', d: 'Anything waiting for you is always at the top, with an orange dot.' },
+    { sel: '#gb-fab', t: 'Help is one click away', d: 'Ask a question here any time. You can replay this tour from <b>Guide &amp; help</b>.' },
+  ] : [
+    { art: 'flow', t: 'Welcome to dentsu Ads Workspace', d: 'Every client brief, approval, campaign and result in one place. This short tour follows a brief from the request to the final report.' },
+    { sel: '.acc-switch', t: 'Pick the account', d: 'Each client is an account, with brands, markets and dealers as sub-accounts. Everything you see follows the account picked here.' },
+    { sel: '.sidebar [data-action="br-new"]', t: '1. It starts with a brief', d: 'The client (or you) submits the brief. The account lead assigns the team and kicks off the workflow: every step gets an owner and a due date from its SLA.' },
+    { art: 'phases', t: '2. Four phases on every brief', d: '<b>Workflow</b>, <b>Media plan</b>, <b>Assets</b> and <b>Live &amp; results</b>. The cards at the top of a brief show where it stands; click one to open it. An orange dot means it needs you.' },
+    { art: 'plan', t: '3. Media plan and client approval', d: 'Upload the plan as a link or a small file and send it to the client. They approve it or ask for changes, and you are alerted either way. If they approve by email, record it.' },
+    { art: 'assets', t: '4. Assets', d: 'Opens when the plan is approved: the Drive folder plus one row per deliverable with owner, due date and status. Send them for client review; the client approves each one.' },
+    { art: 'results', t: '5. Go-live, tracking and reporting', d: 'After go-live, add results by hand or import a CSV until Supermetrics is connected. Pacing, KPIs and the health check update straight away. Export the Excel report, then mark it completed: the client is alerted.' },
+    ...(toolOn('mywork') ? [{ sel: '.sidebar [data-go="#/mywork"]', t: 'Your day', d: 'My work lists the steps and tasks assigned to you, most urgent first.' }] : []),
+    ...(toolOn('alerts') ? [{ sel: '.sidebar [data-go="#/alerts"]', art: 'alerts', t: 'Nothing slips quietly', d: 'Alerts flag late steps, work stuck for too long, go-live risks and campaigns due a check.' }] : []),
+    { sel: '#gb-fab', t: 'Help is one click away', d: 'Ask a question here, or open <b>Guide &amp; help</b> for step-by-step answers. You can replay this tour from there.' },
+  ];
+  return steps.map(s => ({ ...s, client }));
+}
+function openTour() {
+  if (typeof closeGuide === 'function' && GB.open) closeGuide();
+  TOUR = { i: 0, steps: tourSteps(), back: document.activeElement };
+  let el = document.getElementById('tour');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'tour'; el.className = 'tour';
+    el.addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) tourGo(b.dataset.tour); });
+    document.body.appendChild(el);
+  }
+  paintTour();
+}
+function closeTour() {
+  const el = document.getElementById('tour'); if (el) el.remove();
+  lsSet(TOUR_KEY(), String(Date.now()));
+  const back = TOUR && TOUR.back; TOUR = null;
+  if (back && back.focus) try { back.focus(); } catch { }
+}
+function tourGo(a) {
+  if (!TOUR) return;
+  if (a === 'skip' || (a === 'next' && TOUR.i === TOUR.steps.length - 1)) return closeTour();
+  TOUR.i = Math.max(0, Math.min(TOUR.steps.length - 1, TOUR.i + (a === 'back' ? -1 : 1)));
+  paintTour();
+}
+function paintTour() {
+  const el = document.getElementById('tour'); if (!el || !TOUR) return;
+  const st = TOUR.steps[TOUR.i], n = TOUR.steps.length, last = TOUR.i === n - 1;
+  const target = st.sel ? document.querySelector(st.sel) : null, r = target && target.getBoundingClientRect();
+  const pin = !!(r && r.width > 4 && r.height > 4 && r.top >= 0 && r.bottom <= innerHeight && innerWidth > 720);
+  el.innerHTML = `${pin ? `<div class="tour-hole" style="top:${r.top - 6}px;left:${r.left - 6}px;width:${r.width + 12}px;height:${r.height + 12}px"></div>` : '<div class="tour-dim"></div>'}
+    <div class="tour-pop ${pin ? 'pin' : 'center'}" role="dialog" aria-modal="true" aria-labelledby="tour-t" aria-describedby="tour-d">
+      ${st.art && !pin ? `<div class="tour-art">${TOUR_ART[st.art](st.client)}</div>` : ''}
+      <div class="tour-body"><small>${TOUR.i + 1} of ${n}</small><h3 id="tour-t">${esc(st.t)}</h3><p id="tour-d">${st.d}</p></div>
+      <div class="tour-foot">${last ? '<span></span>' : '<button class="link" data-tour="skip">Skip the tour</button>'}<span class="tour-dots" aria-hidden="true">${TOUR.steps.map((_, k) => `<i class="${k === TOUR.i ? 'on' : k < TOUR.i ? 'seen' : ''}"></i>`).join('')}</span>
+        ${TOUR.i ? '<button class="btn sm" data-tour="back">Back</button>' : ''}<button class="btn btn-primary sm" data-tour="next">${last ? 'Done' : TOUR.i ? 'Next' : 'Show me'}</button></div>
+    </div>`;
+  const pop = el.querySelector('.tour-pop');
+  if (pin) {   // beside the target if there's room, otherwise below or above it
+    const pw = pop.offsetWidth, ph = pop.offsetHeight, gap = 16;
+    let left = r.right + gap, top = r.top + r.height / 2 - ph / 2;
+    if (left + pw > innerWidth - 12) { left = Math.min(innerWidth - pw - 12, Math.max(12, r.left)); top = r.bottom + gap; if (top + ph > innerHeight - 12) top = r.top - ph - gap; }
+    pop.style.left = Math.max(12, left) + 'px'; pop.style.top = Math.max(12, Math.min(innerHeight - ph - 12, top)) + 'px';
+  }
+  const nb = el.querySelector('[data-tour="next"]'); if (nb) nb.focus();
+}
+// Shown once per person, the first time they're signed in with the app ready.
+function maybeTour() {
+  if (tourAuto || TOUR || S.mode !== 'cloud' || !S.ready || !S.user || lsGet(TOUR_KEY())) return;
+  const r = S.route || {}; if (r.view === 'home') return;
+  tourAuto = true;
+  setTimeout(() => { if (!TOUR && !document.querySelector('.overlay') && !lsGet(TOUR_KEY())) openTour(); }, 1200);
+}
+addEventListener('resize', () => { if (TOUR) paintTour(); });
+document.addEventListener('keydown', e => {
+  if (!TOUR) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeTour(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); tourGo('next'); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); tourGo('back'); }
+  else if (e.key === 'Tab') {   // keep focus inside the tour
+    const f = [...document.querySelectorAll('#tour button')]; if (!f.length) return;
+    const i = f.indexOf(document.activeElement); e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+  } else if (!e.metaKey && !e.ctrlKey) e.stopImmediatePropagation();   // no app shortcuts behind the tour
+}, true);
+
 function renderGuide() {
   const steps = guideSteps(), done = steps.filter(s => s.done).length;
   const roleRows = [['Owner', 'Everything a business admin can do, plus adding and removing other owners', true, true, true, true],
@@ -8141,6 +8257,25 @@ function renderGuide() {
     ? `<button class="btn sm" ${biz(go) ? `data-action="gd-biz" data-t="${go}"` : `data-guide-go="${go}"`}>${esc(label)} ${ico('arrowRight', 'i-sm')}</button>` : '';
   return topbar('Help /') + `<div class="content"><div class="gd">
     <div class="page-head"><h1>Guide</h1><div class="page-desc empty" style="cursor:default">How the platform fits together, and what to do first. Press <kbd>?</kbd> any time to ask a question.</div></div>
+    <div class="gd-tour"><span class="gd-tour-i">${ico('play')}</span><div><b>New here? Take the one-minute tour</b><span>${isClientRole() ? 'How to send a brief, approve the media plan and assets, and follow your results.' : 'How a brief flows from the request to the media plan, client approval, assets, go-live, tracking and the final report.'}</span></div><button class="btn btn-primary" data-action="tour">${ico('play', 'i-sm')} Start the tour</button></div>
+    <section class="gd-sec">
+      <div class="gd-h"><h2>From brief to report</h2><span class="mut">what happens, who does it</span></div>
+      <ol class="gd-journey">${(isClientRole() ? [
+        ['Send a brief', 'You', 'New brief: objective, budget, dates, markets, platforms. The team is alerted.'],
+        ['Media plan', 'The team', 'The team builds the plan and shares it with you.'],
+        ['Approve the plan', 'You', 'Approve it, or ask for changes with a note.'],
+        ['Assets', 'Both', 'The Drive folder and the deliverables list appear; approve each asset.'],
+        ['Go-live', 'The team', 'You get an alert when the campaign is live.'],
+        ['Results', 'You', 'Spend against plan, leads, cost per lead and the health check; download the Excel report.']]
+      : [['Brief', 'Client or account lead', 'Submitted on the platform. The account lead assigns the team and kicks off the workflow.'],
+        ['Media plan', 'Media planner', 'Upload the plan (link or file) and send it to the client.'],
+        ['Client approval', 'Client', 'Approve or request changes; every version and decision is kept.'],
+        ['Assets', 'Creative, paid social, search', 'Drive folder plus one row per deliverable; the client approves each asset.'],
+        ['Go-live', 'Paid media', 'Build, QA and launch. The client is alerted when it goes live.'],
+        ['Tracking', 'Analytics', 'Results by hand or CSV (Supermetrics later): pacing, KPIs against target, health check.'],
+        ['Report', 'Account lead', 'Export the Excel report and mark the brief completed. The client is alerted.']])
+        .map(([t, who, d], i) => `<li><span class="gd-n">${i + 1}</span><div><b>${t}</b><small>${who}</small><p>${d}</p></div></li>`).join('')}</ol>
+    </section>
     <section class="gd-sec">
       <div class="gd-h"><h2>Get started</h2><span class="mut">${done} of ${steps.length} done</span></div>
       <div class="gd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${done}"><i style="width:${Math.round(done / Math.max(steps.length, 1) * 100)}%"></i></div>
